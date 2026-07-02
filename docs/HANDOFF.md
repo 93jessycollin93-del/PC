@@ -13,7 +13,7 @@ SAS Hub shows status but has almost no controls. The job is to give it **hands**
 | Item | State |
 |---|---|
 | `src/sas-upgrade/api/control_routes.py` (313 lines) | **Draft, untested.** Flask route handlers, reviewed but never executed. |
-| `docs/SIRIUS_INTEGRATION_PLAN.md` | Planning notes. |
+| `docs/SAS_HUB_PLAN.md` | The corrected plan (what to build and why). |
 | `README.md` | Untouched Gemini template — ignore it. |
 
 `control_routes.py` assumes `app`, `squad_mgr`, `CONFIG_PATH`, `CloudClient` already exist (they live in `jacky`, not here). **Do not blind-paste it.**
