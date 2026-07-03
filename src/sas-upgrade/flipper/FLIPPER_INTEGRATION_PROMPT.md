@@ -99,14 +99,76 @@ disconnected, not throw a raw exception.
   IR send+learn, iButton read, GPIO read/write. Keep it functional over fancy —
   this mirrors the pattern used for the control routes and terminal pages already
   in this repo.
-- Results panel: shows raw output of the last operation.
-- **"Analyze with AI" button** on any result → POSTs the result JSON as context to the
-  existing `POST /api/ask` (same squad router used everywhere else in SAS), asking for
-  a plain-language read of what was captured (e.g., "what does this NFC dump mean?" /
-  "does this RF signal match a known protocol?"). Do not build a separate AI path for
-  this — reuse `/api/ask`.
+- Results panel: shows raw output of the last operation, with history (not just the
+  last one — keep a scrollback so AI analysis can reference prior captures).
 
-### 4. Connection strategy (already decided, don't relitigate)
+### 4. AI integration (this is not a single button — wire it in properly)
+
+SAS Hub already has the pieces: `squad_manager.py` (10 bots), `situation_assessor.py`
+(routing verdict), `cloud_router.py` (Groq → Gemini → OpenRouter fallback),
+`resource_policy.py`, and `POST /api/ask`. Flipper data plugs into all of it, not just
+a generic chat box.
+
+**a. A dedicated squad bot — "Recon" (or similar name matching jacky's existing bot
+   naming convention).** Add it to `squad_manager.py`'s bot roster with a system
+   prompt specialized for RF/NFC/IR/hardware analysis (protocol identification, known
+   vulnerability patterns, "what does this capture likely control"). Route Flipper
+   analysis requests to this bot specifically via `task_type: "recon"` (or whatever
+   `/api/ask`'s existing `task_type` dispatch convention is — check `jacky_core.py` for
+   how task_type maps to bot selection) rather than the generic default bot. This
+   matters: a general-purpose bot will hedge on "what protocol is this," a
+   recon-specialized system prompt will actually commit to an answer.
+
+**b. Local-first routing is the default for this domain, not optional.** RF captures,
+   NFC dumps, and iButton reads are exactly the kind of data your "offline-first /
+   survival-oriented" security posture (per the plan file's UPDATED VISION section) is
+   meant to protect. Force `routing_override = "local_only"` for any request tagged
+   `task_type: "recon"`, regardless of the user's global routing setting, unless they
+   explicitly opt out per-request (`{"allow_cloud": true}` in the request body). Do not
+   silently send capture data to Groq/Gemini/OpenRouter by default.
+
+**c. Per-domain analysis prompts, not one generic "explain this":**
+   - SubGHz result → ask the bot to identify likely protocol family (fixed-code vs
+     rolling-code, known modulation) and flag if it matches a common vulnerable
+     pattern (e.g., static fixed-code garage remotes are replay-vulnerable — the bot
+     should say so, not just describe the waveform).
+   - NFC result → identify card type/vendor from UID/ATQA/SAK bytes, and flag known-weak
+     tech (e.g., MIFARE Classic's crypto weaknesses) if applicable.
+   - IR result → identify protocol (NEC, RC5, SIRC, etc.) and, if a device database
+     lookup exists in the codebase already, cross-reference to a device model.
+   - iButton/LF RFID → identify format (Dallas, EM4100, HID Prox, etc.) and note
+     known cloning/emulation implications.
+   Implement this as distinct prompt templates the Flask layer selects by domain, all
+   still going through the one `/api/ask` call — don't build parallel AI codepaths.
+
+**d. Auto-analysis toggle.** A per-session setting (stored the same way `config.json`
+   stores other runtime toggles) that, when on, automatically fires the relevant
+   analysis prompt immediately after every capture instead of waiting for a manual
+   "Analyze" click. Default off (keep it opt-in — auto-firing AI calls on every scan
+   could hammer local Ollama unnecessarily); expose the toggle in the dashboard panel.
+
+**e. Natural-language command layer (optional, second pass — flag if scope is tight).**
+   A single text box where the operator types something like *"scan 433MHz and tell me
+   what's out there"* or *"read this NFC card and check if it's a known-weak type."*
+   The AI (via `/api/ask`, `task_type: "recon"`) parses intent and returns a structured
+   action (`{"action": "subghz_scan", "params": {...}}`), which the frontend then
+   executes against the real `/api/flipper/*` endpoints — closing the loop between
+   conversational control and actual hardware action. This is the same "AI has hands"
+   principle as the rest of SAS Hub, applied to Flipper specifically. Build this only
+   after (a)–(d) are working; it depends on them.
+
+**f. Session memory for comparisons.** Because the results panel keeps scrollback (see
+   above), the AI prompt should be able to include 2–3 prior captures as context when
+   asked things like *"compare this to the signal from 10 minutes ago"* — pass the
+   scrollback array into the `/api/ask` context, not just the single latest result.
+
+**g. BadUSB script generation.** If the operator asks the AI to "write a BadUSB script
+   that does X," route that through `/api/ask` with a prompt template that outputs
+   Flipper's BadUSB DuckyScript syntax, then let the operator review before it's ever
+   sent to `POST /api/flipper/badusb/run` — never auto-execute AI-generated BadUSB
+   scripts without a human confirmation step in the UI.
+
+### 5. Connection strategy (already decided, don't relitigate)
 Wireless-first for portability, but the mini PC use case is USB-first since it's a
 fixed machine with a port: **USB primary, BLE secondary** (for when the operator wants
 to trigger it from a phone instead). No network-bridge tier for v1 — skip it.
@@ -132,9 +194,19 @@ to trigger it from a phone instead). No network-bridge tier for v1 — skip it.
    signal; `infrared/send` on that saved file actually controls the device.
 5. Disconnect the Flipper mid-session → next API call returns a clean `503`, not a
    crash or hang.
-6. From the dashboard panel, hit "Analyze with AI" on an NFC read result → confirm the
-   request goes through `/api/ask` (check server logs for squad routing), and the
-   response is a sane plain-language summary.
+6. From the dashboard panel, hit "Analyze" on an NFC read result → confirm the request
+   routes to the Recon bot specifically (check server logs for which bot/model was
+   selected — should NOT be the generic default), and the response correctly identifies
+   the card type from the UID.
+7. Confirm local-only routing: with cloud providers enabled globally in SAS settings,
+   trigger a Flipper analysis and verify (via logs) it stayed local (Ollama), not
+   Groq/Gemini/OpenRouter — proving the `routing_override = local_only` force is
+   actually applied for `task_type: "recon"`.
+8. Toggle auto-analysis on, do a fresh SubGHz scan, confirm the AI read fires
+   automatically without a manual click.
+9. If the natural-language command layer (4e) was built: type "read this NFC card" with
+   a card present → confirm it correctly calls `/api/flipper/nfc/read` and returns a
+   result, not just a text description of what it would do.
 
 ## Explicitly not in this task
 Firmware modification, custom Flipper apps (FAP plugins), training/AI model work,
