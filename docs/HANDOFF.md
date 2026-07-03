@@ -13,6 +13,7 @@ SAS Hub shows status but has almost no controls. The job is to give it **hands**
 | Item | State |
 |---|---|
 | `src/sas-upgrade/api/control_routes.py` (313 lines) | **Draft, untested.** Flask route handlers, reviewed but never executed. |
+| `src/sas-upgrade/terminal/` | **Complete, ready to apply.** Full Workstation Terminal page + Flask route + nav link. See its own `README.md`. Untested on a live SAS instance (this session cannot run `jacky`). |
 | `docs/SAS_HUB_PLAN.md` | The corrected plan (what to build and why). |
 | `README.md` | Untouched Gemini template — ignore it. |
 
@@ -26,6 +27,21 @@ SAS Hub shows status but has almost no controls. The job is to give it **hands**
 - Integrations: `GET /api/integrations`, `POST /api/integrations/<name>/toggle`, `POST /api/integrations/<name>/test`
 - Routing: `GET|POST /api/routing/override`
 - Logs: `GET /api/logs` (+ `log_api_call()` helper)
+
+## Workstation Terminal (`src/sas-upgrade/terminal/`)
+A separate, complete feature: turns your TermStudio app (file explorer + editor +
+terminal + AI chat) into a real SAS Hub page at `/terminal`. Unlike `control_routes.py`,
+this is not a partial draft — `terminal.html` is the full page, already wired to call
+`POST /api/ask` (squad-routed AI, with a flag to fall back to direct Ollama) and
+`POST /api/shell` (real command execution via `sh <cmd>` / `!<cmd>`, respecting jacky's
+existing whitelist). `terminal_route.py` gives the one Flask route needed to serve it;
+`dashboard_nav_link.html` is the one `<a>` tag to link it from the dashboard. Read
+`src/sas-upgrade/terminal/README.md` for exact apply + verify steps.
+
+**Still unverified:** whether the reply field it reads from `/api/ask`
+(`response`/`reply`/`answer`/`text`) matches what jacky's endpoint actually returns, and
+whether `SAS.authHeaders()` matches jacky's real auth mechanism. Both are single-line
+fixes in `terminal.html` if wrong — flagged inline in the file.
 
 ## The one thing that unblocks everything
 Start a new session **scoped to the `jacky` repo.** You cannot do real work from the `PC` repo.
