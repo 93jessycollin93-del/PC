@@ -13,7 +13,7 @@ declare module '*?raw' {
     export default content;
 }
 
-export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export';
+export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper';
 
 export interface DesktopItem {
     id: string;

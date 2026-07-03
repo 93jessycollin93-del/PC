@@ -16,10 +16,14 @@ import { InkLayer } from './components/InkLayer';
 import { getAiClient, HOME_TOOLS, MAIL_TOOLS, MODEL_NAME, SYSTEM_INSTRUCTION } from './lib/gemini';
 import { NotepadApp } from './components/apps/NotepadApp';
 import { CyberneticExportApp } from './components/apps/CyberneticExportApp';
+import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
+import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
 import { AuthButton } from './components/AuthButton';
-import { Share2 } from 'lucide-react';
+import { Share2, Github, Radio } from 'lucide-react';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
+    { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
+    { id: 'github_sync', name: 'GitHub Sync', type: 'app', icon: Github, appId: 'github_sync', bgColor: 'bg-gradient-to-br from-zinc-700 to-zinc-900' },
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
     { id: 'mail', name: 'Mail', type: 'app', icon: Mail, appId: 'mail', bgColor: 'bg-gradient-to-br from-blue-400 to-blue-700' },
     { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
@@ -594,6 +598,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'snake') content = <SnakeGame />;
                     else if (win.item.appId === 'notepad') content = <NotepadApp fileId={win.id} initialContent={win.item.notepadInitialContent} />;
                     else if (win.item.appId === 'cybernetic_export') content = <CyberneticExportApp />;
+                    else if (win.item.appId === 'github_sync') content = <GitHubSyncApp />;
+                    else if (win.item.appId === 'flipper') content = <FlipperZeroApp />;
 
                     return (
                         <DraggableWindow
