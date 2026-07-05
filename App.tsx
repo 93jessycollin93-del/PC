@@ -18,10 +18,12 @@ import { NotepadApp } from './components/apps/NotepadApp';
 import { CyberneticExportApp } from './components/apps/CyberneticExportApp';
 import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
 import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
+import { JackieChatApp } from './components/apps/JackieChatApp';
 import { AuthButton } from './components/AuthButton';
-import { Share2, Github, Radio } from 'lucide-react';
+import { Share2, Github, Radio, Cpu } from 'lucide-react';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
+    { id: 'jackie', name: 'Jackie v2', type: 'app', icon: Cpu, appId: 'jackie', bgColor: 'bg-gradient-to-br from-cyan-500 to-blue-700' },
     { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
     { id: 'github_sync', name: 'GitHub Sync', type: 'app', icon: Github, appId: 'github_sync', bgColor: 'bg-gradient-to-br from-zinc-700 to-zinc-900' },
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
@@ -181,6 +183,7 @@ export const App: React.FC = () => {
         }
 
         let initialSize = { width: 640, height: 480 };
+        if (item.appId === 'jackie') initialSize = { width: 500, height: 700 };
         if (item.appId === 'mail') initialSize = { width: 800, height: 600 };
         if (item.appId === 'snake') initialSize = { width: 500, height: 550 };
         if (item.appId === 'notepad') initialSize = { width: 400, height: 500 };
@@ -593,6 +596,9 @@ Body: ${emailToSummarize.body}`,
                 {openWindows.map(win => {
                     let content = null;
                     if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
+                    else if (win.item.appId === 'jackie') content = <JackieChatApp onNavigate={(feature, params) => {
+                        showToast(`Routing to ${feature}...`, 'Jackie', false);
+                    }} />;
                     else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
                     else if (win.item.appId === 'slides') content = <SlidesApp />;
                     else if (win.item.appId === 'snake') content = <SnakeGame />;
