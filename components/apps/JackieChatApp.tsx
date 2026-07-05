@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, AlertCircle, Navigation2 } from 'lucide-react';
-import { getAiClient } from '../../lib/gemini';
-import { Modality } from '@google/genai';
+import { getAiClient, MODEL_NAME } from '../../lib/gemini';
 
 interface Message {
   id: string;
@@ -111,26 +110,23 @@ export const JackieChatApp: React.FC<JackieChatAppProps> = ({ onNavigate }) => {
     setError('');
 
     try {
-      const client = await getAiClient();
-      const response = await client.generateContent({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: JACKIE_SYSTEM_PROMPT + '\n\n' + userMessage.content,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
+      const ai = getAiClient();
+      // Send full conversation history so Jackie keeps context across turns
+      const history = [...messages, userMessage].map((m) => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }],
+      }));
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: history,
+        config: {
+          systemInstruction: JACKIE_SYSTEM_PROMPT,
           maxOutputTokens: 300,
           temperature: 0.7,
         },
       });
 
-      const assistantContent =
-        response.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
+      const assistantContent = response.text || 'No response generated.';
 
       const navigationAction = parseNavigationAction(assistantContent);
       const cleanContent = cleanResponseText(assistantContent);

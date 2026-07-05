@@ -13,7 +13,7 @@ declare module '*?raw' {
     export default content;
 }
 
-export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper';
+export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper' | 'jackie';
 
 export interface DesktopItem {
     id: string;
@@ -24,6 +24,7 @@ export interface DesktopItem {
     contents?: DesktopItem[];
     bgColor?: string;
     notepadInitialContent?: string;
+    featured?: boolean;
 }
 
 export interface Point {
