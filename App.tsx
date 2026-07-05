@@ -2,24 +2,17 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, Suspense } from 'react';
 import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser } from 'lucide-react';
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
 import { HomeScreen } from './components/apps/HomeScreen';
-import { MailApp } from './components/apps/MailApp';
-import { SlidesApp } from './components/apps/SlidesApp';
-import { SnakeGame } from './components/apps/SnakeGame';
 import { FolderView } from './components/apps/FolderView';
 import { DraggableWindow } from './components/DraggableWindow';
 import { InkLayer } from './components/InkLayer';
 import { getAiClient, HOME_TOOLS, MAIL_TOOLS, MODEL_NAME, SYSTEM_INSTRUCTION } from './lib/gemini';
-import { NotepadApp } from './components/apps/NotepadApp';
-import { CyberneticExportApp } from './components/apps/CyberneticExportApp';
-import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
-import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
-import { JackieChatApp } from './components/apps/JackieChatApp';
 import { JackieVibeBackground } from './components/JackieVibeBackground';
+import { getAppDefinition } from './lib/appRegistry';
 import { AuthButton } from './components/AuthButton';
 import { Share2, Github, Radio, Cpu } from 'lucide-react';
 
@@ -183,12 +176,8 @@ export const App: React.FC = () => {
             return;
         }
 
-        let initialSize = { width: 640, height: 480 };
-        if (item.appId === 'jackie') initialSize = { width: 500, height: 700 };
-        if (item.appId === 'mail') initialSize = { width: 800, height: 600 };
-        if (item.appId === 'snake') initialSize = { width: 500, height: 550 };
-        if (item.appId === 'notepad') initialSize = { width: 400, height: 500 };
-        if (item.appId === 'cybernetic_export') initialSize = { width: 580, height: 620 };
+        // Window size comes from the app registry (single source of truth)
+        const initialSize = getAppDefinition(item.appId)?.defaultSize ?? { width: 640, height: 480 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -598,17 +587,33 @@ Body: ${emailToSummarize.body}`,
                 {/* Windows */}
                 {openWindows.map(win => {
                     let content = null;
-                    if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
-                    else if (win.item.appId === 'jackie') content = <JackieChatApp onNavigate={(feature, params) => {
-                        showToast(`Routing to ${feature}...`, 'Jackie', false);
-                    }} />;
-                    else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
-                    else if (win.item.appId === 'slides') content = <SlidesApp />;
-                    else if (win.item.appId === 'snake') content = <SnakeGame />;
-                    else if (win.item.appId === 'notepad') content = <NotepadApp fileId={win.id} initialContent={win.item.notepadInitialContent} />;
-                    else if (win.item.appId === 'cybernetic_export') content = <CyberneticExportApp />;
-                    else if (win.item.appId === 'github_sync') content = <GitHubSyncApp />;
-                    else if (win.item.appId === 'flipper') content = <FlipperZeroApp />;
+                    if (win.item.type === 'folder') {
+                        content = <FolderView folder={win.item} />;
+                    } else {
+                        // All apps render through the lazy-loading registry:
+                        // each app's code lives in its own chunk, fetched on first open.
+                        const def = getAppDefinition(win.item.appId);
+                        if (def) {
+                            const ctx = {
+                                item: win.item,
+                                windowId: win.id,
+                                emails,
+                                showToast,
+                                navigate: (feature: string) => {
+                                    showToast(`Routing to ${feature}...`, 'Jackie', true);
+                                },
+                            };
+                            content = (
+                                <Suspense fallback={
+                                    <div className="h-full w-full flex items-center justify-center bg-zinc-900">
+                                        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                                    </div>
+                                }>
+                                    <def.Component {...def.props(ctx)} />
+                                </Suspense>
+                            );
+                        }
+                    }
 
                     return (
                         <DraggableWindow
