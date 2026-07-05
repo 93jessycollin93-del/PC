@@ -2,26 +2,22 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, Suspense } from 'react';
 import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser } from 'lucide-react';
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
 import { HomeScreen } from './components/apps/HomeScreen';
-import { MailApp } from './components/apps/MailApp';
-import { SlidesApp } from './components/apps/SlidesApp';
-import { SnakeGame } from './components/apps/SnakeGame';
 import { FolderView } from './components/apps/FolderView';
 import { DraggableWindow } from './components/DraggableWindow';
 import { InkLayer } from './components/InkLayer';
 import { getAiClient, HOME_TOOLS, MAIL_TOOLS, MODEL_NAME, SYSTEM_INSTRUCTION } from './lib/gemini';
-import { NotepadApp } from './components/apps/NotepadApp';
-import { CyberneticExportApp } from './components/apps/CyberneticExportApp';
-import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
-import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
+import { JackieVibeBackground } from './components/JackieVibeBackground';
+import { getAppDefinition } from './lib/appRegistry';
 import { AuthButton } from './components/AuthButton';
-import { Share2, Github, Radio } from 'lucide-react';
+import { Share2, Github, Radio, Cpu } from 'lucide-react';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
+    { id: 'jackie', name: 'Jackie v2', type: 'app', icon: Cpu, appId: 'jackie', bgColor: 'bg-gradient-to-br from-cyan-500 to-blue-700', featured: true },
     { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
     { id: 'github_sync', name: 'GitHub Sync', type: 'app', icon: Github, appId: 'github_sync', bgColor: 'bg-gradient-to-br from-zinc-700 to-zinc-900' },
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
@@ -180,11 +176,8 @@ export const App: React.FC = () => {
             return;
         }
 
-        let initialSize = { width: 640, height: 480 };
-        if (item.appId === 'mail') initialSize = { width: 800, height: 600 };
-        if (item.appId === 'snake') initialSize = { width: 500, height: 550 };
-        if (item.appId === 'notepad') initialSize = { width: 400, height: 500 };
-        if (item.appId === 'cybernetic_export') initialSize = { width: 580, height: 620 };
+        // Window size comes from the app registry (single source of truth)
+        const initialSize = getAppDefinition(item.appId)?.defaultSize ?? { width: 640, height: 480 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -573,33 +566,54 @@ Body: ${emailToSummarize.body}`,
             </div>
 
             {/* Desktop Area with Dynamic Background */}
-            <div 
+            <div
                 className="h-full w-full relative overflow-hidden bg-zinc-900 transition-all duration-1000 ease-in-out"
                 style={{
-                    backgroundImage: wallpaperUrl 
-                       ? `url(${wallpaperUrl})` 
-                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.25) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.2) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.2) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 20%)',
+                    backgroundImage: wallpaperUrl
+                       ? `url(${wallpaperUrl})`
+                       : undefined,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                 }}
             >
-                
+                {/* Animated vibe-coding background (hidden when an AI wallpaper is set) */}
+                {!wallpaperUrl && <JackieVibeBackground />}
+
                 {/* Background Home Screen (Clicking it focuses desktop) */}
-                <div className="h-full w-full" onMouseDown={() => focusWindow(null)}>
+                <div className="h-full w-full relative" onMouseDown={() => focusWindow(null)}>
                      <HomeScreen items={desktopItems} onLaunch={handleLaunch} />
                 </div>
 
                 {/* Windows */}
                 {openWindows.map(win => {
                     let content = null;
-                    if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
-                    else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
-                    else if (win.item.appId === 'slides') content = <SlidesApp />;
-                    else if (win.item.appId === 'snake') content = <SnakeGame />;
-                    else if (win.item.appId === 'notepad') content = <NotepadApp fileId={win.id} initialContent={win.item.notepadInitialContent} />;
-                    else if (win.item.appId === 'cybernetic_export') content = <CyberneticExportApp />;
-                    else if (win.item.appId === 'github_sync') content = <GitHubSyncApp />;
-                    else if (win.item.appId === 'flipper') content = <FlipperZeroApp />;
+                    if (win.item.type === 'folder') {
+                        content = <FolderView folder={win.item} />;
+                    } else {
+                        // All apps render through the lazy-loading registry:
+                        // each app's code lives in its own chunk, fetched on first open.
+                        const def = getAppDefinition(win.item.appId);
+                        if (def) {
+                            const ctx = {
+                                item: win.item,
+                                windowId: win.id,
+                                emails,
+                                showToast,
+                                navigate: (feature: string) => {
+                                    showToast(`Routing to ${feature}...`, 'Jackie', true);
+                                },
+                            };
+                            content = (
+                                <Suspense fallback={
+                                    <div className="h-full w-full flex items-center justify-center bg-zinc-900">
+                                        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                                    </div>
+                                }>
+                                    <def.Component {...def.props(ctx)} />
+                                </Suspense>
+                            );
+                        }
+                    }
 
                     return (
                         <DraggableWindow

@@ -18,6 +18,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ items, onLaunch }) => {
                     // Render an invisible placeholder to maintain grid gap
                     return <div key={`gap-${index}`} className="w-28 h-[7rem]" />;
                 }
+                if (item.featured) {
+                    // Featured app: double-size tile spanning 2x2 grid cells with animated glow
+                    return (
+                        <button
+                            key={item.id}
+                            onClick={() => onLaunch(item)}
+                            className="flex flex-col items-center justify-start gap-3 p-2 rounded-xl hover:bg-white/10 transition-colors group col-span-2 row-span-2"
+                            title={item.name}
+                        >
+                            <div className={`relative w-44 h-44 ${item.bgColor || 'bg-zinc-700'} rounded-[36px] flex items-center justify-center shadow-[0_0_40px_-5px_rgba(34,211,238,0.5),inset_0_1px_0.5px_rgba(255,255,255,0.15),inset_0_-1px_2px_rgba(0,0,0,0.1)] group-hover:scale-105 transition-transform duration-300 ease-out border-t border-white/10 overflow-hidden animate-[pulse_4s_ease-in-out_infinite]`}>
+                                <div className="absolute inset-0 bg-[radial-gradient(at_top_left,_rgba(255,255,255,0.2)_0%,_transparent_70%)] pointer-events-none" />
+                                {/* Scanline sweep effect */}
+                                <div className="absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-white/10 to-transparent pointer-events-none animate-[featuredScan_3s_linear_infinite]" />
+                                <item.icon className="w-24 h-24 text-white relative z-10 drop-shadow-[0_2px_6px_rgba(0,0,0,0.3)]" />
+                            </div>
+                            <span className="text-base text-cyan-200 font-bold text-center truncate w-full px-1 drop-shadow-md [text-shadow:_0_1px_4px_rgb(34_211_238_/_50%)] tracking-wide">
+                                {item.name}
+                            </span>
+                            <style>{`
+                                @keyframes featuredScan {
+                                    0% { transform: translateY(-150%); }
+                                    100% { transform: translateY(450%); }
+                                }
+                            `}</style>
+                        </button>
+                    );
+                }
                 return (
                     <button
                         key={item.id}
@@ -29,7 +56,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ items, onLaunch }) => {
                         <div className={`relative w-20 h-20 ${item.bgColor || 'bg-zinc-700'} rounded-[22px] flex items-center justify-center shadow-[0_4px_8px_-4px_rgba(0,0,0,0.2),inset_0_1px_0.5px_rgba(255,255,255,0.15),inset_0_-1px_2px_rgba(0,0,0,0.1)] group-hover:scale-105 transition-transform duration-300 ease-out border-t border-white/10 overflow-hidden`}>
                              {/* Gentler Glossy Overlay */}
                             <div className="absolute inset-0 bg-[radial-gradient(at_top_left,_rgba(255,255,255,0.15)_0%,_transparent_70%)] pointer-events-none" />
-                            
+
                             <item.icon className="w-10 h-10 text-white relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" />
                         </div>
                         <span className="text-sm text-white font-medium text-center truncate w-full px-1 drop-shadow-md [text-shadow:_0_1px_2px_rgb(0_0_0_/_40%)]">
