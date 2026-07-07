@@ -24,6 +24,7 @@ import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
 import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
 import { TermStudioApp } from './components/apps/TermStudioApp';
 import { OllamaApp } from './components/apps/OllamaApp';
+import { CloudInfrastructureApp } from './components/apps/CloudInfrastructureApp';
 import { OpenClawApp } from './components/apps/OpenClawApp';
 import { CodeRabbitApp } from './components/apps/CodeRabbitApp';
 import { SemanticScholarApp } from './components/apps/SemanticScholarApp';
@@ -77,6 +78,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
     { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
     { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
+    { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
@@ -913,6 +915,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
                     else if (win.item.appId === 'ollama') content = <OllamaApp />;
                     else if (win.item.appId === 'small_agent_fleet') content = <SmallAgentFleetApp />;
+                    else if (win.item.appId === 'cloud_infrastructure') content = <CloudInfrastructureApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe 
