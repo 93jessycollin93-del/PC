@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Share2, Lock, Unlock, Download, Trash2, Eye } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
 
+interface AIAccess {
+  id: string;
+  aiName: string;
+  aiModel: string;
+  timestamp: number;
+  duration: number; // milliseconds
+  purpose: string; // e.g., "learning", "analysis", "training"
+}
+
 interface SharedChat {
   id: string;
   title: string;
@@ -12,6 +21,7 @@ interface SharedChat {
   messageCount: number;
   description: string;
   accessKey?: string; // For AI access
+  aiAccessLog: AIAccess[]; // Track which AIs have read this chat
 }
 
 export const ChatHistoryShareApp: React.FC = () => {
@@ -62,7 +72,8 @@ export const ChatHistoryShareApp: React.FC = () => {
       lastUpdated: Date.now(),
       messageCount: 0,
       description: newShareDescription,
-      accessKey: isPublic ? undefined : generateAccessKey()
+      accessKey: isPublic ? undefined : generateAccessKey(),
+      aiAccessLog: []
     };
 
     setSharedChats([newChat, ...sharedChats]);
@@ -119,6 +130,34 @@ This chat history is marked as "Free for AI Learning" - any AI can read and lear
 
   const copyAccessKey = (key: string) => {
     navigator.clipboard.writeText(key);
+  };
+
+  const simulateAIAccess = (chatId: string, aiName: string, aiModel: string) => {
+    setSharedChats(sharedChats.map(chat =>
+      chat.id === chatId
+        ? {
+            ...chat,
+            aiAccessLog: [
+              ...chat.aiAccessLog,
+              {
+                id: `access_${Date.now()}`,
+                aiName,
+                aiModel,
+                timestamp: Date.now(),
+                duration: Math.floor(Math.random() * 30000) + 5000, // 5-35 seconds
+                purpose: ['learning', 'analysis', 'training'][Math.floor(Math.random() * 3)] as 'learning' | 'analysis' | 'training'
+              }
+            ]
+          }
+        : chat
+    ));
+  };
+
+  const formatDuration = (ms: number): string => {
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${seconds % 60}s`;
   };
 
   return (
@@ -307,6 +346,54 @@ This chat history is marked as "Free for AI Learning" - any AI can read and lear
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* AI Access Log */}
+            <div>
+              <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                <Eye size={14} className="text-cyan-400" />
+                AI Access Log
+              </h3>
+              {selectedChat.aiAccessLog.length === 0 ? (
+                <p className="text-sm text-zinc-400">No AI access yet</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {selectedChat.aiAccessLog.map((access) => (
+                    <div key={access.id} className="p-2 bg-zinc-800/50 rounded border border-zinc-700">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div>
+                          <p className="text-xs font-bold text-cyan-300">{access.aiName}</p>
+                          <p className="text-[10px] text-zinc-400">{access.aiModel}</p>
+                        </div>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold ${
+                          access.purpose === 'learning'
+                            ? 'bg-green-500/20 text-green-300'
+                            : access.purpose === 'analysis'
+                            ? 'bg-blue-500/20 text-blue-300'
+                            : 'bg-purple-500/20 text-purple-300'
+                        }`}>
+                          {access.purpose}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                        <span>{new Date(access.timestamp).toLocaleString()}</span>
+                        <span>Duration: {formatDuration(access.duration)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedChat.isPublic && (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => simulateAIAccess(selectedChat.id, 'Claude Haiku', 'claude-haiku-4-5')}
+                    className="flex-1 px-2 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/50 text-cyan-300 rounded text-xs font-bold transition-colors"
+                    title="Simulate AI access (demo)"
+                  >
+                    Simulate Access
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Info */}
