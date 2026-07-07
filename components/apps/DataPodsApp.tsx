@@ -160,10 +160,20 @@ const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressed
     const lastRotation = await getVaultBackupRotation();
     const now = Date.now();
 
-    // Rotate every 1.5 hours (90 min) for production, or 6 hours for full day cycle
-    const ROTATION_INTERVAL = 90 * 60 * 1000; // 1.5 hours
+    // Tiered backup rotation: Slot 1 every 6h, Slot 2 every 12h, Slot 3 every 3 days
+    const getRotationInterval = (slot: 1 | 2 | 3): number => {
+        switch(slot) {
+            case 1: return 6 * 60 * 60 * 1000; // 6 hours - frequent snapshots
+            case 2: return 12 * 60 * 60 * 1000; // 12 hours - daily backup
+            case 3: return 3 * 24 * 60 * 60 * 1000; // 3 days - archival copy
+            default: return 6 * 60 * 60 * 1000;
+        }
+    };
 
-    if (!lastRotation || (now - lastRotation.timestamp) > ROTATION_INTERVAL) {
+    const currentSlot = lastRotation?.slot || 1;
+    const rotationInterval = getRotationInterval(currentSlot);
+
+    if (!lastRotation || (now - lastRotation.timestamp) > rotationInterval) {
         // Check for large changes
         const isLargeChange = detectLargeChange(totalCompressedSizeMB, largeChangeThreshold);
         let detection = getLargeChangeDetection();
@@ -647,8 +657,30 @@ export const DataPodsApp: React.FC = () => {
                     <div className="space-y-2">
                         <h2 className="text-lg font-bold text-white flex items-center gap-2"><Cloud size={20} className="text-blue-400" /> Vault Backup Rotation</h2>
                         <p className="text-sm text-zinc-400 leading-relaxed">
-                            3-copy rotating backup system with large-change failsafe: vault automatically backs up every 1.5 hours through three cloud slots. Slot 3 is preserved during anomalous changes.
+                            Tiered 3-copy backup system: Slot 1 every 6 hours (frequent), Slot 2 every 12 hours (daily), Slot 3 every 3 days (archival). Slot 3 is preserved during anomalous changes for emergency recovery.
                         </p>
+                    </div>
+
+                    {/* Backup Intervals Info */}
+                    <div className="bg-zinc-900 border border-blue-800/50 rounded-xl p-4">
+                        <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Clock size={14} /> Backup Intervals</h3>
+                        <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div className="bg-blue-950/30 rounded p-2 border border-blue-900/50">
+                                <div className="font-bold text-blue-300">Slot 1</div>
+                                <div className="text-blue-200/70 text-[11px]">Every 6 hours</div>
+                                <div className="text-blue-100/50 text-[10px] mt-1">Frequent snapshots</div>
+                            </div>
+                            <div className="bg-indigo-950/30 rounded p-2 border border-indigo-900/50">
+                                <div className="font-bold text-indigo-300">Slot 2</div>
+                                <div className="text-indigo-200/70 text-[11px]">Every 12 hours</div>
+                                <div className="text-indigo-100/50 text-[10px] mt-1">Daily backup</div>
+                            </div>
+                            <div className="bg-violet-950/30 rounded p-2 border border-violet-900/50">
+                                <div className="font-bold text-violet-300">Slot 3</div>
+                                <div className="text-violet-200/70 text-[11px]">Every 3 days</div>
+                                <div className="text-violet-100/50 text-[10px] mt-1">Archival copy</div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Large Change Detection Threshold Config */}
