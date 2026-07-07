@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Database, HardDrive, Download, Settings, Shield, Server, Box, Activity, Zap, FileJson, Hash, Link, Terminal, Layout, Cpu, Network, Lock, Layers, Check, FolderTree, Folder } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Database, HardDrive, Download, Settings, Shield, Server, Box, Activity, Zap, FileJson, Hash, Link, Terminal, Layout, Cpu, Network, Lock, Layers, Check, FolderTree, Folder, Trash2 } from 'lucide-react';
+import { compress, decompress } from 'fflate';
 
 interface DataPod {
     id: string;
@@ -10,7 +11,103 @@ interface DataPod {
     progress: number;
     status: 'idle' | 'downloading' | 'compiling' | 'ready' | 'error';
     contents: string[];
+    rawSizeBytes?: number;
+    compressedSizeBytes?: number;
+    compressionRatio?: number;
+    lastModified?: number;
 }
+
+interface PodStorageEntry {
+    id: string;
+    data: Uint8Array;
+    metadata: DataPod;
+    timestamp: number;
+}
+
+const DB_NAME = 'SAS_ZERO_VAULT';
+const STORE_NAME = 'pods';
+
+const getIndexedDB = (): IDBDatabase | null => {
+    if (typeof window === 'undefined' || !window.indexedDB) return null;
+    return (window as any).__idbInstance || null;
+};
+
+const initIndexedDB = async (): Promise<IDBDatabase> => {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            (window as any).__idbInstance = req.result;
+            resolve(req.result);
+        };
+        req.onupgradeneeded = (e) => {
+            const db = (e.target as IDBOpenDBRequest).result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+    });
+};
+
+const savePodToIDB = async (pod: DataPod, data: Uint8Array): Promise<void> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const entry: PodStorageEntry = {
+            id: pod.id,
+            data,
+            metadata: { ...pod, progress: 0 },
+            timestamp: Date.now(),
+        };
+        const req = store.put(entry);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve();
+    });
+};
+
+const loadPodFromIDB = async (podId: string): Promise<{ pod: DataPod; data: Uint8Array } | null> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(podId);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (!req.result) return resolve(null);
+            const entry = req.result as PodStorageEntry;
+            resolve({ pod: entry.metadata as DataPod, data: entry.data });
+        };
+    });
+};
+
+const getTotalStorageUsed = async (): Promise<number> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            let total = 0;
+            (req.result as PodStorageEntry[]).forEach(entry => {
+                total += entry.data.length + JSON.stringify(entry.metadata).length;
+            });
+            resolve(total);
+        };
+    });
+};
+
+const deletePodFromIDB = async (podId: string): Promise<void> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.delete(podId);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve();
+    });
+};
 
 const INITIAL_PODS: DataPod[] = [
     { 
@@ -73,15 +170,46 @@ export const DataPodsApp: React.FC = () => {
     const [pods, setPods] = useState<DataPod[]>(INITIAL_PODS);
     const [activeTab, setActiveTab] = useState<'vault' | 'graph' | 'architecture'>('vault');
     const [expandedPod, setExpandedPod] = useState<string | null>(null);
+    const [storageUsedBytes, setStorageUsedBytes] = useState<number>(0);
+    const initDoneRef = useRef(false);
 
     const CORE_MB = 50;
     const RESERVED_MB = 600;
     const TOTAL_MB = 950;
     const DATASETS_LIMIT_MB = 300;
 
-    const datasetsUsed = pods.filter(p => p.status === 'ready').reduce((acc, pod) => acc + pod.sizeMB, 0);
+    // Initialize IndexedDB and load persisted pods
+    useEffect(() => {
+        if (initDoneRef.current) return;
+        initDoneRef.current = true;
 
-    const handleAction = (podId: string, e: React.MouseEvent) => {
+        (async () => {
+            try {
+                await initIndexedDB();
+                const usage = await getTotalStorageUsed();
+                setStorageUsedBytes(usage);
+
+                // Load persisted pods from IDB
+                const persistedPods = await Promise.all(
+                    INITIAL_PODS.map(async (pod) => {
+                        const stored = await loadPodFromIDB(pod.id);
+                        if (stored && stored.pod.status === 'ready') {
+                            return stored.pod;
+                        }
+                        return pod;
+                    })
+                );
+                setPods(persistedPods);
+            } catch (err) {
+                console.error('Failed to init vault storage:', err);
+            }
+        })();
+    }, []);
+
+    const datasetsUsed = pods.filter(p => p.status === 'ready').reduce((acc, pod) => acc + pod.sizeMB, 0);
+    const storageUsedMB = Math.round(storageUsedBytes / 1024 / 1024 * 100) / 100;
+
+    const handleAction = async (podId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         setPods(prev => prev.map(p => {
             if (p.id === podId && (p.status === 'idle' || p.status === 'error')) {
@@ -89,20 +217,79 @@ export const DataPodsApp: React.FC = () => {
             }
             return p;
         }));
-        
+
         let p = 0;
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
             p += Math.floor(Math.random() * 15) + 5;
             if (p >= 100) {
                 clearInterval(interval);
+
+                // Simulate pod data compression
                 setPods(prev => prev.map(pod => pod.id === podId ? { ...pod, status: 'compiling', progress: 100 } : pod));
-                setTimeout(() => {
-                    setPods(prev => prev.map(pod => pod.id === podId ? { ...pod, status: 'ready' } : pod));
+
+                setTimeout(async () => {
+                    try {
+                        const pod = pods.find(p => p.id === podId);
+                        if (!pod) return;
+
+                        // Generate fake pod data (in real scenario, this would be actual knowledge base)
+                        const rawData = JSON.stringify({
+                            id: pod.id,
+                            content: Array(pod.sizeMB * 10000).fill(pod.name),
+                            metadata: pod.contents,
+                            timestamp: Date.now(),
+                        });
+
+                        const rawBytes = new TextEncoder().encode(rawData);
+
+                        // Compress with fflate
+                        compress(rawBytes, (err, compressed) => {
+                            if (err) {
+                                console.error('Compression failed:', err);
+                                return;
+                            }
+
+                            const ratio = Math.round((1 - compressed.length / rawBytes.length) * 100);
+                            const updatedPod: DataPod = {
+                                ...pod,
+                                status: 'ready',
+                                progress: 0,
+                                rawSizeBytes: rawBytes.length,
+                                compressedSizeBytes: compressed.length,
+                                compressionRatio: ratio,
+                                lastModified: Date.now(),
+                            };
+
+                            // Save to IndexedDB
+                            savePodToIDB(updatedPod, compressed)
+                                .then(async () => {
+                                    const usage = await getTotalStorageUsed();
+                                    setStorageUsedBytes(usage);
+                                    setPods(prev => prev.map(p => p.id === podId ? updatedPod : p));
+                                })
+                                .catch(err => console.error('Failed to save pod:', err));
+                        });
+                    } catch (err) {
+                        console.error('Pod compilation failed:', err);
+                        setPods(prev => prev.map(p => p.id === podId ? { ...p, status: 'error' } : p));
+                    }
                 }, 1500);
             } else {
                 setPods(prev => prev.map(pod => pod.id === podId ? { ...pod, progress: Math.min(100, p) } : pod));
             }
         }, 300);
+    };
+
+    const handleDelete = async (podId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await deletePodFromIDB(podId);
+            const usage = await getTotalStorageUsed();
+            setStorageUsedBytes(usage);
+            setPods(prev => prev.map(p => p.id === podId ? { ...p, status: 'idle', rawSizeBytes: undefined, compressedSizeBytes: undefined, compressionRatio: undefined } : p));
+        } catch (err) {
+            console.error('Failed to delete pod:', err);
+        }
     };
 
     const getCategoryIcon = (cat: string) => {
@@ -140,9 +327,10 @@ export const DataPodsApp: React.FC = () => {
                     <div className="p-5 bg-gradient-to-b from-[#0f1115] to-[#09090b] shrink-0 border-b border-zinc-800/50">
                         <div className="flex justify-between items-end mb-3">
                             <div className="space-y-1">
-                                <div className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-1.5"><HardDrive size={12} /> Total Storage Allocation (950 MB)</div>
+                                <div className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-1.5"><HardDrive size={12} /> Vault Storage (IndexedDB)</div>
                                 <div className="text-xl font-black tracking-tight text-white flex gap-4">
-                                    <span className="flex items-baseline gap-1"><span className="text-emerald-400">{datasetsUsed}</span> <span className="text-xs text-zinc-500 font-medium">/ 300 MB Datasets</span></span>
+                                    <span className="flex items-baseline gap-1"><span className="text-emerald-400">{storageUsedMB.toFixed(2)}</span> <span className="text-xs text-zinc-500 font-medium">MB Compressed</span></span>
+                                    <span className="text-xs text-zinc-600">({datasetsUsed} pods ready)</span>
                                 </div>
                             </div>
                         </div>
@@ -218,22 +406,34 @@ export const DataPodsApp: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {pod.status === 'idle' || pod.status === 'error' ? (
-                                            <button 
-                                                onClick={(e) => handleAction(pod.id, e)}
-                                                className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-                                            >
-                                                <Download size={14} />
-                                            </button>
-                                        ) : pod.status === 'ready' ? (
-                                            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
-                                                <Settings size={14} />
-                                            </button>
-                                        ) : (
-                                            <div className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 text-zinc-600">
-                                                <Activity size={14} className="animate-spin" />
-                                            </div>
-                                        )}
+                                        <div className="flex gap-2">
+                                            {pod.status === 'idle' || pod.status === 'error' ? (
+                                                <button
+                                                    onClick={(e) => handleAction(pod.id, e)}
+                                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                                                    title="Download & compress pod"
+                                                >
+                                                    <Download size={14} />
+                                                </button>
+                                            ) : pod.status === 'ready' ? (
+                                                <>
+                                                    <button className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-white transition-colors" title="Pod settings">
+                                                        <Settings size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDelete(pod.id, e)}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 text-zinc-500 hover:bg-red-900 hover:text-red-400 transition-colors"
+                                                        title="Delete pod from vault"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 text-zinc-600">
+                                                    <Activity size={14} className="animate-spin" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -257,12 +457,12 @@ export const DataPodsApp: React.FC = () => {
                                             </div>
                                             <div className="space-y-2.5">
                                                 <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Compression Metadata</h4>
-                                                <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-400 space-y-1.5">
-                                                    <div className="flex justify-between"><span>Format:</span> <span className="text-zinc-300">Semantic Graph + Faiss</span></div>
-                                                    <div className="flex justify-between"><span>Raw Size:</span> <span className="text-zinc-300">~{pod.sizeMB * 4} MB</span></div>
-                                                    <div className="flex justify-between"><span>Compression:</span> <span className="text-emerald-400">75% (JSONL Structured)</span></div>
-                                                    <div className="flex justify-between"><span>Embeddings:</span> <span className="text-zinc-300">f16 Quantized</span></div>
-                                                    <div className="mt-2 pt-2 border-t border-zinc-800 text-indigo-400 flex items-center gap-1"><Check size={10} /> Optimized for retrieval</div>
+                                                    <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-400 space-y-1.5">
+                                                    <div className="flex justify-between"><span>Format:</span> <span className="text-zinc-300">fflate Compressed</span></div>
+                                                    <div className="flex justify-between"><span>Raw Size:</span> <span className="text-zinc-300">{pod.rawSizeBytes ? `${(pod.rawSizeBytes / 1024 / 1024).toFixed(2)} MB` : 'Pending'}</span></div>
+                                                    <div className="flex justify-between"><span>Compressed:</span> <span className="text-emerald-400">{pod.compressedSizeBytes ? `${(pod.compressedSizeBytes / 1024).toFixed(1)} KB` : 'Pending'}</span></div>
+                                                    <div className="flex justify-between"><span>Ratio:</span> <span className={pod.compressionRatio ? 'text-emerald-400' : 'text-zinc-500'}>{pod.compressionRatio ? `${pod.compressionRatio}%` : 'Pending'}</span></div>
+                                                    <div className="mt-2 pt-2 border-t border-zinc-800 text-indigo-400 flex items-center gap-1"><Check size={10} /> Persisted in IndexedDB</div>
                                                 </div>
                                             </div>
                                         </div>
