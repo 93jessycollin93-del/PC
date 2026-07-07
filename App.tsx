@@ -270,25 +270,8 @@ const getMergedDesktopItems = (): (DesktopItem | null)[] => {
 };
 
 export const App: React.FC = () => {
-    const { user, loading, isAuthenticated } = useAuth();
-
-    // Show auth modal while checking auth state or if not authenticated
-    if (loading) {
-        return (
-            <div className="fixed inset-0 bg-zinc-950 flex items-center justify-center z-50">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl animate-pulse">
-                        PC
-                    </div>
-                    <p className="text-zinc-400 text-sm">Loading PC OS...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!isAuthenticated) {
-        return <AuthModal onAuthSuccess={() => {}} />;
-    }
+    // Auth temporarily disabled - will re-enable later
+    // const { user, loading, isAuthenticated } = useAuth();
 
     const globalState = loadGlobalState();
 
