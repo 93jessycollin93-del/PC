@@ -845,32 +845,32 @@ Body: ${emailToSummarize.body}`,
                 }}
             />
 
-            <div className="absolute top-4 right-4 z-[4000] flex items-center gap-3">
+            <div className="absolute top-4 right-4 z-[3990] flex items-center gap-2">
                 <SyncStatusIndicator />
-                <SystemMonitor 
-                    openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))} 
-                    onFocusWindow={focusWindow} 
+                <SystemMonitor
+                    openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
+                    onFocusWindow={focusWindow}
                 />
-                <FloatingNav 
-                    apps={desktopItems.filter(Boolean) as DesktopItem[]}
-                    onLaunchApp={handleLaunch}
-                    inkMode={inkMode}
-                    toggleInkMode={() => setInkMode(!inkMode)}
-                    onClearInk={() => setStrokes([])}
-                    onExecuteInk={executeInkAction}
-                    hasInk={strokes.length > 0}
-                    isProcessing={isProcessing}
-                    onBack={handleGlobalBack}
-                    desktopVisibility={desktopVisibility}
-                    onToggleDesktopVisibility={(appId) => {
-                        setDesktopVisibility(prev => ({
-                            ...prev,
-                            [appId]: prev[appId] === false ? true : false
-                        }));
-                    }}
-                />
-                <AuthButton />
             </div>
+
+            <FloatingNav
+                apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                onLaunchApp={handleLaunch}
+                inkMode={inkMode}
+                toggleInkMode={() => setInkMode(!inkMode)}
+                onClearInk={() => setStrokes([])}
+                onExecuteInk={executeInkAction}
+                hasInk={strokes.length > 0}
+                isProcessing={isProcessing}
+                onBack={handleGlobalBack}
+                desktopVisibility={desktopVisibility}
+                onToggleDesktopVisibility={(appId) => {
+                    setDesktopVisibility(prev => ({
+                        ...prev,
+                        [appId]: prev[appId] === false ? true : false
+                    }));
+                }}
+            />
 
             {/* Desktop Area with Dynamic Background */}
             <div 
