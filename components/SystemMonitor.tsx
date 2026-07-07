@@ -48,7 +48,28 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
     const [isClearingCache, setIsClearingCache] = useState(false);
     const [cacheClearedSuccess, setCacheClearedSuccess] = useState(false);
     const [expandedStep, setExpandedStep] = useState<number | null>(0); // Step 1 expanded by default
-    const [simulatedLocalCache, setSimulatedLocalCache] = useState('342 KB');
+    // Real persisted-storage footprint (IndexedDB + localStorage + Cache API),
+    // read from the Storage API. This is the actual compressed-vault size.
+    const [storageBytes, setStorageBytes] = useState<{ usage: number; quota: number } | null>(null);
+
+    const formatBytes = (bytes: number) => {
+        if (!bytes || bytes < 1) return '0 KB';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+        return `${(bytes / Math.pow(1024, i)).toFixed(i >= 2 ? 2 : 0)} ${units[i]}`;
+    };
+
+    const refreshStorage = React.useCallback(() => {
+        if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+            navigator.storage.estimate()
+                .then(({ usage, quota }) => setStorageBytes({ usage: usage ?? 0, quota: quota ?? 0 }))
+                .catch(() => { /* Storage API unavailable — leave as null */ });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) refreshStorage();
+    }, [isOpen, activeTab, refreshStorage]);
 
     const profiles = [
         { id: 'auto', name: 'Auto-Detect (UA)', ram: 16, description: 'Smart automatic detection based on browser platform' },
@@ -301,7 +322,7 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
         }
 
         setTimeout(() => {
-            setSimulatedLocalCache('0 KB');
+            refreshStorage(); // re-measure real footprint after purge
             setIsClearingCache(false);
             setCacheClearedSuccess(true);
             setTimeout(() => {
@@ -335,7 +356,9 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                     <span className="font-mono text-[11px] tracking-tight text-zinc-300 flex items-center gap-0.5">
                         {ramUsage.toFixed(1)} <span className="text-[9px] text-zinc-500">GB</span>
                         {isReservationActive && (
-                            <Lock className="w-2.5 h-2.5 text-emerald-400 animate-pulse shrink-0" title="High Integrity Memory Lock Active" />
+                            <span title="High Integrity Memory Lock Active" className="inline-flex">
+                                <Lock className="w-2.5 h-2.5 text-emerald-400 animate-pulse shrink-0" />
+                            </span>
                         )}
                     </span>
                 </div>
@@ -707,11 +730,24 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             {/* Local Storage Origin Purger */}
                             <div className="bg-zinc-900/30 border border-zinc-800 p-2.5 rounded-xl flex flex-col gap-1.5">
                                 <div className="flex justify-between items-center text-left">
-                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Local Web Storage</span>
-                                    <span className="text-[10px] font-mono font-bold text-zinc-300">{simulatedLocalCache}</span>
+                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Vault Footprint (Real)</span>
+                                    <span className="text-[10px] font-mono font-bold text-zinc-300">
+                                        {storageBytes ? formatBytes(storageBytes.usage) : '—'}
+                                        {storageBytes && storageBytes.quota > 0 && (
+                                            <span className="text-zinc-500"> / {formatBytes(storageBytes.quota)}</span>
+                                        )}
+                                    </span>
                                 </div>
+                                {storageBytes && storageBytes.quota > 0 && (
+                                    <div className="w-full bg-zinc-800/80 rounded-full h-1 overflow-hidden">
+                                        <div
+                                            className="h-full bg-emerald-500 transition-all duration-500"
+                                            style={{ width: `${Math.min(100, (storageBytes.usage / storageBytes.quota) * 100).toFixed(2)}%` }}
+                                        ></div>
+                                    </div>
+                                )}
                                 <p className="text-[9px] text-zinc-400 leading-normal text-left">
-                                    Wipe all offline caches, localStorage states, and document cache buffers for this application.
+                                    Measured live via the Storage API — the true compressed on-device size of this app's IndexedDB, localStorage, and Cache API data. Purging wipes offline caches and re-measures.
                                 </p>
                                 <button
                                     onClick={handleClearLocalCache}
