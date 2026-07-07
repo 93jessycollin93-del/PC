@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Code2, Plus, Send, Trash2, Lock, CheckCircle, AlertCircle, Loader2, Copy, Download } from 'lucide-react';
-import { getAiClient, MODEL_NAME } from '../../lib/gemini';
-import { useAuth } from '../../lib/authContext';
+import { Code2, Plus, Send, Trash2, Lock, CheckCircle, AlertCircle, Loader2, Copy, Download, DollarSign } from 'lucide-react';
+import { aiClient } from '../../lib/aiClient';
+import { modelRouter } from '../../lib/modelRouter';
 
 interface CodeRequest {
   id: string;
@@ -12,6 +12,7 @@ interface CodeRequest {
   messages: CodeMessage[];
   createdAt: number;
   generatedCode?: string;
+  totalCost: number;
 }
 
 interface CodeMessage {
@@ -22,10 +23,13 @@ interface CodeMessage {
   requiresPermission?: boolean;
   approved?: boolean;
   code?: string;
+  provider?: string;
+  model?: string;
+  cost?: number;
+  tokensUsed?: number;
 }
 
 export const CodexApp: React.FC = () => {
-  const { user } = useAuth();
   const [requests, setRequests] = useState<CodeRequest[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
@@ -87,7 +91,8 @@ What code would you like me to help you with?`,
           timestamp: Date.now()
         }
       ],
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      totalCost: 0
     };
     setRequests([newRequest, ...requests]);
     setSelectedRequestId(newRequest.id);
@@ -111,7 +116,6 @@ What code would you like me to help you with?`,
       timestamp: Date.now()
     };
 
-    // Add user message
     setRequests(requests.map(r =>
       r.id === selectedRequestId
         ? { ...r, messages: [...r.messages, userMessage] }
@@ -121,12 +125,6 @@ What code would you like me to help you with?`,
     setIsLoading(true);
 
     try {
-      const ai = getAiClient();
-      const requestContext = selectedRequest.messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
       const systemPrompt = `You are Codex, an expert code generation AI assistant integrated into the PC OS desktop environment.
 
 **Important Constraints:**
@@ -146,19 +144,27 @@ When generating code:
 
 Always format code in markdown code blocks with the language identifier.`;
 
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        system: systemPrompt,
-        contents: [...requestContext, { role: 'user', content: userInput }]
-      });
+      const messageHistory = selectedRequest.messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }));
+
+      const response = await aiClient.sendMessage(
+        [...messageHistory, { role: 'user', content: userInput }],
+        { systemPrompt, maxTokens: 2000, temperature: 0.7, taskId: selectedRequest.id }
+      );
 
       const assistantMessage: CodeMessage = {
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
-        content: response.text || 'I encountered an error processing your request.',
+        content: response.content,
         timestamp: Date.now(),
-        requiresPermission: response.text?.includes('REQUEST PERMISSION:') || false,
-        code: extractCode(response.text || '')
+        requiresPermission: response.content.includes('REQUEST PERMISSION:'),
+        code: extractCode(response.content),
+        provider: response.provider,
+        model: response.model,
+        cost: response.cost,
+        tokensUsed: response.tokensUsed
       };
 
       setRequests(requests.map(r =>
@@ -166,7 +172,8 @@ Always format code in markdown code blocks with the language identifier.`;
           ? {
               ...r,
               messages: [...r.messages, userMessage, assistantMessage],
-              status: assistantMessage.requiresPermission ? 'pending' : 'generating'
+              status: assistantMessage.requiresPermission ? 'pending' : 'generating',
+              totalCost: r.totalCost + response.cost
             }
           : r
       ));
@@ -174,7 +181,7 @@ Always format code in markdown code blocks with the language identifier.`;
       const errorMessage: CodeMessage = {
         id: `msg_${Date.now() + 2}`,
         role: 'assistant',
-        content: `I encountered an error: ${error.message}. Please try again.`,
+        content: `Error: ${error.message}. Make sure you have configured API keys in the API Keys app.`,
         timestamp: Date.now()
       };
 
@@ -339,7 +346,11 @@ Always format code in markdown code blocks with the language identifier.`;
               <h2 className="font-bold text-sm text-white">{selectedRequest.title}</h2>
               <p className="text-[10px] text-zinc-400">{selectedRequest.language}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-[10px] text-zinc-400">
+                <DollarSign size={12} />
+                <span className="font-mono">${selectedRequest.totalCost.toFixed(4)}</span>
+              </div>
               <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
                 selectedRequest.status === 'pending' ? 'bg-amber-500/20 text-amber-300' :
                 selectedRequest.status === 'approved' ? 'bg-green-500/20 text-green-300' :
@@ -401,9 +412,11 @@ Always format code in markdown code blocks with the language identifier.`;
                       </button>
                     </div>
                   )}
-                  <span className="text-[8px] text-zinc-500 mt-1 block">
-                    {new Date(msg.timestamp).toLocaleTimeString()}
-                  </span>
+                  <div className="mt-1 flex gap-2 text-[8px] text-zinc-500">
+                    <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    {msg.provider && <span className="text-zinc-400">via {msg.provider}/{msg.model}</span>}
+                    {msg.cost !== undefined && <span className="text-yellow-600">${msg.cost.toFixed(4)}</span>}
+                  </div>
                 </div>
               </div>
             ))}

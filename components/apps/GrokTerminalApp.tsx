@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal, Send, Trash2, Download, Copy } from 'lucide-react';
-import { getAiClient, MODEL_NAME } from '../../lib/gemini';
+import { Terminal, Send, Trash2, Download, Copy, DollarSign } from 'lucide-react';
+import { aiClient } from '../../lib/aiClient';
+import { modelRouter } from '../../lib/modelRouter';
 
 interface TerminalCommand {
   id: string;
@@ -8,6 +9,11 @@ interface TerminalCommand {
   response: string;
   timestamp: number;
   type: 'test' | 'query' | 'code' | 'analysis';
+  provider?: string;
+  model?: string;
+  cost?: number;
+  tokensUsed?: number;
+  totalCost?: number;
 }
 
 export const GrokTerminalApp: React.FC = () => {
@@ -15,6 +21,7 @@ export const GrokTerminalApp: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [commandType, setCommandType] = useState<'test' | 'query' | 'code' | 'analysis'>('query');
+  const [totalCost, setTotalCost] = useState(0);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   // Load commands from localStorage
@@ -48,8 +55,6 @@ export const GrokTerminalApp: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const ai = getAiClient();
-
       const systemPrompts: Record<string, string> = {
         'test': `You are Grok running in testing mode. Analyze the provided test case or scenario and provide specific findings, results, and recommendations. Be direct and technical.`,
         'query': `You are Grok, an AI assistant focused on providing direct, factual answers. Answer the user's query comprehensively. Be concise and specific.`,
@@ -57,26 +62,31 @@ export const GrokTerminalApp: React.FC = () => {
         'analysis': `You are Grok, specialized in deep analysis. Provide thorough analysis of the given topic, identifying patterns, implications, and insights.`
       };
 
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        system: systemPrompts[commandType],
-        contents: [{ role: 'user', content: prompt }]
-      });
+      const response = await aiClient.sendMessage(
+        [{ role: 'user', content: prompt }],
+        { systemPrompt: systemPrompts[commandType], maxTokens: 2000, temperature: 0.7, taskId: `grok_${Date.now()}` }
+      );
 
       const newCommand: TerminalCommand = {
         id: `cmd_${Date.now()}`,
         prompt,
-        response: response.text || 'No response generated',
+        response: response.content,
         timestamp: Date.now(),
-        type: commandType
+        type: commandType,
+        provider: response.provider,
+        model: response.model,
+        cost: response.cost,
+        tokensUsed: response.tokensUsed,
+        totalCost: totalCost + response.cost
       };
 
       setCommands([...commands, newCommand]);
+      setTotalCost(totalCost + response.cost);
     } catch (error: any) {
       const errorCommand: TerminalCommand = {
         id: `cmd_${Date.now()}`,
         prompt,
-        response: `ERROR: ${error.message}`,
+        response: `ERROR: ${error.message}. Make sure you have configured API keys in the API Keys app.`,
         timestamp: Date.now(),
         type: commandType
       };
@@ -119,7 +129,13 @@ export const GrokTerminalApp: React.FC = () => {
           <span className="text-sm font-bold text-white">Grok Terminal</span>
           <span className="text-[10px] text-green-600/70 ml-2">Testing & Analysis Mode</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {totalCost > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-green-400">
+              <DollarSign size={12} />
+              <span className="font-mono">${totalCost.toFixed(4)}</span>
+            </div>
+          )}
           {commands.length > 0 && (
             <>
               <button
@@ -169,8 +185,10 @@ export const GrokTerminalApp: React.FC = () => {
         ) : (
           commands.map(cmd => (
             <div key={cmd.id} className="space-y-1 text-sm">
-              <div className="text-green-600/70 text-[10px]">
-                [{new Date(cmd.timestamp).toLocaleTimeString()}] [{cmd.type.toUpperCase()}]
+              <div className="flex items-center gap-2 text-green-600/70 text-[10px]">
+                <span>[{new Date(cmd.timestamp).toLocaleTimeString()}] [{cmd.type.toUpperCase()}]</span>
+                {cmd.provider && <span className="text-green-500">via {cmd.provider}/{cmd.model}</span>}
+                {cmd.cost !== undefined && <span className="text-yellow-600">${cmd.cost.toFixed(4)}</span>}
               </div>
               <div className="text-green-400">$ {cmd.prompt}</div>
               <div className="bg-zinc-900/50 border border-green-900/30 rounded p-2 mt-2 relative group">

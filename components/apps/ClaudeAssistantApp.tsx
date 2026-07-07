@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Plus, Send, Trash2, Lock, CheckCircle, AlertCircle, Loader2, Settings, History, MoreVertical } from 'lucide-react';
-import { getAiClient, MODEL_NAME } from '../../lib/gemini';
-import { useAuth } from '../../lib/authContext';
+import { Bot, Plus, Send, Trash2, Lock, CheckCircle, AlertCircle, Loader2, Settings, History, MoreVertical, DollarSign } from 'lucide-react';
+import { aiClient } from '../../lib/aiClient';
+import { modelRouter } from '../../lib/modelRouter';
 
 interface Message {
   id: string;
@@ -10,6 +10,10 @@ interface Message {
   timestamp: number;
   requiresPermission?: boolean;
   approved?: boolean;
+  provider?: string;
+  model?: string;
+  cost?: number;
+  tokensUsed?: number;
 }
 
 interface Task {
@@ -19,10 +23,10 @@ interface Task {
   status: 'pending' | 'approved' | 'executing' | 'completed' | 'rejected';
   messages: Message[];
   createdAt: number;
+  totalCost: number;
 }
 
 export const ClaudeAssistantApp: React.FC = () => {
-  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
@@ -75,7 +79,8 @@ What would you like help with today?`,
           timestamp: Date.now()
         }
       ],
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      totalCost: 0
     };
     setTasks([newTask, ...tasks]);
     setSelectedTaskId(newTask.id);
@@ -99,7 +104,6 @@ What would you like help with today?`,
       timestamp: Date.now()
     };
 
-    // Add user message
     setTasks(tasks.map(t =>
       t.id === selectedTaskId
         ? { ...t, messages: [...t.messages, userMessage] }
@@ -109,12 +113,6 @@ What would you like help with today?`,
     setIsLoading(true);
 
     try {
-      const ai = getAiClient();
-      const taskContext = selectedTask.messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
       const systemPrompt = `You are Claude, an AI assistant integrated into the PC OS desktop environment.
 
 **Important Constraints:**
@@ -132,18 +130,26 @@ When suggesting an action:
 
 You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, CloudInfrastructure, and all other desktop apps.`;
 
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        system: systemPrompt,
-        contents: [...taskContext, { role: 'user', content: userInput }]
-      });
+      const messageHistory = selectedTask.messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }));
+
+      const response = await aiClient.sendMessage(
+        [...messageHistory, { role: 'user', content: userInput }],
+        { systemPrompt, maxTokens: 2000, temperature: 0.7, taskId: selectedTask.id }
+      );
 
       const assistantMessage: Message = {
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
-        content: response.text || 'I encountered an error processing your request.',
+        content: response.content,
         timestamp: Date.now(),
-        requiresPermission: response.text?.includes('REQUEST PERMISSION:') || false
+        requiresPermission: response.content.includes('REQUEST PERMISSION:'),
+        provider: response.provider,
+        model: response.model,
+        cost: response.cost,
+        tokensUsed: response.tokensUsed
       };
 
       setTasks(tasks.map(t =>
@@ -151,7 +157,8 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
           ? {
               ...t,
               messages: [...t.messages, userMessage, assistantMessage],
-              status: assistantMessage.requiresPermission ? 'pending' : 'executing'
+              status: assistantMessage.requiresPermission ? 'pending' : 'executing',
+              totalCost: t.totalCost + response.cost
             }
           : t
       ));
@@ -159,7 +166,7 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
       const errorMessage: Message = {
         id: `msg_${Date.now() + 2}`,
         role: 'assistant',
-        content: `I encountered an error: ${error.message}. Please try again.`,
+        content: `Error: ${error.message}. Make sure you have configured API keys in the API Keys app.`,
         timestamp: Date.now()
       };
 
@@ -290,7 +297,11 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
               <h2 className="font-bold text-sm text-white">{selectedTask.title}</h2>
               <p className="text-[10px] text-zinc-400">{selectedTask.description}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-[10px] text-zinc-400">
+                <DollarSign size={12} />
+                <span className="font-mono">${selectedTask.totalCost.toFixed(4)}</span>
+              </div>
               <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
                 selectedTask.status === 'pending' ? 'bg-amber-500/20 text-amber-300' :
                 selectedTask.status === 'approved' ? 'bg-green-500/20 text-green-300' :
@@ -330,9 +341,11 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
                       </button>
                     </div>
                   )}
-                  <span className="text-[8px] text-zinc-500 mt-1 block">
-                    {new Date(msg.timestamp).toLocaleTimeString()}
-                  </span>
+                  <div className="mt-1 flex gap-2 text-[8px] text-zinc-500">
+                    <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    {msg.provider && <span className="text-zinc-400">via {msg.provider}/{msg.model}</span>}
+                    {msg.cost !== undefined && <span className="text-yellow-600">${msg.cost.toFixed(4)}</span>}
+                  </div>
                 </div>
               </div>
             ))}
