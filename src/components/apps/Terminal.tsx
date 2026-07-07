@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Lock, ChevronRight, Trash2, Settings, ToggleRight, ToggleLeft, Eye, EyeOff } from 'lucide-react';
-import { useToast } from '../../lib/toastContext';
+import { useToast } from '../../../lib/toastContext';
 
 interface TerminalCommand {
   id: string;
