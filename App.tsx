@@ -909,6 +909,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
                     else if (win.item.appId === 'fleet_atlas') content = <FleetAtlasApp />;
                     else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
+                    else if (win.item.appId === 'ollama') content = <OllamaApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe 
