@@ -23,6 +23,7 @@ interface ArchiverStatus {
   screenRecordingDuration: number; // seconds
   cloudUploadEnabled: boolean;
   totalUploadedToCloud: number; // bytes
+  isEnabled: boolean; // Master toggle for entire archiver
 }
 
 const ARCHIVE_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
@@ -40,6 +41,7 @@ export const ArchiverApp: React.FC = () => {
     screenRecordingDuration: 10000, // 10 seconds
     cloudUploadEnabled: false,
     totalUploadedToCloud: 0,
+    isEnabled: true, // Master toggle - enabled by default
   });
 
   const [manualRunning, setManualRunning] = useState(false);
@@ -134,7 +136,20 @@ export const ArchiverApp: React.FC = () => {
     ]);
   };
 
+  const toggleArchiverEnabled = () => {
+    setStatus(prev => ({ ...prev, isEnabled: !prev.isEnabled }));
+    setArchiveLog(prev => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Archiver ${!status.isEnabled ? 'enabled' : 'disabled'}`,
+    ]);
+  };
+
   const toggleScreenRecording = () => {
+    if (!status.isEnabled) {
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Cannot record: Archiver is disabled`]);
+      return;
+    }
+
     if (status.screenRecordingActive) {
       setStatus(prev => ({ ...prev, screenRecordingActive: false }));
       setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording stopped`]);
@@ -161,6 +176,11 @@ export const ArchiverApp: React.FC = () => {
   };
 
   const runArchive = async () => {
+    if (!status.isEnabled) {
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Cannot archive: Archiver is disabled`]);
+      return;
+    }
+
     setStatus(prev => ({ ...prev, isRunning: true }));
     setManualRunning(true);
 
@@ -226,7 +246,7 @@ export const ArchiverApp: React.FC = () => {
   // Auto-run archiver on interval
   useEffect(() => {
     const checkAndRun = async () => {
-      if (Date.now() >= status.nextRun && !status.isRunning) {
+      if (status.isEnabled && Date.now() >= status.nextRun && !status.isRunning) {
         await runArchive();
       }
     };
@@ -236,7 +256,7 @@ export const ArchiverApp: React.FC = () => {
     return () => {
       if (archiveLoopRef.current) clearInterval(archiveLoopRef.current);
     };
-  }, [status.nextRun, status.isRunning]);
+  }, [status.nextRun, status.isRunning, status.isEnabled]);
 
   const timeUntilNext = Math.max(0, status.nextRun - Date.now());
   const hoursUntilNext = Math.floor(timeUntilNext / 3600000);
@@ -248,26 +268,45 @@ export const ArchiverApp: React.FC = () => {
       {/* Header */}
       <div className="h-14 border-b border-zinc-800 bg-zinc-900 px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-500/10 rounded-lg border border-purple-500/20">
-            <Archive size={18} className="text-purple-400" />
+          <div className={`p-2 rounded-lg border ${status.isEnabled ? 'bg-purple-500/10 border-purple-500/20' : 'bg-zinc-800/50 border-zinc-700/50'}`}>
+            <Archive size={18} className={status.isEnabled ? 'text-purple-400' : 'text-zinc-500'} />
           </div>
           <div>
             <h1 className="font-bold text-sm text-white">Archiver AI</h1>
-            <p className="text-[10px] text-zinc-500">Compress & archive data on schedule</p>
+            <p className="text-[10px] text-zinc-500">{status.isEnabled ? 'Compress & archive data on schedule' : 'Disabled'}</p>
           </div>
         </div>
-        <button
-          onClick={runArchive}
-          disabled={status.isRunning || manualRunning}
-          className="px-3 py-1.5 text-xs font-semibold rounded-md bg-purple-600 hover:bg-purple-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1"
-        >
-          <Play size={12} />
-          Run Now
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleArchiverEnabled}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 ${
+              status.isEnabled
+                ? 'bg-green-600 hover:bg-green-500 text-white'
+                : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'
+            }`}
+            title={status.isEnabled ? 'Turn off Archiver' : 'Turn on Archiver'}
+          >
+            {status.isEnabled ? '✓ On' : '⊘ Off'}
+          </button>
+          <button
+            onClick={runArchive}
+            disabled={status.isRunning || manualRunning || !status.isEnabled}
+            className="px-3 py-1.5 text-xs font-semibold rounded-md bg-purple-600 hover:bg-purple-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1"
+          >
+            <Play size={12} />
+            Run Now
+          </button>
+        </div>
       </div>
 
       {/* Status Bar */}
-      <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/50">
+      <div className={`px-4 py-3 border-b border-zinc-800 ${status.isEnabled ? 'bg-zinc-900/50' : 'bg-zinc-900/50 border-b-2 border-zinc-700'}`}>
+        {!status.isEnabled && (
+          <div className="mb-3 p-2 bg-zinc-800/50 border border-zinc-700 rounded text-xs text-zinc-400 flex items-center gap-2">
+            <AlertCircle size={12} className="text-zinc-500" />
+            Archiver is currently disabled
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 text-xs mb-3">
           <div className="flex items-center gap-2">
             <Clock size={14} className="text-cyan-400" />
