@@ -2,32 +2,104 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useState, useRef } from 'react';
-import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser, Terminal, X } from 'lucide-react';
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
 import { HomeScreen } from './components/apps/HomeScreen';
 import { MailApp } from './components/apps/MailApp';
 import { SlidesApp } from './components/apps/SlidesApp';
+import { IronMenArcadeApp } from './components/apps/IronMenArcadeApp';
+import { ZenithChessApp } from './components/apps/ZenithChessApp';
+import { LaserTagApp } from './components/apps/LaserTagApp';
 import { SnakeGame } from './components/apps/SnakeGame';
 import { FolderView } from './components/apps/FolderView';
 import { DraggableWindow } from './components/DraggableWindow';
 import { InkLayer } from './components/InkLayer';
+import { FloatingNav } from './components/FloatingNav';
 import { getAiClient, HOME_TOOLS, MAIL_TOOLS, MODEL_NAME, SYSTEM_INSTRUCTION } from './lib/gemini';
 import { NotepadApp } from './components/apps/NotepadApp';
 import { CyberneticExportApp } from './components/apps/CyberneticExportApp';
 import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
 import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
+import { TermStudioApp } from './components/apps/TermStudioApp';
+import { OllamaApp } from './components/apps/OllamaApp';
+import { OpenClawApp } from './components/apps/OpenClawApp';
+import { CodeRabbitApp } from './components/apps/CodeRabbitApp';
+import { SemanticScholarApp } from './components/apps/SemanticScholarApp';
+import { ResearchRabbitApp } from './components/apps/ResearchRabbitApp';
+import { PapersWithCodeApp } from './components/apps/PapersWithCodeApp';
+import { LangChainApp } from './components/apps/LangChainApp';
+import { UnrealEngineApp } from './components/apps/UnrealEngineApp';
+import { BlenderApp } from './components/apps/BlenderApp';
+import { KnowledgeCompressorApp } from './components/apps/KnowledgeCompressorApp';
+import { SuperSayenApp } from './components/apps/SuperSayenApp';
+import { DataPodsApp } from './components/apps/DataPodsApp';
+import { AiTermApp } from './components/apps/AiTermApp';
+import { JackyV3App } from './components/apps/JackyV3App';
 import { AuthButton } from './components/AuthButton';
-import { Share2, Github, Radio } from 'lucide-react';
+import { SyncStatusIndicator } from './components/SyncStatusIndicator';
+import { SystemMonitor } from './components/SystemMonitor';
+import { LocalAiIndexFinder } from './components/LocalAiIndexFinder';
+import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert } from 'lucide-react';
+import { Cybernetic67App } from './components/apps/Cybernetic67App';
+import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
+import { BuildVaultApp } from './components/apps/BuildVaultApp';
+import { AiDataResolverApp } from './components/apps/AiDataResolverApp';
+import { FunctionCallKitchenApp } from './components/apps/FunctionCallKitchenApp';
+import { FlashUiApp } from './components/apps/FlashUiApp';
+import { AgenticVisionApp } from './components/apps/AgenticVisionApp';
+import { UniversalAppSimulator } from './components/apps/UniversalAppSimulator';
+import { PodSystemApp } from './components/apps/PodSystemApp';
+import { CloudDeployApp } from './components/apps/CloudDeployApp';
+import { BotStudioApp } from './components/apps/BotStudioApp';
+import { QpdbApp } from './components/apps/QpdbApp';
+import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab';
+import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
+import { saveGlobalState, loadGlobalState } from './lib/persist';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
+    { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
+    { id: 'consensus_lab', name: 'Consensus Lab', type: 'app', icon: Network, appId: 'consensus_lab', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
+    { id: 'cloud_deploy', name: 'Global Deploy', type: 'app', icon: Cloud, appId: 'cloud_deploy', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-800 to-zinc-950 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
+    { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
+    { id: 'app_connector', name: 'App Connector', type: 'app', icon: Layers, appId: 'app_connector', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-850 to-zinc-950 border border-indigo-500/30' },
     { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
+    { id: 'termstudio', name: 'TermStudio', type: 'app', icon: Terminal, appId: 'termstudio', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
+    { id: 'bot_studio', name: 'Offline AI Studio', type: 'app', icon: Bot, appId: 'bot_studio', bgColor: 'bg-gradient-to-br from-emerald-600 to-teal-900 border border-emerald-500/30 shadow-md' },
+    { id: 'aiterm', name: 'ai-term', type: 'app', icon: Terminal, appId: 'aiterm', bgColor: 'bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950' },
+    { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md' },
+    { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
+    { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
+    { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
+    { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
+    { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
+    { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
+    { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
+    { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
+    { id: 'langchain', name: 'LangChain AI', type: 'app', icon: Network, appId: 'langchain', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
+    { id: 'unreal_engine', name: 'Unreal Engine AI', type: 'app', icon: Box, appId: 'unreal_engine', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
+    { id: 'blender', name: 'Blender AI', type: 'app', icon: Circle, appId: 'blender', bgColor: 'bg-gradient-to-br from-amber-500 to-amber-800' },
     { id: 'github_sync', name: 'GitHub Sync', type: 'app', icon: Github, appId: 'github_sync', bgColor: 'bg-gradient-to-br from-zinc-700 to-zinc-900' },
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
     { id: 'mail', name: 'Mail', type: 'app', icon: Mail, appId: 'mail', bgColor: 'bg-gradient-to-br from-blue-400 to-blue-700' },
     { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
     { id: 'snake', name: 'Game', type: 'app', icon: Gamepad2, appId: 'snake', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
+    
+    // --- Jessy's 33 Custom Applications ---
+    { id: 'cyber_rulebook', name: 'Cyber Codex', type: 'app', icon: ShieldAlert, appId: 'cyber_rulebook', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-rose-950 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
+    { id: 'data_pods', name: 'Data Pods Vault', type: 'app', icon: Database, appId: 'data_pods', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-indigo-900 border border-cyan-400/20' },
+    { id: 'cybernetic67', name: 'Telegram Replica', type: 'app', icon: Send, appId: 'cybernetic67', bgColor: 'bg-gradient-to-br from-blue-500 via-sky-600 to-sky-900 border border-sky-400/20' },
+    { id: 'build_vault', name: 'BuildVault', type: 'app', icon: HardDrive, appId: 'build_vault', bgColor: 'bg-gradient-to-br from-amber-500 via-amber-600 to-amber-900 border border-amber-400/20' },
+    { id: 'prompt_to_json', name: 'Prompt to JSON', type: 'app', icon: Braces, appId: 'prompt-to-json', bgColor: 'bg-gradient-to-br from-purple-500 via-purple-650 to-indigo-900 border border-purple-400/20' },
+    { id: 'agentic_vision', name: 'Gemini Agentic Vision', type: 'app', icon: Eye, appId: 'agentic-vision', bgColor: 'bg-gradient-to-br from-cyan-500 via-cyan-600 to-blue-900 border border-cyan-400/20' },
+    { id: 'flash_ui', name: 'Flash UI', type: 'app', icon: Zap, appId: 'flash-ui', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 border border-indigo-400/20' },
+    { id: 'data_resolver', name: 'AI Data Resolver', type: 'app', icon: Database, appId: 'data-resolver', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-900 border border-emerald-400/20' },
+    { id: 'function_call_kitchen', name: 'Function Call Kitchen', type: 'app', icon: Cpu, appId: 'function-call-kitchen', bgColor: 'bg-gradient-to-br from-red-500 via-amber-600 to-orange-800 border border-red-400/20' },
+    { id: 'zenith_chess', name: 'Zenith Chess AI', type: 'app', icon: Trophy, appId: 'chess', bgColor: 'bg-gradient-to-br from-yellow-500 via-amber-600 to-yellow-950 border border-yellow-400/20' },
+    { id: 'iron_men_arcade', name: 'Iron Men Arcade', type: 'app', icon: Gamepad2, appId: 'iron-men-arcade', bgColor: 'bg-gradient-to-br from-rose-600 via-red-600 to-yellow-600 border border-rose-500/20' },
+    { id: 'laser_tag', name: 'Laser Tag Arcade', type: 'app', icon: Target, appId: 'laser-tag', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-zinc-950 border border-red-500/20' },
     { 
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
@@ -145,18 +217,127 @@ interface OpenWindow {
     size?: { width: number, height: number };
 }
 
+const getMergedDesktopItems = (): (DesktopItem | null)[] => {
+    const saved = localStorage.getItem('sas_custom_apps');
+    let customList: DesktopItem[] = [];
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            customList = parsed.map((app: any) => ({
+                id: app.id,
+                name: app.name,
+                type: 'app',
+                icon: iconMap[app.iconName] || Globe,
+                appId: app.id,
+                bgColor: app.bgColor,
+                url: app.url,
+                iconName: app.iconName
+            }));
+        } catch (e) {
+            console.error("Failed to parse custom apps", e);
+        }
+    }
+    return [...INITIAL_DESKTOP_ITEMS, ...customList];
+};
+
 export const App: React.FC = () => {
-    const [openWindows, setOpenWindows] = useState<OpenWindow[]>([]);
-    const [focusedId, setFocusedId] = useState<string | null>(null);
-    const [nextZIndex, setNextZIndex] = useState(100);
+    const globalState = loadGlobalState();
+    
+    // Process desktop items: merge initial, custom, and apply deletions/explosions
+    let initialDesktopItems = getMergedDesktopItems();
+    if (globalState?.desktopItemIds) {
+        const allItemsMap = new Map<string, DesktopItem>();
+        const populateMap = (items: (DesktopItem | null)[]) => {
+            for (const item of items) {
+                if (item) {
+                    allItemsMap.set(item.id, item);
+                    if (item.type === 'folder' && item.contents) {
+                        populateMap(item.contents);
+                    }
+                }
+            }
+        };
+        populateMap(initialDesktopItems);
+        const restoredItems = globalState.desktopItemIds.map((id: string | null) => id ? (allItemsMap.get(id) || null) : null);
+        
+        const restoredItemIds = new Set(globalState.desktopItemIds.filter(Boolean));
+        const newRootItems = initialDesktopItems.filter(item => item && !restoredItemIds.has(item.id));
+        
+        initialDesktopItems = [...restoredItems, ...newRootItems];
+    }
+
+    const [desktopItems, setDesktopItems] = useState<(DesktopItem | null)[]>(initialDesktopItems);
+    
+    // Process open windows
+    let initialWindows: OpenWindow[] = [];
+    if (globalState?.openWindows) {
+        initialWindows = globalState.openWindows.map((sw: any) => {
+            let item: DesktopItem | undefined | null = null;
+            // search at root
+            item = initialDesktopItems.find(d => d?.id === sw.itemId);
+            // search in folders
+            if (!item) {
+                for (const d of initialDesktopItems) {
+                    if (d?.type === 'folder' && d.contents) {
+                        const found = d.contents.find(c => c.id === sw.itemId);
+                        if (found) { item = found; break; }
+                    }
+                }
+            }
+            if (!item) return null;
+            return { ...sw, item };
+        }).filter(Boolean);
+    }
+
+    const [openWindows, setOpenWindows] = useState<OpenWindow[]>(initialWindows);
+    const [focusedId, setFocusedId] = useState<string | null>(globalState?.focusedId || null);
+    const [nextZIndex, setNextZIndex] = useState(globalState?.nextZIndex || 100);
     const [inkMode, setInkMode] = useState(false);
+    const [showInkToolbar, setShowInkToolbar] = useState(false);
     const [strokes, setStrokes] = useState<Stroke[]>([]);
-    const [desktopItems, setDesktopItems] = useState<(DesktopItem | null)[]>(INITIAL_DESKTOP_ITEMS);
-    const [emails, setEmails] = useState<Email[]>(INITIAL_EMAILS);
+    const [emails, setEmails] = useState<Email[]>(globalState?.emails || INITIAL_EMAILS);
     const [isProcessing, setIsProcessing] = useState(false);
     const [toast, setToast] = useState<{ title?: string; message: React.ReactNode } | null>(null);
-    const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
+    const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
     const timeoutRef = useRef<number | null>(null);
+
+    const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
+        if (globalState?.desktopVisibility) {
+            return globalState.desktopVisibility;
+        }
+        const saved = localStorage.getItem('desktop_visibility_v1');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        const initialMap: Record<string, boolean> = {};
+        INITIAL_DESKTOP_ITEMS.forEach(item => {
+            if (item) {
+                initialMap[item.id] = ['qpdb', 'consensus_lab', 'data_pods', 'how_to_use'].includes(item.id);
+            }
+        });
+        return initialMap;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('desktop_visibility_v1', JSON.stringify(desktopVisibility));
+    }, [desktopVisibility]);
+
+    useEffect(() => {
+        const desktopItemIds = desktopItems.map(item => item ? item.id : null);
+        saveGlobalState({
+            openWindows: openWindows.map(w => ({ id: w.id, itemId: w.item.id, zIndex: w.zIndex, pos: w.pos, size: w.size })),
+            focusedId,
+            nextZIndex,
+            emails,
+            wallpaperUrl,
+            desktopItemIds,
+            desktopVisibility
+        });
+    }, [openWindows, focusedId, nextZIndex, emails, wallpaperUrl, desktopItems, desktopVisibility]);
 
     const showToast = (message: React.ReactNode, title?: string, autoDismiss: boolean = true) => {
         if (timeoutRef.current) {
@@ -180,11 +361,26 @@ export const App: React.FC = () => {
             return;
         }
 
-        let initialSize = { width: 640, height: 480 };
+        let initialSize = { width: 960, height: 600 };
+        if (item.appId === 'app_connector') initialSize = { width: 950, height: 620 };
+        if (item.url) initialSize = { width: 950, height: 650 };
         if (item.appId === 'mail') initialSize = { width: 800, height: 600 };
+        if (item.appId === 'aiterm') initialSize = { width: 450, height: 840 };
         if (item.appId === 'snake') initialSize = { width: 500, height: 550 };
         if (item.appId === 'notepad') initialSize = { width: 400, height: 500 };
         if (item.appId === 'cybernetic_export') initialSize = { width: 580, height: 620 };
+        if (item.appId === 'ollama') initialSize = { width: 750, height: 550 };
+        if (item.appId === 'openclaw') initialSize = { width: 850, height: 600 };
+        if (item.appId === 'coderabbit') initialSize = { width: 900, height: 620 };
+        if (item.appId === 'semantic_scholar') initialSize = { width: 900, height: 620 };
+        if (item.appId === 'research_rabbit') initialSize = { width: 800, height: 500 };
+        if (item.appId === 'papers_with_code') initialSize = { width: 800, height: 500 };
+        if (item.appId === 'langchain') initialSize = { width: 800, height: 500 };
+        if (item.appId === 'unreal_engine') initialSize = { width: 800, height: 500 };
+        if (item.appId === 'blender') initialSize = { width: 800, height: 500 };
+        if (item.appId === 'knowledge_compressor') initialSize = { width: 1000, height: 680 };
+        if (item.appId === 'supersayen') initialSize = { width: 1020, height: 700 };
+        if (item.appId === 'jacky') initialSize = { width: 1020, height: 700 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -196,6 +392,32 @@ export const App: React.FC = () => {
         setNextZIndex(prev => prev + 1);
         setFocusedId(item.id);
     };
+
+    useEffect(() => {
+        const handleRefresh = () => {
+            setDesktopItems(getMergedDesktopItems());
+        };
+        window.addEventListener('refresh-desktop', handleRefresh);
+        return () => {
+            window.removeEventListener('refresh-desktop', handleRefresh);
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleLaunchAppEvent = (e: Event) => {
+            const customEvent = e as CustomEvent<{ appId: AppId | string }>;
+            if (customEvent.detail && customEvent.detail.appId) {
+                const item = desktopItems.find(d => d && d.appId === customEvent.detail.appId);
+                if (item) {
+                    handleLaunch(item);
+                }
+            }
+        };
+        window.addEventListener('launch-app', handleLaunchAppEvent);
+        return () => {
+            window.removeEventListener('launch-app', handleLaunchAppEvent);
+        };
+    }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
 
     const closeWindow = (id: string) => {
         setOpenWindows(prev => prev.filter(w => w.id !== id));
@@ -210,6 +432,29 @@ export const App: React.FC = () => {
         setFocusedId(id);
         setOpenWindows(prev => prev.map(w => w.id === id ? { ...w, zIndex: nextZIndex } : w));
         setNextZIndex(prev => prev + 1);
+    };
+
+    const handleGlobalBack = () => {
+        // Dispatch custom request event so active apps can intercept and handle internal back navigations
+        const backEvent = new CustomEvent('global-back-request', { 
+            cancelable: true, 
+            detail: { focusedId } 
+        });
+        const isDefaultPrevented = !window.dispatchEvent(backEvent);
+        if (isDefaultPrevented) {
+            return; // Internal back navigation was handled by the active app
+        }
+
+        if (focusedId) {
+            closeWindow(focusedId);
+        } else if (openWindows.length > 0) {
+            // Find window with highest zIndex
+            const sorted = [...openWindows].sort((a, b) => b.zIndex - a.zIndex);
+            const topWindow = sorted[0];
+            if (topWindow) {
+                closeWindow(topWindow.id);
+            }
+        }
     };
 
     const deleteItemRecursively = (items: (DesktopItem | null)[], nameToDelete: string, isRoot: boolean = true): { newItems: (DesktopItem | null)[], deleted: boolean } => {
@@ -537,39 +782,40 @@ Body: ${emailToSummarize.body}`,
             className="h-full w-full bg-black text-os-text font-sans overflow-hidden relative" 
             onPointerDownCapture={handleGlobalPointerDown}
         >
-            <div className="absolute top-4 right-4 z-50">
-                <AuthButton />
-            </div>
-            {/* Floating Control Capsule - Smaller padding (p-4 -> p-3), lowered slightly (bottom-12 -> bottom-10) */}
-            <div id="control-bar" className="fixed bottom-10 left-1/2 -translate-x-1/2 flex flex-row items-center justify-center p-3 bg-zinc-950/70 backdrop-blur-2xl border border-zinc-800/50 shadow-3xl rounded-full z-[3000] transition-all hover:bg-zinc-950/90">
-                
-                <div className="flex items-center gap-3">
-                    <button onClick={() => setInkMode(false)} className={`${buttonBaseClasses} ${!inkMode ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white' : 'bg-gradient-to-br from-zinc-700 to-zinc-800 text-zinc-400 hover:text-zinc-200'}`} title="Cursor Mode">
-                        {glossOverlay}
-                        <MousePointer2 size={ICON_SIZE} className="relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" />
-                    </button>
-                    
-                    <button onClick={() => setInkMode(true)} className={`${buttonBaseClasses} ${inkMode ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-zinc-700 to-zinc-800 text-zinc-400 hover:text-zinc-200'}`} title="Ink Mode">
-                        {glossOverlay}
-                        <PenLine size={ICON_SIZE} className="relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" />
-                    </button>
-                </div>
-                
-                {/* Vertical Separator - Shorter (h-12 -> h-8), tighter margin (mx-5 -> mx-3) */}
-                <div className={`h-8 w-px bg-white/20 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${inkMode ? 'mx-3 opacity-100' : 'mx-0 w-0 opacity-0'}`} />
+            {/* Float-centered on-device AI Index Finder capsule */}
+            <LocalAiIndexFinder 
+                apps={desktopItems.filter(Boolean) as any[]}
+                onLaunchApp={(id) => {
+                    const item = desktopItems.find(d => d && d.id === id);
+                    if (item) handleLaunch(item);
+                }}
+            />
 
-                {/* Ink Action Buttons - Tighter gap */}
-                <div className={`flex items-center gap-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${inkMode ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0'}`}>
-                     <button onClick={executeInkAction} disabled={isProcessing || strokes.length === 0} className={`${buttonBaseClasses} ${isProcessing ? 'bg-zinc-700 cursor-wait' : strokes.length > 0 ? 'bg-gradient-to-br from-green-500 to-green-700 text-white' : 'bg-gradient-to-br from-zinc-700 to-zinc-800 text-zinc-600'}`} title="Execute Ink Action">
-                        {glossOverlay}
-                        {isProcessing ? <Loader2 size={ICON_SIZE} className="animate-spin relative z-10" /> : <Play size={ICON_SIZE} fill="currentColor" className={`relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${strokes.length > 0 ? "ml-0.5" : ""}`} />}
-                    </button>
-                    
-                    <button onClick={() => setStrokes([])} disabled={strokes.length === 0} className={`${buttonBaseClasses} ${strokes.length > 0 ? 'bg-gradient-to-br from-zinc-700 to-zinc-800 text-zinc-400 hover:text-red-400' : 'bg-gradient-to-br from-zinc-800 to-zinc-900 text-zinc-700 cursor-not-allowed opacity-50'}`} title="Clear Ink">
-                        {glossOverlay}
-                        <Eraser size={ICON_SIZE} className="relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" />
-                    </button>
-                </div>
+            <div className="absolute top-4 right-4 z-[4000] flex items-center gap-3">
+                <SyncStatusIndicator />
+                <SystemMonitor 
+                    openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))} 
+                    onFocusWindow={focusWindow} 
+                />
+                <FloatingNav 
+                    apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                    onLaunchApp={handleLaunch}
+                    inkMode={inkMode}
+                    toggleInkMode={() => setInkMode(!inkMode)}
+                    onClearInk={() => setStrokes([])}
+                    onExecuteInk={executeInkAction}
+                    hasInk={strokes.length > 0}
+                    isProcessing={isProcessing}
+                    onBack={handleGlobalBack}
+                    desktopVisibility={desktopVisibility}
+                    onToggleDesktopVisibility={(appId) => {
+                        setDesktopVisibility(prev => ({
+                            ...prev,
+                            [appId]: prev[appId] === false ? true : false
+                        }));
+                    }}
+                />
+                <AuthButton />
             </div>
 
             {/* Desktop Area with Dynamic Background */}
@@ -586,7 +832,10 @@ Body: ${emailToSummarize.body}`,
                 
                 {/* Background Home Screen (Clicking it focuses desktop) */}
                 <div className="h-full w-full" onMouseDown={() => focusWindow(null)}>
-                     <HomeScreen items={desktopItems} onLaunch={handleLaunch} />
+                     <HomeScreen 
+                         items={desktopItems.filter(item => item && desktopVisibility[item.id] !== false)} 
+                         onLaunch={handleLaunch} 
+                     />
                 </div>
 
                 {/* Windows */}
@@ -596,10 +845,52 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
                     else if (win.item.appId === 'slides') content = <SlidesApp />;
                     else if (win.item.appId === 'snake') content = <SnakeGame />;
+                    else if (win.item.appId === 'iron-men-arcade') content = <IronMenArcadeApp />;
+                    else if (win.item.appId === 'chess') content = <ZenithChessApp />;
+                    else if (win.item.appId === 'laser-tag') content = <LaserTagApp />;
                     else if (win.item.appId === 'notepad') content = <NotepadApp fileId={win.id} initialContent={win.item.notepadInitialContent} />;
                     else if (win.item.appId === 'cybernetic_export') content = <CyberneticExportApp />;
                     else if (win.item.appId === 'github_sync') content = <GitHubSyncApp />;
                     else if (win.item.appId === 'flipper') content = <FlipperZeroApp />;
+                    else if (win.item.appId === 'termstudio') content = <TermStudioApp />;
+                    else if (win.item.appId === 'aiterm') content = <AiTermApp />;
+                    else if (win.item.appId === 'ollama') content = <OllamaApp />;
+                    else if (win.item.appId === 'openclaw') content = <OpenClawApp />;
+                    else if (win.item.appId === 'coderabbit') content = <CodeRabbitApp />;
+                    else if (win.item.appId === 'semantic_scholar') content = <SemanticScholarApp />;
+                    else if (win.item.appId === 'research_rabbit') content = <ResearchRabbitApp />;
+                    else if (win.item.appId === 'papers_with_code') content = <PapersWithCodeApp />;
+                    else if (win.item.appId === 'langchain') content = <LangChainApp />;
+                    else if (win.item.appId === 'unreal_engine') content = <UnrealEngineApp />;
+                    else if (win.item.appId === 'blender') content = <BlenderApp />;
+                    else if (win.item.appId === 'knowledge_compressor') content = <KnowledgeCompressorApp />;
+                    else if (win.item.appId === 'supersayen') content = <SuperSayenApp />;
+                    else if (win.item.appId === 'data_pods') content = <DataPodsApp />;
+                    else if (win.item.appId === 'jacky') content = <JackyV3App />;
+                    else if (win.item.appId === 'app_connector') content = <AppConnectorApp />;
+                    else if (win.item.appId === 'cybernetic67') content = <Cybernetic67App />;
+                    else if (win.item.appId === 'prompt-to-json') content = <PromptToJsonApp />;
+                    else if (win.item.appId === 'build_vault') content = <BuildVaultApp />;
+                    else if (win.item.appId === 'flash-ui') content = <FlashUiApp />;
+                    else if (win.item.appId === 'data-resolver') content = <AiDataResolverApp />;
+                    else if (win.item.appId === 'function-call-kitchen') content = <FunctionCallKitchenApp />;
+                    else if (win.item.appId === 'agentic-vision') content = <AgenticVisionApp />;
+                    else if (win.item.appId === 'pod_system') content = <PodSystemApp />;
+                    else if (win.item.appId === 'qpdb') content = <QpdbApp />;
+                    else if (win.item.appId === 'consensus_lab') content = <MultiAgentConsensusLab />;
+                    else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
+                    else if (win.item.appId === 'bot_studio') content = <BotStudioApp />;
+                    else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
+                    else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
+                    else if (win.item.url) content = (
+                        <iframe 
+                            src={win.item.url} 
+                            className="w-full h-full border-none bg-zinc-950" 
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups" 
+                            referrerPolicy="no-referrer"
+                            title={win.item.name}
+                        />
+                    );
 
                     return (
                         <DraggableWindow
@@ -613,6 +904,10 @@ Body: ${emailToSummarize.body}`,
                             isActive={focusedId === win.id}
                             onClose={() => closeWindow(win.id)}
                             onFocus={() => focusWindow(win.id)}
+                            onBoundsChange={(pos, size) => {
+                                setOpenWindows(prev => prev.map(w => w.id === win.id ? { ...w, pos, size } : w));
+                            }}
+                            url={win.item.url}
                         >
                             {content}
                         </DraggableWindow>

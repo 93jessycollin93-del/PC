@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Minus, Square, Grip } from 'lucide-react';
+import { X, Minus, Square, Grip, ExternalLink } from 'lucide-react';
 
 interface DraggableWindowProps {
     id: string;
@@ -15,7 +15,9 @@ interface DraggableWindowProps {
     initialSize?: { width: number; height: number };
     zIndex: number;
     onFocus?: () => void;
+    onBoundsChange?: (pos: {x: number, y: number}, size: {width: number, height: number}) => void;
     isActive?: boolean;
+    url?: string;
 }
 
 export const DraggableWindow: React.FC<DraggableWindowProps> = ({
@@ -25,18 +27,36 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
     onClose,
     children,
     initialPos = { x: 50, y: 50 },
-    initialSize = { width: 640, height: 480 },
+    initialSize = { width: 960, height: 600 },
     zIndex,
     onFocus,
-    isActive = false
+    onBoundsChange,
+    isActive = false,
+    url
 }) => {
     const [pos, setPos] = useState(initialPos);
     const [size, setSize] = useState(initialSize);
+    
+    // Add refs to avoid stale closures in event listeners
+    const posRef = useRef(pos);
+    const sizeRef = useRef(size);
+    useEffect(() => { posRef.current = pos; }, [pos]);
+    useEffect(() => { sizeRef.current = size; }, [size]);
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [isMaximized, setIsMaximized] = useState(false);
     const preMaximizeState = useRef({ pos, size });
     
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    const effectiveMaximized = isMaximized || isMobile;
+
     const dragStartPos = useRef({ x: 0, y: 0 });
     const resizeStart = useRef({ x: 0, y: 0, width: 0, height: 0 });
     const windowRef = useRef<HTMLDivElement>(null);
@@ -46,7 +66,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
         if (e.target instanceof Element && e.target.closest('button')) return;
         
         if (onFocus) onFocus();
-        if (isMaximized) return;
+        if (effectiveMaximized) return;
         
         e.preventDefault();
         e.stopPropagation();
@@ -111,6 +131,9 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
              if (isDragging || isResizing) {
                  setIsDragging(false);
                  setIsResizing(false);
+                 if (onBoundsChange) {
+                     onBoundsChange(posRef.current, sizeRef.current);
+                 }
              }
         };
 
@@ -130,7 +153,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
     return (
         <div
             ref={windowRef}
-            style={!isMaximized ? {
+            style={!effectiveMaximized ? {
                 left: pos.x,
                 top: pos.y,
                 width: size.width,
@@ -139,14 +162,14 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
             } : {
                 zIndex: zIndex
             }}
-            className={`absolute flex flex-col bg-zinc-900 rounded-lg shadow-2xl border ${isActive ? 'border-zinc-600 ring-1 ring-zinc-700' : 'border-zinc-800'} overflow-hidden ${isMaximized ? 'inset-0 rounded-none m-0 h-full w-full' : ''} transition-all duration-75 ease-out touch-none`}
+            className={`absolute flex flex-col bg-zinc-900 rounded-lg shadow-2xl border ${isActive ? 'border-zinc-600 ring-1 ring-zinc-700' : 'border-zinc-800'} overflow-hidden ${effectiveMaximized ? 'inset-0 rounded-none m-0 h-full w-full' : ''} transition-all duration-75 ease-out touch-none`}
             onPointerDown={() => { if (onFocus) onFocus(); }}
         >
             {/* Window Header */}
             <div
                 onDoubleClick={toggleMaximize}
                 onPointerDown={handleHeaderPointerDown}
-                className={`bg-zinc-800 border-b border-zinc-700 px-3 py-2 flex items-center justify-between select-none touch-none ${!isMaximized ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                className={`bg-zinc-800 border-b border-zinc-700 px-3 py-2 flex items-center justify-between select-none touch-none ${!effectiveMaximized ? 'cursor-grab active:cursor-grabbing' : ''}`}
             >
                 <div className="flex items-center gap-2 text-zinc-300 font-medium pointer-events-none">
                     {Icon && <Icon size={14} className="text-os-accent opacity-80" />}
@@ -154,10 +177,20 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                 </div>
                 <div className="flex items-center gap-1.5">
                      {/* Window Controls */}
+                     {url && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors mr-1"
+                            title="Open in new tab"
+                        >
+                            <ExternalLink size={12} />
+                        </button>
+                     )}
                      <button className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors">
                         <Minus size={12} />
                     </button>
-                    <button onClick={toggleMaximize} className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors">
+                    <button onClick={toggleMaximize} className={`p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors ${isMobile ? 'hidden' : ''}`}>
                         <Square size={10} />
                     </button>
                     <button
@@ -178,7 +211,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
             </div>
 
             {/* Resize Handle */}
-            {!isMaximized && (
+            {!effectiveMaximized && (
                 <div
                     className="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize flex items-center justify-center z-10 text-zinc-600 touch-none"
                     onPointerDown={handleResizePointerDown}

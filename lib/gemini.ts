@@ -6,16 +6,28 @@ import { GoogleGenAI, Tool, Type } from "@google/genai";
 
 export const MODEL_NAME = "gemini-3-flash-preview"; 
 
-let aiClient: GoogleGenAI | null = null;
+let aiClient: any = null;
 
 export const getAiClient = () => {
     if (!aiClient) {
-        const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-        if (!apiKey) {
-            console.error('GEMINI_API_KEY environment variable is not set');
-            throw new Error('GEMINI_API_KEY environment variable is required');
-        }
-        aiClient = new GoogleGenAI({ apiKey });
+        aiClient = {
+            models: {
+                generateContent: async (request: any) => {
+                    const res = await fetch('/api/gemini/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(request)
+                    });
+                    if (!res.ok) throw new Error("Failed to generate content");
+                    const data = await res.json();
+                    return {
+                        text: data.response,
+                        functionCalls: data.functionCalls,
+                        candidates: [{ content: { parts: [{ text: data.response }] } }]
+                    };
+                }
+            }
+        };
     }
     return aiClient;
 };

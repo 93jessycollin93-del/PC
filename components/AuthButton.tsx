@@ -34,7 +34,7 @@ export const AuthButton: React.FC = () => {
         <div className="flex items-center gap-2">
             {user ? (
                 <button onClick={handleSignOut} className="flex items-center gap-2 px-3 py-1 bg-zinc-800 rounded-md text-sm hover:bg-zinc-700 text-white">
-                    {user.photoURL && <img src={user.photoURL} alt="Avatar" className="w-6 h-6 rounded-full" />}
+                    {user.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-6 h-6 rounded-full" /> : null}
                     Sign Out
                 </button>
             ) : (

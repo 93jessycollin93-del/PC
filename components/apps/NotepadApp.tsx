@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, FolderOpen, Download, History, Check } from 'lucide-react';
-import { getFile, saveFile, getHistory, restoreFromHistory } from '../../lib/storage';
+import { Save, FolderOpen, Download, History, Check, FileText } from 'lucide-react';
+import { getFile, saveFile, getHistory, restoreFromHistory, getRecentFiles } from '../../lib/storage';
 
 interface NotepadAppProps {
     fileId: string;
@@ -15,6 +15,8 @@ export const NotepadApp: React.FC<NotepadAppProps> = ({ fileId, initialContent =
     const [content, setContent] = useState(() => getFile(fileId) || initialContent);
     const [autoSave, setAutoSave] = useState(true);
     const [showHistory, setShowHistory] = useState(false);
+    const [showRecent, setShowRecent] = useState(false);
+    const [recentFiles, setRecentFiles] = useState<{id: string, timestamp: number}[]>([]);
     const [savedToast, setSavedToast] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef(content);
@@ -35,6 +37,11 @@ export const NotepadApp: React.FC<NotepadAppProps> = ({ fileId, initialContent =
         setTimeout(() => setSavedToast(false), 2000);
     };
 
+    useEffect(() => {
+        if (showRecent) {
+            setRecentFiles(getRecentFiles());
+        }
+    }, [showRecent]);
     const handleSaveAs = () => {
         const defaultName = fileId.includes('.') ? fileId : `${fileId}.txt`;
         const fileName = prompt("Save file as:", defaultName) || defaultName;
@@ -112,7 +119,14 @@ export const NotepadApp: React.FC<NotepadAppProps> = ({ fileId, initialContent =
                     </button>
 
                     <div className="w-px h-4 bg-zinc-800 mx-1" />
-
+                    <button 
+                        onClick={() => setShowRecent(!showRecent)} 
+                        className={`px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${showRecent ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-300'}`}
+                        title="View recently edited files"
+                    >
+                        <FolderOpen size={13} />
+                        <span>Recent</span>
+                    </button>
                     <button 
                         onClick={() => setShowHistory(!showHistory)} 
                         className={`px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${showHistory ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-300'}`}
@@ -135,6 +149,39 @@ export const NotepadApp: React.FC<NotepadAppProps> = ({ fileId, initialContent =
                     </label>
                 </div>
             </div>
+
+            {/* Recent Files Drawer */}
+            {showRecent && (
+                <div className="bg-zinc-900 border-b border-zinc-800 p-2 shadow-xl z-20">
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-zinc-500 font-mono flex items-center justify-between">
+                        <span>Recent Files</span>
+                    </div>
+                    {recentFiles.length === 0 ? (
+                        <div className="p-3 text-center text-zinc-500 text-xs italic">No recent files found.</div>
+                    ) : (
+                        recentFiles.map((rf, i) => (
+                            <button 
+                                key={rf.id} 
+                                className="w-full text-left text-xs p-2 rounded hover:bg-zinc-800 flex items-center justify-between group transition-colors"
+                                onClick={() => {
+                                    const c = getFile(rf.id);
+                                    if (c !== null) {
+                                        setContent(c);
+                                    }
+                                    setShowRecent(false);
+                                }}
+                            >
+                                <div className="flex items-center gap-2 truncate">
+                                    <FileText size={12} className="text-zinc-500" />
+                                    <span className="font-mono text-zinc-300">{rf.id}</span>
+                                    <span className="text-[10px] text-zinc-500">{new Date(rf.timestamp).toLocaleTimeString()}</span>
+                                </div>
+                                <span className="text-[10px] text-indigo-400 opacity-0 group-hover:opacity-100 font-medium">Open</span>
+                            </button>
+                        ))
+                    )}
+                </div>
+            )}
 
             {/* History Drawer */}
             {showHistory && (

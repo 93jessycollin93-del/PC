@@ -4,6 +4,7 @@
 */
 import React from 'react';
 import { DesktopItem } from '../../types';
+import { Monitor } from 'lucide-react';
 
 interface HomeScreenProps {
     items: (DesktopItem | null)[];
@@ -13,6 +14,17 @@ interface HomeScreenProps {
 export const HomeScreen: React.FC<HomeScreenProps> = ({ items, onLaunch }) => {
     return (
         <div className="h-full w-full p-8 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-6 content-start justify-items-center overflow-y-auto overscroll-y-contain">
+            {items.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center h-[50vh] text-center max-w-sm mx-auto select-none p-6 bg-zinc-950/40 backdrop-blur-md rounded-3xl border border-zinc-800/40 shadow-2xl self-center justify-self-center mt-12">
+                    <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 mb-4">
+                        <Monitor className="text-indigo-400 w-8 h-8 animate-pulse" />
+                    </div>
+                    <h3 className="text-zinc-200 font-bold text-lg mb-2">Pristine Desktop</h3>
+                    <p className="text-xs text-zinc-500 leading-relaxed">
+                        All applications are safely organized in the Floating Library. Click the layout editor in the top-right menu to place apps on the screen.
+                    </p>
+                </div>
+            )}
             {items.map((item, index) => {
                 if (!item) {
                     // Render an invisible placeholder to maintain grid gap

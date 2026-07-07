@@ -1,0 +1,64 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "documents": [
+        {
+          "id": "user_id_1",
+          "fields": [
+            {
+              "name": "displayName",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "email",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "photoURL",
+              "type": "string",
+              "required": false
+            },
+            {
+              "name": "createdAt",
+              "type": "timestamp",
+              "required": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "user_apps",
+      "documents": [
+        {
+          "id": "doc_id_1",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "appId",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "appState",
+              "type": "string",
+              "required": false
+            },
+            {
+              "name": "updatedAt",
+              "type": "timestamp",
+              "required": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

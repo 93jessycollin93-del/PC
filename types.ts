@@ -8,22 +8,19 @@ declare global {
     var html2canvas: (element: HTMLElement, options?: any) => Promise<HTMLCanvasElement>;
 }
 
-declare module '*?raw' {
-    const content: string;
-    export default content;
-}
-
-export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper';
+export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper' | 'termstudio' | 'ollama' | 'openclaw' | 'coderabbit' | 'semantic_scholar' | 'research_rabbit' | 'papers_with_code' | 'langchain' | 'unreal_engine' | 'blender' | 'knowledge_compressor' | 'supersayen' | 'aiterm' | 'jacky' | 'app_connector' | 'data_pods' | 'pod_system' | 'cloud_deploy' | 'consensus_lab';
 
 export interface DesktopItem {
     id: string;
     name: string;
     type: 'app' | 'folder';
     icon: LucideIcon;
-    appId?: AppId;
+    appId?: AppId | string;
     contents?: DesktopItem[];
     bgColor?: string;
     notepadInitialContent?: string;
+    url?: string;
+    iconName?: string;
 }
 
 export interface Point {

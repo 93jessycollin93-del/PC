@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /user_apps/{docId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    match /flipper_telemetry/{docId} {
+      allow read, write: if true;
+    }
+    match /OfflineBot/{docId} {
+      allow read: if request.auth != null && request.auth.token.email == resource.data.created_by;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.created_by;
+      allow update, delete: if request.auth != null && request.auth.token.email == resource.data.created_by;
+    }
+    match /BotChat/{docId} {
+      allow read: if request.auth != null && request.auth.token.email == resource.data.created_by;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.created_by;
+      allow update, delete: if request.auth != null && request.auth.token.email == resource.data.created_by;
+    }
+    match /BotMessage/{docId} {
+      allow read: if request.auth != null && request.auth.token.email == resource.data.created_by;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.created_by;
+      allow update, delete: if request.auth != null && request.auth.token.email == resource.data.created_by;
+    }
+    match /MemoryPod/{docId} {
+      allow read: if request.auth != null && request.auth.token.email == resource.data.created_by;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.created_by;
+      allow update, delete: if request.auth != null && request.auth.token.email == resource.data.created_by;
+    }
+    match /GlobalState/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

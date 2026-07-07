@@ -2,15 +2,55 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React, { useState } from 'react';
-import { Share2, Copy, Download, Check, Sparkles, Smartphone, Terminal, ShieldCheck, ExternalLink, HelpCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Share2, Copy, Download, Check, Sparkles, Smartphone, Terminal, ShieldCheck, ExternalLink, HelpCircle, Zap, RefreshCw, Layers } from 'lucide-react';
 import monolithicCode from '../../export/GeminiInkMonolithic.tsx?raw';
 import promptMarkdown from '../../export/CYBERNETIC_OS_IMPORT_PROMPT.md?raw';
+import { compressToLZWBase64, decompressFromLZWBase64 } from '../../lib/compression';
 
 export const CyberneticExportApp: React.FC = () => {
     const [copiedPrompt, setCopiedPrompt] = useState(false);
     const [copiedCode, setCopiedCode] = useState(false);
     const [downloaded, setDownloaded] = useState(false);
+    
+    // Compression sandbox state
+    const [customText, setCustomText] = useState('Type or paste any text here to test the real-time LZW compression algorithm live! Repeat patterns like class names or standard CSS rules to see compression ratio skyrocket.');
+    const [copiedCompressedText, setCopiedCompressedText] = useState(false);
+    const [copiedLoaderPrompt, setCopiedLoaderPrompt] = useState(false);
+    const [testDecompressed, setTestDecompressed] = useState('');
+    const [validationPassed, setValidationPassed] = useState<boolean | null>(null);
+
+    // Monolithic compression stats
+    const monolithicCompressed = useMemo(() => {
+        return compressToLZWBase64(monolithicCode);
+    }, []);
+
+    const [copiedMonolithicCompressed, setCopiedMonolithicCompressed] = useState(false);
+
+    const monoOriginalSize = monolithicCode.length;
+    const monoCompressedSize = monolithicCompressed.length;
+    const monoSavings = ((1 - (monoCompressedSize / monoOriginalSize)) * 100).toFixed(1);
+
+    // Custom text compression stats
+    const customCompressed = useMemo(() => {
+        return compressToLZWBase64(customText);
+    }, [customText]);
+
+    const customOriginalSize = customText.length;
+    const customCompressedSize = customCompressed.length;
+    const customSavings = customOriginalSize > 0 
+        ? ((1 - (customCompressedSize / customOriginalSize)) * 100).toFixed(1) 
+        : "0.0";
+
+    const handleVerifyDecompression = () => {
+        try {
+            const decomp = decompressFromLZWBase64(customCompressed);
+            setTestDecompressed(decomp);
+            setValidationPassed(decomp === customText);
+        } catch (e) {
+            setValidationPassed(false);
+        }
+    };
 
     // Extract just the clean prompt box from the markdown
     const cleanPrompt = `**SYSTEM DIRECTIVE: MOUNT SUB-APPLICATION "GEMINI INK" INTO CYBERNETIC OS**

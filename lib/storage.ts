@@ -47,3 +47,17 @@ export const restoreFromHistory = (fileId: string, timestamp: number): string | 
     }
     return null;
 };
+export const getRecentFiles = (): { id: string, timestamp: number }[] => {
+    const files: { id: string, timestamp: number }[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('history_')) {
+            const fileId = key.substring(8);
+            const history = getHistory(fileId);
+            if (history.length > 0) {
+                files.push({ id: fileId, timestamp: history[0].timestamp });
+            }
+        }
+    }
+    return files.sort((a, b) => b.timestamp - a.timestamp).slice(0, 3);
+};
