@@ -33,6 +33,13 @@ interface VaultBackupRotation {
     checksum: string;
 }
 
+interface LargeChangeDetection {
+    lastSnapshotSize: number;
+    lastSnapshotTime: number;
+    slot3Preserved: boolean;
+    preservedReason?: string;
+}
+
 const DB_NAME = 'SAS_ZERO_VAULT';
 const STORE_NAME = 'pods';
 
@@ -125,7 +132,31 @@ const getVaultBackupRotation = async (): Promise<VaultBackupRotation | null> => 
     return JSON.parse(stored) as VaultBackupRotation;
 };
 
-const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressedSizeMB: number): Promise<void> => {
+// Large-change detection: track significant vault modifications
+const getLargeChangeDetection = (): LargeChangeDetection => {
+    const stored = localStorage.getItem('vault_large_change_detection');
+    if (!stored) {
+        return { lastSnapshotSize: 0, lastSnapshotTime: Date.now(), slot3Preserved: false };
+    }
+    return JSON.parse(stored) as LargeChangeDetection;
+};
+
+const saveLargeChangeDetection = (detection: LargeChangeDetection): void => {
+    localStorage.setItem('vault_large_change_detection', JSON.stringify(detection));
+};
+
+// Detect anomalously large changes (default: 50MB threshold, 25% growth, or 10MB absolute)
+const detectLargeChange = (currentSizeMB: number, largeChangeThreshold = 50): boolean => {
+    const detection = getLargeChangeDetection();
+    const lastSize = detection.lastSnapshotSize || currentSizeMB;
+    const delta = Math.abs(currentSizeMB - lastSize);
+    const percentChange = lastSize > 0 ? (delta / lastSize) * 100 : 0;
+
+    // Large change if: >50MB delta OR >25% growth OR >10MB absolute in small vaults
+    return delta > largeChangeThreshold || percentChange > 25 || (lastSize < 50 && delta > 10);
+};
+
+const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressedSizeMB: number, largeChangeThreshold = 50): Promise<void> => {
     const lastRotation = await getVaultBackupRotation();
     const now = Date.now();
 
@@ -133,11 +164,32 @@ const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressed
     const ROTATION_INTERVAL = 90 * 60 * 1000; // 1.5 hours
 
     if (!lastRotation || (now - lastRotation.timestamp) > ROTATION_INTERVAL) {
-        // Cycle through slots: 1→2→3→1
-        const nextSlot: 1 | 2 | 3 = (lastRotation?.slot || 0) === 3 ? 1 : ((lastRotation?.slot || 0) + 1) as (1 | 2 | 3);
+        // Check for large changes
+        const isLargeChange = detectLargeChange(totalCompressedSizeMB, largeChangeThreshold);
+        let detection = getLargeChangeDetection();
+
+        // Cycle through slots: 1→2→3→1, but skip 3 if large change detected
+        let nextSlot: 1 | 2 | 3 = (lastRotation?.slot || 0) === 3 ? 1 : ((lastRotation?.slot || 0) + 1) as (1 | 2 | 3);
+
+        // If next slot is 3 and large change detected, preserve slot 3 as failsafe
+        if (nextSlot === 3 && isLargeChange) {
+            // Skip to slot 1, preserving slot 3
+            nextSlot = 1;
+            detection.slot3Preserved = true;
+            detection.preservedReason = `Large change detected: delta=${Math.abs(totalCompressedSizeMB - detection.lastSnapshotSize).toFixed(2)}MB`;
+            console.warn(`[Vault] Slot 3 preserved as failsafe - ${detection.preservedReason}`);
+        } else if (nextSlot === 3) {
+            // Normal slot 3 backup, clear preservation flag
+            detection.slot3Preserved = false;
+        }
+
+        // Update change detection tracking
+        detection.lastSnapshotSize = totalCompressedSizeMB;
+        detection.lastSnapshotTime = now;
+        saveLargeChangeDetection(detection);
 
         // Generate checksum for integrity
-        const checksum = `v${Date.now().toString(36)}_s${nextSlot}`;
+        const checksum = `v${Date.now().toString(36)}_s${nextSlot}${isLargeChange ? '_LC' : ''}`;
 
         const rotation: VaultBackupRotation = {
             slot: nextSlot,
@@ -151,8 +203,25 @@ const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressed
         localStorage.setItem(`vault_backup_slot_${nextSlot}`, JSON.stringify({
             rotation,
             podsSnapshot: localStorage.getItem('vault_pods_snapshot'),
-            metadata: { backup_at: new Date().toISOString() },
+            metadata: {
+                backup_at: new Date().toISOString(),
+                large_change: isLargeChange,
+                slot3_preserved: detection.slot3Preserved,
+            },
         }));
+
+        // Log rotation event
+        const rotationEvent = {
+            timestamp: now,
+            slot: nextSlot,
+            sizeChangeMB: totalCompressedSizeMB - detection.lastSnapshotSize,
+            largeChangeDetected: isLargeChange,
+            slot3Preserved: detection.slot3Preserved,
+        };
+        const rotationLog = JSON.parse(localStorage.getItem('vault_rotation_log') || '[]') as any[];
+        rotationLog.push(rotationEvent);
+        if (rotationLog.length > 100) rotationLog.shift(); // Keep last 100 rotations
+        localStorage.setItem('vault_rotation_log', JSON.stringify(rotationLog));
     }
 };
 
@@ -240,6 +309,8 @@ export const DataPodsApp: React.FC = () => {
     const [storageUsedBytes, setStorageUsedBytes] = useState<number>(0);
     const [backupSlots, setBackupSlots] = useState<{ slot: 1 | 2 | 3; timestamp: number; size: number }[]>([]);
     const [currentRotation, setCurrentRotation] = useState<VaultBackupRotation | null>(null);
+    const [largeChangeDetection, setLargeChangeDetection] = useState<LargeChangeDetection | null>(null);
+    const [largeChangeThreshold, setLargeChangeThreshold] = useState<number>(50);
     const initDoneRef = useRef(false);
 
     const CORE_MB = 50;
@@ -273,12 +344,16 @@ export const DataPodsApp: React.FC = () => {
                 // Initialize cloud backup rotation if needed
                 const readyPods = persistedPods.filter(p => p.status === 'ready');
                 const totalMB = readyPods.reduce((sum, p) => sum + (p.compressedSizeBytes || 0), 0) / 1024 / 1024;
-                await updateVaultBackupRotation(readyPods.length, totalMB);
+                await updateVaultBackupRotation(readyPods.length, totalMB, largeChangeThreshold);
+
+                // Initialize large change detection display
+                const detection = getLargeChangeDetection();
+                setLargeChangeDetection(detection);
             } catch (err) {
                 console.error('Failed to init vault storage:', err);
             }
         })();
-    }, []);
+    }, [largeChangeThreshold]);
 
     // Trigger backup rotation whenever pods change
     useEffect(() => {
@@ -286,15 +361,18 @@ export const DataPodsApp: React.FC = () => {
             const readyPods = pods.filter(p => p.status === 'ready');
             if (readyPods.length > 0) {
                 const totalMB = readyPods.reduce((sum, p) => sum + (p.compressedSizeBytes || 0), 0) / 1024 / 1024;
-                await updateVaultBackupRotation(readyPods.length, totalMB);
+                await updateVaultBackupRotation(readyPods.length, totalMB, largeChangeThreshold);
                 // Save pod snapshot for recovery
                 localStorage.setItem('vault_pods_snapshot', JSON.stringify(readyPods));
                 // Update current rotation display
                 const rotation = await getVaultBackupRotation();
                 setCurrentRotation(rotation);
+                // Update large change detection display
+                const detection = getLargeChangeDetection();
+                setLargeChangeDetection(detection);
             }
         })();
-    }, [pods]);
+    }, [pods, largeChangeThreshold]);
 
     const datasetsUsed = pods.filter(p => p.status === 'ready').reduce((acc, pod) => acc + pod.sizeMB, 0);
     const storageUsedMB = Math.round(storageUsedBytes / 1024 / 1024 * 100) / 100;
@@ -569,8 +647,39 @@ export const DataPodsApp: React.FC = () => {
                     <div className="space-y-2">
                         <h2 className="text-lg font-bold text-white flex items-center gap-2"><Cloud size={20} className="text-blue-400" /> Vault Backup Rotation</h2>
                         <p className="text-sm text-zinc-400 leading-relaxed">
-                            3-copy rotating backup system: vault automatically backs up every 1.5 hours through three cloud slots. Each rotation preserves full vault state for 1.5-hour rollback window.
+                            3-copy rotating backup system with large-change failsafe: vault automatically backs up every 1.5 hours through three cloud slots. Slot 3 is preserved during anomalous changes.
                         </p>
+                    </div>
+
+                    {/* Large Change Detection Threshold Config */}
+                    <div className="bg-zinc-900 border border-amber-800/50 rounded-xl p-4">
+                        <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2"><AlertCircle size={14} /> Large Change Failsafe</h3>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <p className="text-xs font-mono text-zinc-400">Threshold for skipping Slot 3:</p>
+                                    <p className="text-sm text-zinc-300">{largeChangeThreshold} MB or 25% growth</p>
+                                </div>
+                                <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={largeChangeThreshold}
+                                    onChange={(e) => setLargeChangeThreshold(Math.max(10, parseInt(e.target.value) || 50))}
+                                    className="w-16 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs text-white font-mono"
+                                />
+                            </div>
+                            {largeChangeDetection?.slot3Preserved && (
+                                <div className="bg-amber-950/40 border border-amber-700/50 rounded-lg p-2.5 text-xs text-amber-300">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Shield size={12} className="text-amber-400" />
+                                        <span className="font-bold">Slot 3 Currently Preserved</span>
+                                    </div>
+                                    <p className="text-amber-200/70 text-[11px]">{largeChangeDetection.preservedReason}</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Current Rotation Status */}
@@ -596,25 +705,40 @@ export const DataPodsApp: React.FC = () => {
                                 No backups yet. Backups will begin after first pod save.
                             </div>
                         ) : (
-                            backupSlots.map(backup => (
-                                <div key={backup.slot} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <div className="text-sm font-bold text-white">Slot {backup.slot}</div>
-                                            <div className="text-xs text-zinc-500">{new Date(backup.timestamp).toLocaleString()}</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-xs font-mono text-emerald-400">{backup.size.toFixed(2)} MB</div>
-                                            <div className={`text-[10px] font-bold px-2 py-1 rounded ${backup.slot === currentRotation?.slot ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
-                                                {backup.slot === currentRotation?.slot ? 'ACTIVE' : 'ARCHIVED'}
+                            backupSlots.map(backup => {
+                                const isActive = backup.slot === currentRotation?.slot;
+                                const isPreserved = backup.slot === 3 && largeChangeDetection?.slot3Preserved;
+                                return (
+                                    <div key={backup.slot} className={`border rounded-lg p-4 ${isPreserved ? 'bg-amber-950/30 border-amber-800/50' : 'bg-zinc-900 border-zinc-800'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <div className="text-sm font-bold text-white flex items-center gap-2">
+                                                    Slot {backup.slot}
+                                                    {isPreserved && <span className="px-1.5 py-0.5 bg-amber-900/50 border border-amber-700/50 rounded text-[9px] font-bold text-amber-300">FAILSAFE</span>}
+                                                </div>
+                                                <div className="text-xs text-zinc-500">{new Date(backup.timestamp).toLocaleString()}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs font-mono text-emerald-400">{backup.size.toFixed(2)} MB</div>
+                                                <div className={`text-[10px] font-bold px-2 py-1 rounded ${
+                                                    isActive ? 'bg-blue-600 text-white' :
+                                                    isPreserved ? 'bg-amber-700 text-amber-100' :
+                                                    'bg-zinc-800 text-zinc-400'
+                                                }`}>
+                                                    {isActive ? 'ACTIVE' : isPreserved ? 'PRESERVED' : 'ARCHIVED'}
+                                                </div>
                                             </div>
                                         </div>
+                                        <button className={`w-full px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                                            isPreserved
+                                                ? 'bg-amber-900/40 hover:bg-amber-800/40 text-amber-300 border border-amber-700/50'
+                                                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                                        }`}>
+                                            Restore from Slot {backup.slot}
+                                        </button>
                                     </div>
-                                    <button className="w-full px-3 py-1.5 text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md transition-colors">
-                                        Restore from Slot {backup.slot}
-                                    </button>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
 
