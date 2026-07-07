@@ -37,6 +37,8 @@ import { SuperSayenApp } from './components/apps/SuperSayenApp';
 import { DataPodsApp } from './components/apps/DataPodsApp';
 import { AiTermApp } from './components/apps/AiTermApp';
 import { JackyV3App } from './components/apps/JackyV3App';
+import FleetAtlasApp from './components/apps/FleetAtlasApp';
+import { LlmEnvironmentApp } from './components/apps/LlmEnvironmentApp';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
@@ -100,6 +102,8 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'zenith_chess', name: 'Zenith Chess AI', type: 'app', icon: Trophy, appId: 'chess', bgColor: 'bg-gradient-to-br from-yellow-500 via-amber-600 to-yellow-950 border border-yellow-400/20' },
     { id: 'iron_men_arcade', name: 'Iron Men Arcade', type: 'app', icon: Gamepad2, appId: 'iron-men-arcade', bgColor: 'bg-gradient-to-br from-rose-600 via-red-600 to-yellow-600 border border-rose-500/20' },
     { id: 'laser_tag', name: 'Laser Tag Arcade', type: 'app', icon: Target, appId: 'laser-tag', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-zinc-950 border border-red-500/20' },
+    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
+    { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     { 
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
@@ -381,6 +385,8 @@ export const App: React.FC = () => {
         if (item.appId === 'knowledge_compressor') initialSize = { width: 1000, height: 680 };
         if (item.appId === 'supersayen') initialSize = { width: 1020, height: 700 };
         if (item.appId === 'jacky') initialSize = { width: 1020, height: 700 };
+        if (item.appId === 'fleet_atlas') initialSize = { width: 900, height: 640 };
+        if (item.appId === 'llm_environment') initialSize = { width: 440, height: 760 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -881,6 +887,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
                     else if (win.item.appId === 'bot_studio') content = <BotStudioApp />;
                     else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
+                    else if (win.item.appId === 'fleet_atlas') content = <FleetAtlasApp />;
+                    else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe 
