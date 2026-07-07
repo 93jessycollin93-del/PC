@@ -303,7 +303,7 @@ export const App: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [toast, setToast] = useState<{ title?: string; message: React.ReactNode } | null>(null);
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
-    const timeoutRef = useRef<number | null>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
         if (globalState?.desktopVisibility) {

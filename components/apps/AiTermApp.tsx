@@ -609,7 +609,7 @@ devfs           199K   199K     0B   100%     687          0  100%   /dev`);
                 setHistIdx(newIdx);
                 setTermInput(history[newIdx] || '');
             }
-        } else if (e.ArrowDown) {
+        } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             if (histIdx < history.length - 1) {
                 const newIdx = histIdx + 1;
