@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Key, Eye, EyeOff, Save, Check, AlertCircle, Copy } from 'lucide-react';
 
 interface ApiKeyConfig {
-  provider: 'groq' | 'gemini' | 'deepseek' | 'anthropic';
+  provider: 'groq' | 'gemini' | 'deepseek' | 'anthropic' | 'grok';
   label: string;
   storageKey: string;
   getUrl: string;
@@ -11,6 +11,14 @@ interface ApiKeyConfig {
 }
 
 const API_KEYS_CONFIG: ApiKeyConfig[] = [
+  {
+    provider: 'grok',
+    label: 'Grok (xAI)',
+    storageKey: 'grok_api_key',
+    getUrl: 'https://console.x.ai/account/api-keys',
+    description: 'xAI Grok - advanced reasoning & analysis',
+    status: 'missing',
+  },
   {
     provider: 'groq',
     label: 'Groq',

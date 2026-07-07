@@ -4,7 +4,7 @@
  * Priority: Groq (free) → Gemini (free tier) → DeepSeek (cheap) → Anthropic (fallback)
  */
 
-export type ModelProvider = 'groq' | 'gemini' | 'deepseek' | 'anthropic';
+export type ModelProvider = 'groq' | 'gemini' | 'deepseek' | 'anthropic' | 'grok';
 export type ModelCapability = 'chat' | 'code' | 'analysis' | 'vision';
 
 interface ModelConfig {
@@ -31,6 +31,16 @@ interface APIKey {
 
 // Model configurations
 const MODEL_REGISTRY: Record<ModelProvider, ModelConfig[]> = {
+  grok: [
+    {
+      provider: 'grok',
+      model: 'grok-2-1212',
+      capabilities: ['chat', 'code', 'analysis'],
+      costPer1kTokens: 0.0012, // Grok pricing
+      speedRating: 8,
+      maxTokens: 131072,
+    },
+  ],
   groq: [
     {
       provider: 'groq',

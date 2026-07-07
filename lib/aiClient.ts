@@ -50,7 +50,9 @@ class AIClient {
     try {
       let response: AIResponse;
 
-      if (routing.provider === 'groq') {
+      if (routing.provider === 'grok') {
+        response = await this.callGrok(allMessages, maxTokens, temperature);
+      } else if (routing.provider === 'groq') {
         response = await this.callGroq(allMessages, maxTokens, temperature, routing.model);
       } else if (routing.provider === 'gemini') {
         response = await this.callGemini(allMessages, maxTokens, temperature);
@@ -70,6 +72,53 @@ class AIClient {
       console.error(`[AIClient] Error calling ${routing.provider}:`, error);
       throw error;
     }
+  }
+
+  private async callGrok(
+    messages: AIMessage[],
+    maxTokens: number,
+    temperature: number
+  ): Promise<AIResponse> {
+    const apiKey = localStorage.getItem('grok_api_key');
+    if (!apiKey) {
+      throw new Error('Grok API key not configured');
+    }
+
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-2-1212',
+        messages: messages.map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+        max_tokens: maxTokens,
+        temperature,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Grok API error: ${error.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '';
+    const tokensUsed = data.usage?.total_tokens || 0;
+    const estimatedCost = (tokensUsed / 1000) * 0.0012;
+
+    return {
+      content,
+      provider: 'grok',
+      model: 'grok-2-1212',
+      tokensUsed,
+      cost: estimatedCost,
+      timestamp: Date.now(),
+    };
   }
 
   private async callGroq(
