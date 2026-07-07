@@ -48,6 +48,7 @@ import { AgentBuilderApp } from './components/apps/AgentBuilderApp';
 import { ClaudeAssistantApp } from './components/apps/ClaudeAssistantApp';
 import { CodexApp } from './components/apps/CodexApp';
 import { GrokTerminalApp } from './components/apps/GrokTerminalApp';
+import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
@@ -91,6 +92,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'claude_assistant', name: 'Claude Assistant', type: 'app', icon: Bot, appId: 'claude_assistant', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 border border-indigo-400/30 shadow-md' },
     { id: 'codex', name: 'Codex', type: 'app', icon: Code2, appId: 'codex', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-950 border border-emerald-400/30 shadow-md' },
     { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
+    { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
@@ -953,6 +955,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'claude_assistant') content = <ClaudeAssistantApp />;
                     else if (win.item.appId === 'codex') content = <CodexApp />;
                     else if (win.item.appId === 'grok_terminal') content = <GrokTerminalApp />;
+                    else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe 
