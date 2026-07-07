@@ -86,41 +86,43 @@ export const ArchiverApp: React.FC = () => {
   };
 
   const simulateScreenRecording = async () => {
-    setStatus(prev => ({ ...prev, screenRecordingActive: true }));
-    const recordingSize = Math.floor(Math.random() * 50) + 20; // 20-70MB per recording
+    // Minimal buffer: only capture state snapshot, compress, release immediately
+    const startTime = performance.now();
 
-    const newJob: ArchiveJob = {
-      id: `screen_${Date.now()}`,
-      source: 'screen',
-      dataSize: recordingSize * 1024 * 1024,
-      compressed: false,
-      archived: false,
-      timestamp: Date.now(),
-    };
+    // 1. Capture: minimal buffer (just state diffs, ~5-15MB equivalent)
+    const captureSize = Math.floor(Math.random() * 10) + 5; // 5-15MB (small delta frames)
 
-    // Simulate compression
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const compressedSize = simulateCompress(newJob.dataSize);
+    // 2. Compress immediately (don't hold both in memory)
+    const compressTime = performance.now();
+    const compressedSize = simulateCompress(captureSize * 1024 * 1024);
+    const compressionDuration = (performance.now() - compressTime).toFixed(0);
 
-    // Simulate cloud upload if enabled
+    // 3. Release capture buffer, only hold compressed data
+    const uploadTime = performance.now();
     let uploadedToCloud = false;
     if (status.cloudUploadEnabled) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Minimal upload: just send compressed buffer
+      await new Promise(resolve => setTimeout(resolve, 100)); // Fast upload simulation
       uploadedToCloud = true;
     }
 
+    const uploadDuration = (performance.now() - uploadTime).toFixed(0);
+    const totalDuration = (performance.now() - startTime).toFixed(0);
+
     const completedJob: ArchiveJob = {
-      ...newJob,
+      id: `screen_${Date.now()}`,
+      source: 'screen',
+      dataSize: captureSize * 1024 * 1024,
       compressed: true,
       archived: true,
+      timestamp: Date.now(),
       compressedSize,
       uploadedToCloud,
     };
 
     setStatus(prev => ({
       ...prev,
-      screenRecordingActive: false,
-      totalArchived: prev.totalArchived + recordingSize * 1024 * 1024,
+      totalArchived: prev.totalArchived + captureSize * 1024 * 1024,
       totalCompressed: prev.totalCompressed + compressedSize,
       totalUploadedToCloud: uploadedToCloud ? prev.totalUploadedToCloud + compressedSize : prev.totalUploadedToCloud,
       jobs: [completedJob, ...prev.jobs].slice(0, 50),
@@ -128,7 +130,7 @@ export const ArchiverApp: React.FC = () => {
 
     setArchiveLog(prev => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Screen recording: ${(recordingSize).toFixed(1)}MB → ${(compressedSize / 1024 / 1024).toFixed(1)}MB${uploadedToCloud ? ' ✓ uploaded' : ''}`,
+      `[${new Date().toLocaleTimeString()}] 📹 ${captureSize}MB → ${(compressedSize / 1024 / 1024).toFixed(1)}MB (compress: ${compressionDuration}ms${uploadedToCloud ? ` upload: ${uploadDuration}ms` : ''}) total: ${totalDuration}ms`,
     ]);
   };
 
