@@ -7,6 +7,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { initializeGlobalState } from './lib/persist';
 import { AuthProvider } from './lib/authContext';
+import { ToastProvider } from './lib/toastContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Failed to find the root element');
@@ -34,7 +35,9 @@ const RootApp = () => {
     return (
         <React.StrictMode>
             <AuthProvider>
-                <App />
+                <ToastProvider>
+                    <App />
+                </ToastProvider>
             </AuthProvider>
         </React.StrictMode>
     );

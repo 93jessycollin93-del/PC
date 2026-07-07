@@ -75,6 +75,8 @@ import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab
 import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
 import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { ToastProvider } from './lib/toastContext';
+import { MobileStatusBar } from './components/MobileStatusBar';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -848,13 +850,10 @@ Body: ${emailToSummarize.body}`,
                 }}
             />
 
-            <div className="absolute top-4 right-4 z-[3990] flex items-center gap-2">
-                <SyncStatusIndicator />
-                <SystemMonitor
-                    openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
-                    onFocusWindow={focusWindow}
-                />
-            </div>
+            <MobileStatusBar
+                openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
+                onFocusWindow={focusWindow}
+            />
 
             <FloatingNav
                 apps={desktopItems.filter(Boolean) as DesktopItem[]}
