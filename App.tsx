@@ -425,6 +425,26 @@ export const App: React.FC = () => {
         };
     }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
 
+    // Global shell hotkey: backtick (`) opens the ai-term terminal from
+    // anywhere, like a real mini-PC drop-down console — unless the user is
+    // typing into a field.
+    useEffect(() => {
+        const handleHotkey = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            const typing = !!target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable
+            );
+            if (e.key === '`' && !typing) {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('launch-app', { detail: { appId: 'aiterm' } }));
+            }
+        };
+        window.addEventListener('keydown', handleHotkey);
+        return () => window.removeEventListener('keydown', handleHotkey);
+    }, []);
+
     const closeWindow = (id: string) => {
         setOpenWindows(prev => prev.filter(w => w.id !== id));
         if (focusedId === id) setFocusedId(null);
