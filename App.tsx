@@ -58,6 +58,7 @@ import { QpdbApp } from './components/apps/QpdbApp';
 import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab';
 import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { Analytics } from '@vercel/analytics/react';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -944,6 +945,7 @@ Body: ${emailToSummarize.body}`,
                     </div>
                 )}
             </div>
+            <Analytics />
         </div>
     );
 };
