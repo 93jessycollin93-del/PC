@@ -8,7 +8,7 @@ declare global {
     var html2canvas: (element: HTMLElement, options?: any) => Promise<HTMLCanvasElement>;
 }
 
-export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper' | 'termstudio' | 'ollama' | 'openclaw' | 'coderabbit' | 'semantic_scholar' | 'research_rabbit' | 'papers_with_code' | 'langchain' | 'unreal_engine' | 'blender' | 'knowledge_compressor' | 'supersayen' | 'aiterm' | 'jacky' | 'app_connector' | 'data_pods' | 'pod_system' | 'cloud_deploy' | 'consensus_lab' | 'fleet_atlas' | 'llm_environment';
+export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper' | 'termstudio' | 'ollama' | 'openclaw' | 'coderabbit' | 'semantic_scholar' | 'research_rabbit' | 'papers_with_code' | 'langchain' | 'unreal_engine' | 'blender' | 'knowledge_compressor' | 'supersayen' | 'aiterm' | 'jacky' | 'app_connector' | 'data_pods' | 'pod_system' | 'cloud_deploy' | 'consensus_lab' | 'fleet_atlas' | 'llm_environment' | 'small_agent_fleet';
 
 export interface DesktopItem {
     id: string;
