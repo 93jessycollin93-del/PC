@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Archive, Clock, HardDrive, CheckCircle, AlertCircle, Play, Zap, Database } from 'lucide-react';
+import { Archive, Clock, HardDrive, CheckCircle, AlertCircle, Play, Zap, Database, Video, Cloud, Pause } from 'lucide-react';
 
 interface ArchiveJob {
   id: string;
-  source: 'chats' | 'logs' | 'feedback' | 'interactions';
+  source: 'chats' | 'logs' | 'feedback' | 'interactions' | 'screen';
   dataSize: number;
   compressed: boolean;
   archived: boolean;
   timestamp: number;
   compressedSize?: number;
+  uploadedToCloud?: boolean;
 }
 
 interface ArchiverStatus {
@@ -18,6 +19,10 @@ interface ArchiverStatus {
   totalArchived: number;
   totalCompressed: number;
   jobs: ArchiveJob[];
+  screenRecordingActive: boolean;
+  screenRecordingDuration: number; // seconds
+  cloudUploadEnabled: boolean;
+  totalUploadedToCloud: number; // bytes
 }
 
 const ARCHIVE_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
@@ -31,6 +36,10 @@ export const ArchiverApp: React.FC = () => {
     totalArchived: 0,
     totalCompressed: 0,
     jobs: [],
+    screenRecordingActive: false,
+    screenRecordingDuration: 10000, // 10 seconds
+    cloudUploadEnabled: false,
+    totalUploadedToCloud: 0,
   });
 
   const [manualRunning, setManualRunning] = useState(false);
@@ -74,6 +83,79 @@ export const ArchiverApp: React.FC = () => {
   const simulateCompress = (size: number): number => {
     // Simulate 80-90% compression ratio
     return Math.floor(size * (0.1 + Math.random() * 0.1));
+  };
+
+  const simulateScreenRecording = async () => {
+    setStatus(prev => ({ ...prev, screenRecordingActive: true }));
+    const recordingSize = Math.floor(Math.random() * 50) + 20; // 20-70MB per recording
+
+    const newJob: ArchiveJob = {
+      id: `screen_${Date.now()}`,
+      source: 'screen',
+      dataSize: recordingSize * 1024 * 1024,
+      compressed: false,
+      archived: false,
+      timestamp: Date.now(),
+    };
+
+    // Simulate compression
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const compressedSize = simulateCompress(newJob.dataSize);
+
+    // Simulate cloud upload if enabled
+    let uploadedToCloud = false;
+    if (status.cloudUploadEnabled) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      uploadedToCloud = true;
+    }
+
+    const completedJob: ArchiveJob = {
+      ...newJob,
+      compressed: true,
+      archived: true,
+      compressedSize,
+      uploadedToCloud,
+    };
+
+    setStatus(prev => ({
+      ...prev,
+      screenRecordingActive: false,
+      totalArchived: prev.totalArchived + recordingSize * 1024 * 1024,
+      totalCompressed: prev.totalCompressed + compressedSize,
+      totalUploadedToCloud: uploadedToCloud ? prev.totalUploadedToCloud + compressedSize : prev.totalUploadedToCloud,
+      jobs: [completedJob, ...prev.jobs].slice(0, 50),
+    }));
+
+    setArchiveLog(prev => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Screen recording: ${(recordingSize).toFixed(1)}MB → ${(compressedSize / 1024 / 1024).toFixed(1)}MB${uploadedToCloud ? ' ✓ uploaded' : ''}`,
+    ]);
+  };
+
+  const toggleScreenRecording = () => {
+    if (status.screenRecordingActive) {
+      setStatus(prev => ({ ...prev, screenRecordingActive: false }));
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording stopped`]);
+    } else {
+      setStatus(prev => ({ ...prev, screenRecordingActive: true }));
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording started (10s loop)`]);
+      // Simulate recording loop every 10 seconds
+      const loopRef = setInterval(() => {
+        if (!status.screenRecordingActive) {
+          clearInterval(loopRef);
+          return;
+        }
+        simulateScreenRecording();
+      }, status.screenRecordingDuration);
+    }
+  };
+
+  const toggleCloudUpload = () => {
+    setStatus(prev => ({ ...prev, cloudUploadEnabled: !prev.cloudUploadEnabled }));
+    setArchiveLog(prev => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Cloud upload ${!status.cloudUploadEnabled ? 'enabled' : 'disabled'}`,
+    ]);
   };
 
   const runArchive = async () => {
@@ -184,7 +266,7 @@ export const ArchiverApp: React.FC = () => {
 
       {/* Status Bar */}
       <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/50">
-        <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="grid grid-cols-2 gap-3 text-xs mb-3">
           <div className="flex items-center gap-2">
             <Clock size={14} className="text-cyan-400" />
             <div>
@@ -199,6 +281,40 @@ export const ArchiverApp: React.FC = () => {
               <p className="font-mono text-orange-300">{(currentDataSize / 1024 / 1024).toFixed(1)}MB</p>
             </div>
           </div>
+        </div>
+        {/* Recording & Upload Controls */}
+        <div className="flex gap-2">
+          <button
+            onClick={toggleScreenRecording}
+            className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded transition-colors flex items-center justify-center gap-1 ${
+              status.screenRecordingActive
+                ? 'bg-red-600 hover:bg-red-500 text-white'
+                : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+            }`}
+          >
+            {status.screenRecordingActive ? (
+              <>
+                <Pause size={12} />
+                Stop Recording
+              </>
+            ) : (
+              <>
+                <Video size={12} />
+                Record Screen
+              </>
+            )}
+          </button>
+          <button
+            onClick={toggleCloudUpload}
+            className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded transition-colors flex items-center justify-center gap-1 ${
+              status.cloudUploadEnabled
+                ? 'bg-green-600 hover:bg-green-500 text-white'
+                : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'
+            }`}
+          >
+            <Cloud size={12} />
+            {status.cloudUploadEnabled ? 'Cloud' : 'Local'}
+          </button>
         </div>
       </div>
 
@@ -220,6 +336,20 @@ export const ArchiverApp: React.FC = () => {
             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-2">
               <p className="text-[10px] text-zinc-400">
                 Compression ratio: {((1 - status.totalCompressed / status.totalArchived) * 100).toFixed(0)}%
+              </p>
+            </div>
+          )}
+          {status.cloudUploadEnabled && (
+            <div className="bg-green-950/30 border border-green-900/50 rounded-lg p-2">
+              <p className="text-[10px] text-green-400 font-bold">
+                ☁️ Cloud sync: {(status.totalUploadedToCloud / 1024 / 1024).toFixed(1)}MB uploaded
+              </p>
+            </div>
+          )}
+          {status.screenRecordingActive && (
+            <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-2 animate-pulse">
+              <p className="text-[10px] text-red-400 font-bold">
+                🔴 Recording live (10s loop)
               </p>
             </div>
           )}
