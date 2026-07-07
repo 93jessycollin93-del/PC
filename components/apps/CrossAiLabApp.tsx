@@ -17,6 +17,8 @@ import {
     List,
     Download,
     Archive,
+    Star,
+    Heart,
 } from 'lucide-react';
 import {
     AGENT_REGISTRY,
@@ -32,8 +34,17 @@ import {
     Experiment,
 } from '../../lib/agents/experimentRunner';
 import { scoreResponses, findConsensus } from '../../lib/agents/responseAnalyzer';
+import {
+    saveVote,
+    getVote,
+    getExperimentVotes,
+    getFavorites,
+    calculateAgentStats,
+    getLeaderboard,
+} from '../../lib/agents/responseVoting';
+import type { ResponseVote } from '../../lib/agents/responseVoting';
 
-type ViewMode = 'editor' | 'results' | 'history';
+type ViewMode = 'editor' | 'results' | 'history' | 'favorites' | 'leaderboard';
 
 export const CrossAiLabApp: React.FC = () => {
     const [viewMode, setViewMode] = useState<ViewMode>('editor');
@@ -49,6 +60,13 @@ export const CrossAiLabApp: React.FC = () => {
 
     const enabledAgents = getEnabledAgents();
     const savedExperiments = listExperiments();
+    const [experimentVotes, setExperimentVotes] = useState<Map<string, ResponseVote>>(() => {
+        if (!currentExperiment) return new Map();
+        const votes = getExperimentVotes(currentExperiment.id);
+        const map = new Map<string, ResponseVote>();
+        votes.forEach(v => map.set(v.agentId, v));
+        return map;
+    });
 
     const handleToggleAgent = (agentId: string) => {
         setSelectedAgents(prev =>
@@ -85,6 +103,37 @@ export const CrossAiLabApp: React.FC = () => {
 
     const handleCopyResponse = (text: string) => {
         navigator.clipboard.writeText(text);
+    };
+
+    const handleRateResponse = (agentId: string, rating: number) => {
+        if (!currentExperiment) return;
+
+        const vote: ResponseVote = {
+            experimentId: currentExperiment.id,
+            agentId,
+            rating,
+            isFavorite: experimentVotes.get(agentId)?.isFavorite || false,
+            votedAt: new Date(),
+        };
+
+        saveVote(vote);
+        setExperimentVotes(prev => new Map(prev).set(agentId, vote));
+    };
+
+    const handleToggleFavorite = (agentId: string) => {
+        if (!currentExperiment) return;
+
+        const existing = experimentVotes.get(agentId);
+        const vote: ResponseVote = {
+            experimentId: currentExperiment.id,
+            agentId,
+            rating: existing?.rating || 0,
+            isFavorite: !existing?.isFavorite,
+            votedAt: new Date(),
+        };
+
+        saveVote(vote);
+        setExperimentVotes(prev => new Map(prev).set(agentId, vote));
     };
 
     const handleExportExperiment = () => {
@@ -269,6 +318,18 @@ export const CrossAiLabApp: React.FC = () => {
                             Export
                         </button>
                         <button
+                            onClick={() => setViewMode('favorites')}
+                            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition"
+                        >
+                            <Heart size={16} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('leaderboard')}
+                            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition"
+                        >
+                            <TrendingUp size={16} />
+                        </button>
+                        <button
                             onClick={() => setViewMode('editor')}
                             className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm text-white transition"
                         >
@@ -312,29 +373,63 @@ export const CrossAiLabApp: React.FC = () => {
 
                 {/* Responses */}
                 <div className="space-y-4">
-                    {responses.map((response, idx) => (
-                        <div key={response.agentId} className="p-4 bg-zinc-800/30 border border-zinc-700/50 rounded-lg">
-                            <div className="flex justify-between items-start mb-3">
-                                <h3 className="font-medium text-zinc-100">{response.agentName}</h3>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-zinc-400">{response.latencyMs.toFixed(0)}ms</span>
-                                    <button
-                                        onClick={() => handleCopyResponse(response.content)}
-                                        className="p-1 hover:bg-zinc-700 rounded transition"
-                                    >
-                                        <Copy size={14} className="text-zinc-400" />
-                                    </button>
+                    {responses.map((response, idx) => {
+                        const vote = experimentVotes.get(response.agentId);
+                        return (
+                            <div key={response.agentId} className={`p-4 rounded-lg border transition ${vote?.isFavorite ? 'bg-purple-900/30 border-purple-500/40' : 'bg-zinc-800/30 border-zinc-700/50'}`}>
+                                <div className="flex justify-between items-start mb-3">
+                                    <h3 className="font-medium text-zinc-100">{response.agentName}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-zinc-400">{response.latencyMs.toFixed(0)}ms</span>
+                                        <button
+                                            onClick={() => handleToggleFavorite(response.agentId)}
+                                            className="p-1 hover:bg-zinc-700 rounded transition"
+                                        >
+                                            <Heart
+                                                size={14}
+                                                className={vote?.isFavorite ? 'text-red-500 fill-red-500' : 'text-zinc-400'}
+                                            />
+                                        </button>
+                                        <button
+                                            onClick={() => handleCopyResponse(response.content)}
+                                            className="p-1 hover:bg-zinc-700 rounded transition"
+                                        >
+                                            <Copy size={14} className="text-zinc-400" />
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {/* Star Rating */}
+                                <div className="flex gap-1 mb-3">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <button
+                                            key={star}
+                                            onClick={() => handleRateResponse(response.agentId, star)}
+                                            className="transition hover:scale-110"
+                                        >
+                                            <Star
+                                                size={16}
+                                                className={
+                                                    star <= (vote?.rating || 0)
+                                                        ? 'text-yellow-400 fill-yellow-400'
+                                                        : 'text-zinc-600'
+                                                }
+                                            />
+                                        </button>
+                                    ))}
+                                    {vote?.rating && <span className="text-xs text-zinc-400 ml-2">Rated {vote.rating}/5</span>}
+                                </div>
+
+                                {response.error ? (
+                                    <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded">Error: {response.error}</div>
+                                ) : (
+                                    <div className="text-sm text-zinc-300 leading-relaxed max-h-48 overflow-y-auto bg-zinc-900/50 p-3 rounded">
+                                        {response.content}
+                                    </div>
+                                )}
                             </div>
-                            {response.error ? (
-                                <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded">Error: {response.error}</div>
-                            ) : (
-                                <div className="text-sm text-zinc-300 leading-relaxed max-h-48 overflow-y-auto bg-zinc-900/50 p-3 rounded">
-                                    {response.content}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         );
@@ -346,12 +441,28 @@ export const CrossAiLabApp: React.FC = () => {
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
                     <h1 className="text-2xl font-bold text-purple-300">Experiment History</h1>
-                    <button
-                        onClick={() => setViewMode('editor')}
-                        className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm text-white transition"
-                    >
-                        New Experiment
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setViewMode('favorites')}
+                            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition"
+                        >
+                            <Heart size={16} />
+                            Favorites
+                        </button>
+                        <button
+                            onClick={() => setViewMode('leaderboard')}
+                            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300 transition"
+                        >
+                            <TrendingUp size={16} />
+                            Leaderboard
+                        </button>
+                        <button
+                            onClick={() => setViewMode('editor')}
+                            className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm text-white transition"
+                        >
+                            New Experiment
+                        </button>
+                    </div>
                 </div>
 
                 {/* Experiments List */}
@@ -384,6 +495,155 @@ export const CrossAiLabApp: React.FC = () => {
                         ))
                     )}
                 </div>
+            </div>
+        );
+    }
+
+    if (viewMode === 'favorites') {
+        const favorites = getFavorites();
+
+        return (
+            <div className="flex flex-col h-full bg-gradient-to-br from-zinc-950 via-purple-950 to-zinc-950 p-6 overflow-y-auto">
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6 sticky top-0 bg-gradient-to-b from-zinc-950 pb-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-purple-300">Favorite Responses</h1>
+                        <p className="text-xs text-zinc-400 mt-1">{favorites.length} saved favorites</p>
+                    </div>
+                    <button
+                        onClick={() => setViewMode('history')}
+                        className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm text-white transition"
+                    >
+                        Back to History
+                    </button>
+                </div>
+
+                {/* Favorites List */}
+                <div className="space-y-4">
+                    {favorites.length === 0 ? (
+                        <div className="text-center py-8 text-zinc-400">
+                            <Heart size={32} className="mx-auto mb-2 text-zinc-600" />
+                            <p>No favorites yet. Mark responses as favorites while reviewing experiments!</p>
+                        </div>
+                    ) : (
+                        favorites.map((vote, idx) => {
+                            const experiment = savedExperiments.find(e => e.id === vote.experimentId);
+                            const response = experiment?.responses.get(vote.agentId);
+
+                            if (!response) return null;
+
+                            return (
+                                <div key={`${vote.experimentId}_${vote.agentId}_${idx}`} className="p-4 bg-purple-900/30 border border-purple-500/40 rounded-lg">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 className="font-medium text-zinc-100">{response.agentName}</h3>
+                                            <p className="text-xs text-zinc-400 mt-1">
+                                                {experiment?.title} • {new Date(vote.votedAt).toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {vote.rating > 0 && (
+                                                <div className="flex gap-0.5">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <Star
+                                                            key={i}
+                                                            size={14}
+                                                            className={i < vote.rating ? 'text-yellow-400 fill-yellow-400' : 'text-zinc-600'}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <Heart size={14} className="text-red-500 fill-red-500" />
+                                        </div>
+                                    </div>
+
+                                    {vote.notes && (
+                                        <div className="mb-3 text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded italic">
+                                            "{vote.notes}"
+                                        </div>
+                                    )}
+
+                                    <div className="text-sm text-zinc-300 leading-relaxed max-h-48 overflow-y-auto bg-zinc-900/50 p-3 rounded">
+                                        {response.content}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (viewMode === 'leaderboard') {
+        const leaderboardStats = getLeaderboard(enabledAgents.map(a => ({ id: a.id, name: a.name })));
+
+        return (
+            <div className="flex flex-col h-full bg-gradient-to-br from-zinc-950 via-purple-950 to-zinc-950 p-6 overflow-y-auto">
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6 sticky top-0 bg-gradient-to-b from-zinc-950 pb-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-purple-300">Agent Leaderboard</h1>
+                        <p className="text-xs text-zinc-400 mt-1">Ranked by average user rating</p>
+                    </div>
+                    <button
+                        onClick={() => setViewMode('history')}
+                        className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm text-white transition"
+                    >
+                        Back to History
+                    </button>
+                </div>
+
+                {/* Leaderboard Table */}
+                {leaderboardStats.length === 0 ? (
+                    <div className="text-center py-8 text-zinc-400">
+                        <TrendingUp size={32} className="mx-auto mb-2 text-zinc-600" />
+                        <p>No votes yet. Rate responses to build the leaderboard!</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {leaderboardStats.map((stat, rank) => (
+                            <div key={stat.agentId} className="p-4 bg-zinc-800/50 border border-purple-500/20 rounded-lg">
+                                <div className="flex items-center gap-4">
+                                    {/* Rank Badge */}
+                                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center font-bold text-white">
+                                        {rank + 1}
+                                    </div>
+
+                                    {/* Agent Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-medium text-zinc-100">{stat.agentName}</h3>
+                                        <div className="flex gap-2 text-xs text-zinc-400 mt-1">
+                                            <span>{stat.totalVotes} vote{stat.totalVotes !== 1 ? 's' : ''}</span>
+                                            <span>•</span>
+                                            <span>{stat.favoriteCount} favorite{stat.favoriteCount !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Stats */}
+                                    <div className="flex-shrink-0 text-right">
+                                        <div className="flex items-center gap-1">
+                                            {[...Array(5)].map((_, i) => (
+                                                <Star
+                                                    key={i}
+                                                    size={12}
+                                                    className={i < Math.round(stat.averageRating) ? 'text-yellow-400 fill-yellow-400' : 'text-zinc-600'}
+                                                />
+                                            ))}
+                                        </div>
+                                        <div className="text-sm font-bold text-purple-300 mt-1">{stat.averageRating.toFixed(1)}</div>
+                                    </div>
+
+                                    {/* Win Rate */}
+                                    <div className="flex-shrink-0 text-right">
+                                        <div className="text-xs text-zinc-400">Win Rate</div>
+                                        <div className="text-sm font-bold text-emerald-400">{stat.winRate}%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     }
