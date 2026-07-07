@@ -1,36 +1,46 @@
 steps:
-  # Build the Docker image
+  # Step 1: Build Docker image
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/pc-os-app:latest'
+      - 'gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/pc-os-app:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/pc-os:latest'
       - '.'
+    waitFor: ['-']
 
-  # Push the image to Container Registry
+  # Step 2: Push to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/pc-os-app:latest'
+      - 'gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+    waitFor: ['build-image']
 
-  # Deploy to Cloud Run
-  - name: 'gcr.io/cloud-builders/gke-deploy'
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/run'
+    id: 'deploy-cloud-run'
     args:
-      - 'run'
-      - '--filename=.'
-      - '--image=gcr.io/$PROJECT_ID/pc-os-app:latest'
-      - '--location=$_REGION'
+      - 'deploy'
+      - 'pc-os-app'
+      - '--image=gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=3600'
+      - '--set-env-vars=GOOGLE_PROJECT_ID=$PROJECT_ID,DEPLOYMENT_REGION=us-central1'
+    waitFor: ['push-image']
 
 images:
-  - 'gcr.io/$PROJECT_ID/pc-os-app:latest'
-  - 'gcr.io/$PROJECT_ID/pc-os-app:$COMMIT_SHA'
-
-substitutions:
-  _REGION: 'us-central1'
-  _MEMORY: '512Mi'
-  _CPU: '1'
+  - 'gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/pc-os:latest'
 
 options:
   machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '3600s'
