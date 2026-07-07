@@ -49,6 +49,7 @@ import { ClaudeAssistantApp } from './components/apps/ClaudeAssistantApp';
 import { CodexApp } from './components/apps/CodexApp';
 import { GrokTerminalApp } from './components/apps/GrokTerminalApp';
 import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
+import { Footer } from './components/Footer';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
@@ -1019,6 +1020,8 @@ Body: ${emailToSummarize.body}`,
                     </div>
                 )}
             </div>
+
+            <Footer />
         </div>
     );
 };
