@@ -75,6 +75,7 @@ import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab
 import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
 import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
+import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
@@ -135,6 +136,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     { id: 'cross_ai_lab', name: 'Cross-AI Lab', type: 'app', icon: Bot, appId: 'cross_ai_lab', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-700 to-pink-700 border border-violet-400/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
     { id: 'terminal', name: 'Opus Terminal', type: 'app', icon: Terminal, appId: 'terminal', bgColor: 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-900 border border-slate-600/50 shadow-[0_0_20px_rgba(51,65,85,0.4)]' },
+    { id: 'ui_studio', name: 'UI Studio', type: 'app', icon: Palette, appId: 'ui_studio', bgColor: 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.35)]' },
     {
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
@@ -422,6 +424,7 @@ export const App: React.FC = () => {
         if (item.appId === 'fleet_atlas') initialSize = { width: 900, height: 640 };
         if (item.appId === 'llm_environment') initialSize = { width: 440, height: 760 };
         if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
+        if (item.appId === 'ui_studio') initialSize = { width: 960, height: 620 };
         if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
 
         setOpenWindows(prev => [...prev, {
@@ -956,6 +959,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
+                    else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe 
