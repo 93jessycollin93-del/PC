@@ -44,7 +44,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ items, onLaunch }) => {
                             
                             <item.icon className="w-10 h-10 text-white relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" />
                         </div>
-                        <span className="text-sm text-white font-medium text-center truncate w-full px-1 drop-shadow-md [text-shadow:_0_1px_2px_rgb(0_0_0_/_40%)]">
+                        <span className="text-sm text-white font-medium text-center line-clamp-2 break-words w-full px-1 drop-shadow-md [text-shadow:_0_1px_2px_rgb(0_0_0_/_40%)]">
                             {item.name}
                         </span>
                     </button>

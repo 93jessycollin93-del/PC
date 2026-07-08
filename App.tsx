@@ -7,6 +7,8 @@ import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, File
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
 import { HomeScreen } from './components/apps/HomeScreen';
+import { AuthModal } from './components/AuthModal';
+import { useAuth } from './lib/authContext';
 import { MailApp } from './components/apps/MailApp';
 import { SlidesApp } from './components/apps/SlidesApp';
 import { IronMenArcadeApp } from './components/apps/IronMenArcadeApp';
@@ -24,6 +26,7 @@ import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
 import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
 import { TermStudioApp } from './components/apps/TermStudioApp';
 import { OllamaApp } from './components/apps/OllamaApp';
+import { CloudInfrastructureApp } from './components/apps/CloudInfrastructureApp';
 import { OpenClawApp } from './components/apps/OpenClawApp';
 import { CodeRabbitApp } from './components/apps/CodeRabbitApp';
 import { SemanticScholarApp } from './components/apps/SemanticScholarApp';
@@ -37,12 +40,25 @@ import { SuperSayenApp } from './components/apps/SuperSayenApp';
 import { DataPodsApp } from './components/apps/DataPodsApp';
 import { AiTermApp } from './components/apps/AiTermApp';
 import { JackyV3App } from './components/apps/JackyV3App';
+import FleetAtlasApp from './components/apps/FleetAtlasApp';
+import { LlmEnvironmentApp } from './components/apps/LlmEnvironmentApp';
+import { SmallAgentFleetApp } from './components/apps/SmallAgentFleetApp';
+import { ModelRouterApp } from './components/apps/ModelRouterApp';
+import { AgentBuilderApp } from './components/apps/AgentBuilderApp';
+import { ClaudeAssistantApp } from './components/apps/ClaudeAssistantApp';
+import { CodexApp } from './components/apps/CodexApp';
+import { GrokTerminalApp } from './components/apps/GrokTerminalApp';
+import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
+import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
+import { ArchiverApp } from './components/apps/ArchiverApp';
+import { APIKeysApp } from './components/apps/APIKeysApp';
+import { Footer } from './components/Footer';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { LocalAiIndexFinder } from './components/LocalAiIndexFinder';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -57,7 +73,11 @@ import { BotStudioApp } from './components/apps/BotStudioApp';
 import { QpdbApp } from './components/apps/QpdbApp';
 import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab';
 import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
+import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
+import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { ToastProvider } from './lib/toastContext';
+import { MobileStatusBar } from './components/MobileStatusBar';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -73,6 +93,17 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
     { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
+    { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
+    { id: 'model_router', name: 'Model Router', type: 'app', icon: Network, appId: 'model_router', bgColor: 'bg-gradient-to-br from-lime-500 via-emerald-600 to-teal-900 border border-lime-400/30 shadow-md' },
+    { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
+    { id: 'agent_builder', name: 'Agent Builder', type: 'app', icon: Bot, appId: 'agent_builder', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-950 border border-purple-400/30 shadow-md' },
+    { id: 'claude_assistant', name: 'Claude Assistant', type: 'app', icon: Bot, appId: 'claude_assistant', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 border border-indigo-400/30 shadow-md' },
+    { id: 'codex', name: 'Codex', type: 'app', icon: Code2, appId: 'codex', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-950 border border-emerald-400/30 shadow-md' },
+    { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
+    { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
+    { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
+    { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
@@ -100,7 +131,11 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'zenith_chess', name: 'Zenith Chess AI', type: 'app', icon: Trophy, appId: 'chess', bgColor: 'bg-gradient-to-br from-yellow-500 via-amber-600 to-yellow-950 border border-yellow-400/20' },
     { id: 'iron_men_arcade', name: 'Iron Men Arcade', type: 'app', icon: Gamepad2, appId: 'iron-men-arcade', bgColor: 'bg-gradient-to-br from-rose-600 via-red-600 to-yellow-600 border border-rose-500/20' },
     { id: 'laser_tag', name: 'Laser Tag Arcade', type: 'app', icon: Target, appId: 'laser-tag', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-zinc-950 border border-red-500/20' },
-    { 
+    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
+    { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
+    { id: 'cross_ai_lab', name: 'Cross-AI Lab', type: 'app', icon: Bot, appId: 'cross_ai_lab', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-700 to-pink-700 border border-violet-400/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
+    { id: 'terminal', name: 'Opus Terminal', type: 'app', icon: Terminal, appId: 'terminal', bgColor: 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-900 border border-slate-600/50 shadow-[0_0_20px_rgba(51,65,85,0.4)]' },
+    {
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
         type: 'app', 
@@ -241,8 +276,11 @@ const getMergedDesktopItems = (): (DesktopItem | null)[] => {
 };
 
 export const App: React.FC = () => {
+    // Auth temporarily disabled - will re-enable later
+    // const { user, loading, isAuthenticated } = useAuth();
+
     const globalState = loadGlobalState();
-    
+
     // Process desktop items: merge initial, custom, and apply deletions/explosions
     let initialDesktopItems = getMergedDesktopItems();
     if (globalState?.desktopItemIds) {
@@ -299,7 +337,7 @@ export const App: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [toast, setToast] = useState<{ title?: string; message: React.ReactNode } | null>(null);
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
-    const timeoutRef = useRef<number | null>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
         if (globalState?.desktopVisibility) {
@@ -381,6 +419,10 @@ export const App: React.FC = () => {
         if (item.appId === 'knowledge_compressor') initialSize = { width: 1000, height: 680 };
         if (item.appId === 'supersayen') initialSize = { width: 1020, height: 700 };
         if (item.appId === 'jacky') initialSize = { width: 1020, height: 700 };
+        if (item.appId === 'fleet_atlas') initialSize = { width: 900, height: 640 };
+        if (item.appId === 'llm_environment') initialSize = { width: 440, height: 760 };
+        if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
+        if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -418,6 +460,26 @@ export const App: React.FC = () => {
             window.removeEventListener('launch-app', handleLaunchAppEvent);
         };
     }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
+
+    // Global shell hotkey: backtick (`) opens the ai-term terminal from
+    // anywhere, like a real mini-PC drop-down console — unless the user is
+    // typing into a field.
+    useEffect(() => {
+        const handleHotkey = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            const typing = !!target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable
+            );
+            if (e.key === '`' && !typing) {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('launch-app', { detail: { appId: 'aiterm' } }));
+            }
+        };
+        window.addEventListener('keydown', handleHotkey);
+        return () => window.removeEventListener('keydown', handleHotkey);
+    }, []);
 
     const closeWindow = (id: string) => {
         setOpenWindows(prev => prev.filter(w => w.id !== id));
@@ -791,32 +853,29 @@ Body: ${emailToSummarize.body}`,
                 }}
             />
 
-            <div className="absolute top-4 right-4 z-[4000] flex items-center gap-3">
-                <SyncStatusIndicator />
-                <SystemMonitor 
-                    openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))} 
-                    onFocusWindow={focusWindow} 
-                />
-                <FloatingNav 
-                    apps={desktopItems.filter(Boolean) as DesktopItem[]}
-                    onLaunchApp={handleLaunch}
-                    inkMode={inkMode}
-                    toggleInkMode={() => setInkMode(!inkMode)}
-                    onClearInk={() => setStrokes([])}
-                    onExecuteInk={executeInkAction}
-                    hasInk={strokes.length > 0}
-                    isProcessing={isProcessing}
-                    onBack={handleGlobalBack}
-                    desktopVisibility={desktopVisibility}
-                    onToggleDesktopVisibility={(appId) => {
-                        setDesktopVisibility(prev => ({
-                            ...prev,
-                            [appId]: prev[appId] === false ? true : false
-                        }));
-                    }}
-                />
-                <AuthButton />
-            </div>
+            <MobileStatusBar
+                openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
+                onFocusWindow={focusWindow}
+            />
+
+            <FloatingNav
+                apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                onLaunchApp={handleLaunch}
+                inkMode={inkMode}
+                toggleInkMode={() => setInkMode(!inkMode)}
+                onClearInk={() => setStrokes([])}
+                onExecuteInk={executeInkAction}
+                hasInk={strokes.length > 0}
+                isProcessing={isProcessing}
+                onBack={handleGlobalBack}
+                desktopVisibility={desktopVisibility}
+                onToggleDesktopVisibility={(appId) => {
+                    setDesktopVisibility(prev => ({
+                        ...prev,
+                        [appId]: prev[appId] === false ? true : false
+                    }));
+                }}
+            />
 
             {/* Desktop Area with Dynamic Background */}
             <div 
@@ -881,6 +940,22 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
                     else if (win.item.appId === 'bot_studio') content = <BotStudioApp />;
                     else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
+                    else if (win.item.appId === 'fleet_atlas') content = <FleetAtlasApp />;
+                    else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
+                    else if (win.item.appId === 'ollama') content = <OllamaApp />;
+                    else if (win.item.appId === 'small_agent_fleet') content = <SmallAgentFleetApp />;
+                    else if (win.item.appId === 'model_router') content = <ModelRouterApp />;
+                    else if (win.item.appId === 'cloud_infrastructure') content = <CloudInfrastructureApp />;
+                    else if (win.item.appId === 'agent_builder') content = <AgentBuilderApp />;
+                    else if (win.item.appId === 'claude_assistant') content = <ClaudeAssistantApp />;
+                    else if (win.item.appId === 'codex') content = <CodexApp />;
+                    else if (win.item.appId === 'grok_terminal') content = <GrokTerminalApp />;
+                    else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
+                    else if (win.item.appId === 'archiver') content = <ArchiverApp />;
+                    else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
+                    else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
+                    else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
+                    else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe 
@@ -944,6 +1019,8 @@ Body: ${emailToSummarize.body}`,
                     </div>
                 )}
             </div>
+
+            <Footer />
         </div>
     );
 };

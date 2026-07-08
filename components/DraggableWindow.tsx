@@ -169,7 +169,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
             <div
                 onDoubleClick={toggleMaximize}
                 onPointerDown={handleHeaderPointerDown}
-                className={`bg-zinc-800 border-b border-zinc-700 px-3 py-2 flex items-center justify-between select-none touch-none ${!effectiveMaximized ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                className={`bg-zinc-800 border-b border-zinc-700 px-3 py-2 flex items-center justify-between select-none touch-none ${!effectiveMaximized ? 'cursor-grab active:cursor-grabbing' : ''} ${effectiveMaximized && isMobile ? 'pt-4' : ''}`}
             >
                 <div className="flex items-center gap-2 text-zinc-300 font-medium pointer-events-none">
                     {Icon && <Icon size={14} className="text-os-accent opacity-80" />}
@@ -204,7 +204,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
             </div>
 
             {/* Window Content */}
-            <div className="flex-1 overflow-hidden relative bg-os-bg">
+            <div className={`flex-1 overflow-hidden relative bg-os-bg ${effectiveMaximized && isMobile ? 'pb-20' : ''}`}>
                 {children}
                  {/* Overlay to catch events when not active */}
                 {!isActive && <div className="absolute inset-0 bg-transparent" />}

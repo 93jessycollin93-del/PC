@@ -21,6 +21,36 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
+    useEffect(() => {
+        const handleGlobalBackRequest = (e: Event) => {
+            const customEvent = e as CustomEvent;
+
+            // If in edit mode, exit edit mode first
+            if (isEditMode) {
+                e.preventDefault();
+                setIsEditMode(false);
+                return;
+            }
+
+            // If a category is selected, go back to categories grid
+            if (selectedCategory) {
+                e.preventDefault();
+                setSelectedCategory(null);
+                return;
+            }
+
+            // If expanded (but no category selected), close the library
+            if (isExpanded) {
+                e.preventDefault();
+                setIsExpanded(false);
+                setIsEditMode(false);
+            }
+        };
+
+        window.addEventListener('global-back-request', handleGlobalBackRequest);
+        return () => window.removeEventListener('global-back-request', handleGlobalBackRequest);
+    }, [isExpanded, isEditMode, selectedCategory]);
+
     const CATEGORIES = [
         { id: 'ai', name: 'AI & Research', icon: Bot, color: 'text-emerald-400', bg: 'bg-emerald-500/20 border-emerald-500/30' },
         { id: 'dev', name: 'Dev & System', icon: Terminal, color: 'text-indigo-400', bg: 'bg-indigo-500/20 border-indigo-500/30' },

@@ -1,0 +1,67 @@
+/* Mobile & Landscape Responsive Fixes */
+@media (max-width: 768px) {
+    /* Ensure top-right UI doesn't overflow on mobile */
+    .absolute.top-4.right-4 {
+        max-width: 90vw;
+    }
+
+    /* Compact padding on mobile */
+    .p-3,
+    .p-4,
+    .p-6 {
+        padding: 0.5rem;
+    }
+
+    /* Make windows smaller on mobile */
+    .draggable-window {
+        max-height: 85vh;
+    }
+
+    /* Horizontal scroll on landscape */
+    body {
+        overflow-x: hidden;
+    }
+}
+
+/* Landscape mode fixes */
+@media (max-height: 600px) {
+    /* Reduce vertical spacing in landscape */
+    .gap-4 {
+        gap: 0.5rem;
+    }
+
+    /* Make windows fit landscape better */
+    .draggable-window {
+        max-height: 85vh;
+    }
+
+    /* Compact the floating nav in landscape */
+    .floating-nav {
+        transform: scale(0.9);
+        transform-origin: center;
+    }
+}
+
+/* Prevent UI overlap on small screens */
+@media (max-width: 480px) {
+    .absolute.top-4 {
+        top: 2px;
+        right: 2px;
+    }
+
+    .text-lg,
+    .text-base {
+        font-size: 0.875rem;
+    }
+
+    .px-4,
+    .px-6 {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+}
+
+/* Smooth transitions for responsive changes */
+* {
+    transition-duration: 150ms;
+}

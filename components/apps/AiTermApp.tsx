@@ -76,8 +76,64 @@ const FS: { [key: string]: FSEntry } = {
 const cmdList = [
     'ls', 'pwd', 'cd', 'cat', 'echo', 'clear', 'uname', 'whoami', 'date', 'ps',
     'top', 'neofetch', 'git', 'docker', 'kubectl', 'python3', 'node', 'curl',
-    'ping', 'ifconfig', 'history', 'help', 'kill', 'df'
+    'ping', 'ifconfig', 'history', 'help', 'kill', 'df',
+    // Real, app-aware system commands (operate on live browser/device state)
+    'apps', 'open', 'launch', 'start', 'engage', 'run', 'sync', 'storage',
+    'mem', 'free', 'net', 'wifi'
 ];
+
+// Hardcoded program registry for the mini-PC shell. `open <name>` and the AI
+// intent router resolve against these to launch real apps via the same
+// 'launch-app' event the desktop uses.
+interface PcApp { cmd: string; appId: string; name: string; aliases: string[]; }
+const PC_APPS: PcApp[] = [
+    { cmd: 'notepad', appId: 'notepad', name: 'Notepad', aliases: ['note', 'notes', 'notepad', 'text', 'editor'] },
+    { cmd: 'mail', appId: 'mail', name: 'Mail', aliases: ['mail', 'email', 'inbox'] },
+    { cmd: 'termstudio', appId: 'termstudio', name: 'TermStudio', aliases: ['termstudio', 'term studio'] },
+    { cmd: 'flipper', appId: 'flipper', name: 'Flipper Zero', aliases: ['flipper', 'flipper zero'] },
+    { cmd: 'chess', appId: 'chess', name: 'Zenith Chess', aliases: ['chess'] },
+    { cmd: 'snake', appId: 'snake', name: 'Snake', aliases: ['snake', 'game'] },
+    { cmd: 'ollama', appId: 'ollama', name: 'Local AI (Ollama)', aliases: ['ollama', 'local ai'] },
+    { cmd: 'llm', appId: 'llm_environment', name: 'LLM Studio', aliases: ['llm', 'llm studio', 'model studio'] },
+    { cmd: 'pods', appId: 'data_pods', name: 'Data Pods Vault', aliases: ['pods', 'vault', 'data pods'] },
+    { cmd: 'github', appId: 'github_sync', name: 'GitHub Sync', aliases: ['github', 'git sync', 'repo'] },
+    { cmd: 'atlas', appId: 'fleet_atlas', name: 'Fleet Atlas', aliases: ['atlas', 'fleet', 'globe', 'network map'] },
+    { cmd: 'compressor', appId: 'knowledge_compressor', name: 'Knowledge Condenser', aliases: ['compress', 'compressor', 'condenser', 'condense'] },
+    { cmd: 'cyber', appId: 'cyber_rulebook', name: 'Cyber Codex', aliases: ['cyber', 'codex', 'security', 'rulebook'] },
+    { cmd: 'export', appId: 'cybernetic_export', name: 'Export OS', aliases: ['export', 'backup os'] },
+];
+
+const fmtBytes = (bytes: number): string => {
+    if (!bytes || bytes < 1) return '0 KB';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    return `${(bytes / Math.pow(1024, i)).toFixed(i >= 2 ? 2 : 0)} ${units[i]}`;
+};
+
+const resolveApp = (text: string): PcApp | undefined => {
+    const q = text.toLowerCase().trim();
+    if (!q) return undefined;
+    return PC_APPS.find(a => a.cmd === q || a.aliases.some(x => q.includes(x)));
+};
+
+// The entire "brain" of the low-footprint copilot: a deterministic, offline
+// intent router that knows only this machine's actions. Returns a real shell
+// command string, or null to fall back to the cloud translator.
+const resolveLocalIntent = (query: string): string | null => {
+    const q = query.toLowerCase().trim();
+    if (!q) return null;
+    if (/^(sync|back ?up|push)\b/.test(q) || /(sync|backup).*(cloud|vault|now)/.test(q)) return 'sync';
+    if (/(cloud|connect).*(sign|login|account|auth)/.test(q) || /connect.*cloud/.test(q)) return 'sync';
+    if (/(storage|disk|space|footprint|vault size|how much.*(used|stored|space))/.test(q)) return 'storage';
+    if (/(wi-?fi|network|online|offline|internet|connection|signal)/.test(q)) return 'net';
+    if (/(memory|ram|heap)/.test(q)) return 'mem';
+    if (/^(clear|reset)\b/.test(q)) return 'clear';
+    const m = q.match(/(?:open|launch|start|engage|run|go to|show|bring up)\s+(.+)/);
+    if (m) { const hit = resolveApp(m[1]); if (hit) return `open ${hit.cmd}`; }
+    const bare = resolveApp(q);
+    if (bare) return `open ${bare.cmd}`;
+    return null;
+};
 
 interface LogLine {
     id: string;
@@ -311,6 +367,19 @@ Return ONLY the raw command string to run (e.g. 'ls -la') with no explanations, 
     };
 
     const runAiTranslation = async (query: string) => {
+        // Low-footprint copilot: try the offline app-intent router first. It
+        // knows only this machine's actions (launch/sync/storage/network), so
+        // the common "open notepad", "sync to cloud", "how much space" tasks
+        // resolve instantly with zero network and zero model cost.
+        const localIntent = resolveLocalIntent(query);
+        if (localIntent) {
+            addLine(`copilot → ${localIntent}`, 'ai');
+            await new Promise(resolve => setTimeout(resolve, 120));
+            const t = parseArgs(localIntent);
+            await executeCoreCommand(t[0], t.slice(1), localIntent);
+            return;
+        }
+
         setIsThinking(true);
         // Artificial delay for futuristic retro loading effect
         await new Promise(resolve => setTimeout(resolve, 600));
@@ -341,27 +410,97 @@ Return ONLY the raw command string to run (e.g. 'ls -la') with no explanations, 
                 break;
             case 'help':
                 addLine(`AI-TERM COMMANDS
+
+REAL SYSTEM (live device data)
+  apps                    list installed programs
+  open <name>             launch a program (aliases: launch/start/engage/run)
+  sync                    connect to cloud & sync the vault
+  storage                 real vault footprint vs quota
+  mem                     real JS heap + cores + device RAM
+  net                     real network status / connection
+  neofetch                real device readout
+
+SHELL
   ls, pwd, cd <dir>, cat <file>, echo <text>, clear, history
-  uname [-a], whoami, date, ps [aux], top, neofetch
-  git status, git log
-  docker ps, kubectl get pods
-  python3, node, curl <url>, ping <host>, ifconfig, df -h, kill
+  uname [-a], whoami, date, ps [aux], top
+  git status, git log, docker ps, kubectl get pods
+  python3, node, curl <url>, ping <host>, ifconfig, df, kill
 
-AI CO-PILOT
-  ai: <instruction>       translate NL → shell commands
-  Toggle AI top-right. When ON, plain English auto-translates.
+AI CO-PILOT (offline-first, app-only)
+  ai: <instruction>       plain English → an action
+  Toggle AI top-right. When ON, plain English auto-runs.
 
-  Examples:
-   ai: show me hidden files      → ls -la
-   ai: what's my ip              → curl ifconfig.me
-   ai: kill the node process     → kill $(pgrep node)
-   ai: list docker containers    → docker ps
+  Examples (resolve offline, no model):
+   ai: open notepad              → open notepad
+   ai: sync to the cloud         → sync
+   ai: how much space am I using → storage
+   ai: am I online              → net
 
 SHORTCUTS
   ↑/↓   history    Tab   autocomplete
   Ctrl+L clear     Ctrl+C cancel
   Shift+Enter multiline`, 'welcome');
                 break;
+
+            case 'apps':
+                addLine('Installed programs (open <name>):\n  ' + PC_APPS.map(a => a.cmd).join('   '));
+                break;
+
+            case 'open':
+            case 'launch':
+            case 'start':
+            case 'engage':
+            case 'run': {
+                const hit = resolveApp(args.join(' '));
+                if (!hit) {
+                    addLine(`${cmdLower}: unknown program "${args.join(' ')}". Type "apps" to list programs.`, 'err');
+                    break;
+                }
+                window.dispatchEvent(new CustomEvent('launch-app', { detail: { appId: hit.appId } }));
+                addLine(`Launching ${hit.name}…`, 'ai');
+                break;
+            }
+
+            case 'sync': {
+                // Real: open the cloud sync program (which performs the actual push/pull).
+                window.dispatchEvent(new CustomEvent('launch-app', { detail: { appId: 'github_sync' } }));
+                addLine(navigator.onLine
+                    ? 'Cloud link online → opening Sync.'
+                    : 'Offline — opening Sync; it will push once a connection returns.', navigator.onLine ? 'ai' : 'err');
+                break;
+            }
+
+            case 'storage':
+            case 'df': {
+                if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+                    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+                    const pct = quota ? ((usage / quota) * 100).toFixed(1) : '0';
+                    addLine(`Vault footprint (real):\n  used    ${fmtBytes(usage)}\n  quota   ${fmtBytes(quota)}\n  usage   ${pct}%`);
+                } else {
+                    addLine('storage: Storage API unavailable in this browser', 'err');
+                }
+                break;
+            }
+
+            case 'mem':
+            case 'free': {
+                const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+                const cores = navigator.hardwareConcurrency || '?';
+                const dm = (navigator as unknown as { deviceMemory?: number }).deviceMemory;
+                if (perfMem) {
+                    addLine(`Memory (real JS heap):\n  used    ${fmtBytes(perfMem.usedJSHeapSize)}\n  limit   ${fmtBytes(perfMem.jsHeapSizeLimit)}\n  cores   ${cores}${dm ? `\n  device  ${dm} GB` : ''}`);
+                } else {
+                    addLine(`Cores: ${cores}${dm ? ` · Device memory: ${dm} GB` : ''}\n(JS heap metrics unavailable in this browser)`);
+                }
+                break;
+            }
+
+            case 'net':
+            case 'wifi': {
+                const conn = (navigator as unknown as { connection?: { effectiveType?: string; downlink?: number; rtt?: number } }).connection;
+                addLine(`Network (real):\n  status    ${navigator.onLine ? 'ONLINE' : 'OFFLINE'}${conn ? `\n  type      ${conn.effectiveType || '?'}\n  downlink  ${conn.downlink ?? '?'} Mbps\n  rtt       ${conn.rtt ?? '?'} ms` : ''}`);
+                break;
+            }
 
             case 'ls': {
                 const node = getNode(cwd);
@@ -471,19 +610,31 @@ MiB Mem : 7936.0 total, 2142.3 free, 3120.1 used, 2673.6 buff/cache
   428 expert    20   0  542112  49152   0.7  0.6   0:12.44 ai-term`);
                 break;
 
-            case 'neofetch':
+            case 'neofetch': {
+                // Real device readout from the browser environment.
+                const cores = navigator.hardwareConcurrency || '?';
+                const dm = (navigator as unknown as { deviceMemory?: number }).deviceMemory;
+                const perfMem = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+                const screen = typeof window !== 'undefined' ? `${window.screen.width}x${window.screen.height}` : '?';
+                const langs = navigator.language || '?';
+                const plat = (navigator as unknown as { platform?: string }).platform || 'web';
+                let vault = 'n/a';
+                if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+                    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+                    vault = `${fmtBytes(usage)} / ${fmtBytes(quota)}`;
+                }
                 addLine(`
-      .:'       expert@ai-term
-     ::::.      --------------- 
-    :::::::     OS: ai-termOS 1.2 (arm64)
-   ::::::::     Host: iPhone15,3
-   ::::::::     Kernel: 6.5.0-expert
-    :::::::     Uptime: 3 days, 4 hrs
-     '::::'     Shell: zsh 5.9
-       ''       Terminal: ai-term
-                CPU: Apple A17 Pro (6) @ 3.78GHz
-                Memory: 3120MiB / 7936MiB`);
+      .:'       ${navigator.onLine ? 'online' : 'offline'}@cybernetic-pc
+     ::::.      ---------------
+    :::::::     OS: Cybernetic67 V-OS (web)
+   ::::::::     Platform: ${plat}
+   ::::::::     Cores: ${cores}${dm ? ` · Device RAM: ${dm} GB` : ''}
+    :::::::     JS Heap: ${perfMem ? `${fmtBytes(perfMem.usedJSHeapSize)} / ${fmtBytes(perfMem.jsHeapSizeLimit)}` : 'n/a'}
+     '::::'     Vault: ${vault}
+       ''       Display: ${screen} · Locale: ${langs}
+                Shell: ai-term (real)`);
                 break;
+            }
 
             case 'git':
                 if (args[0] === 'status') {
@@ -609,7 +760,7 @@ devfs           199K   199K     0B   100%     687          0  100%   /dev`);
                 setHistIdx(newIdx);
                 setTermInput(history[newIdx] || '');
             }
-        } else if (e.ArrowDown) {
+        } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             if (histIdx < history.length - 1) {
                 const newIdx = histIdx + 1;
