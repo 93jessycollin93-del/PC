@@ -1,0 +1,14 @@
+# CodeRabbit Configuration
+# Disable CodeRabbit reviews and status messages
+
+reviews:
+  # Disable review status messages
+  review_status: false
+  # Disable automatic reviews
+  auto_review: false
+  # Disable draft PR reviews
+  draft_review: false
+
+chat:
+  # Disable chat functionality
+  auto_reply: false

@@ -32,3 +32,21 @@ export type { EruTask, EruCapability } from './eru-integration';
 // Jackie Seed Tool (deployable version)
 export { JackieSeedTool, createJackie, askJackie } from './jackie-seed-tool';
 export type { JackieSeedConfig, JackieToolResponse } from './jackie-seed-tool';
+
+// Jackie Toolbox (standard version)
+export { JackieToolbox } from './jackie-toolbox';
+export type { CompressedTool, ToolboxConfig } from './jackie-toolbox';
+
+// Jackie Toolbox Premium (production-grade)
+export { JackieToolboxPremium } from './jackie-toolbox-premium';
+export type {
+  CompressedToolSpec,
+  ToolboxMetrics,
+  ToolCategory,
+  ToolStatus,
+  ToolMetadata,
+} from './jackie-toolbox-premium';
+
+// Flipper Zero Firmware Manager
+export { FlipperZeroManager } from './flipper-zero-firmware';
+export type { FlipperApp, FlipperFirmware, FlipperToolLink } from './flipper-zero-firmware';
