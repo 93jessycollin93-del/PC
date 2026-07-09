@@ -10,6 +10,7 @@ interface Message {
   timestamp: number;
   requiresPermission?: boolean;
   approved?: boolean;
+  rejected?: boolean;
   provider?: string;
   model?: string;
   cost?: number;
@@ -195,6 +196,21 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
     ));
   };
 
+  const rejectAction = () => {
+    if (!selectedTask) return;
+    setTasks(tasks.map(t =>
+      t.id === selectedTaskId
+        ? {
+            ...t,
+            status: 'rejected',
+            messages: t.messages.map((m, idx) =>
+              idx === t.messages.length - 1 ? { ...m, rejected: true } : m
+            )
+          }
+        : t
+    ));
+  };
+
   return (
     <div className="h-full w-full bg-zinc-950 text-zinc-300 font-sans flex gap-4 p-4">
       {/* Left Panel - Task List */}
@@ -326,7 +342,7 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
                   }`}
                 >
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  {msg.requiresPermission && !msg.approved && (
+                  {msg.requiresPermission && !msg.approved && !msg.rejected && (
                     <div className="mt-2 flex gap-2">
                       <button
                         onClick={approveAction}
@@ -335,11 +351,15 @@ You operate within these apps: AgentBuilder, SmallAgentFleet, ModelRouter, Cloud
                         ✓ Approve
                       </button>
                       <button
+                        onClick={rejectAction}
                         className="text-xs px-2 py-1 bg-red-600/20 border border-red-500/50 text-red-300 rounded hover:bg-red-600/30 transition-colors"
                       >
                         ✗ Reject
                       </button>
                     </div>
+                  )}
+                  {msg.rejected && (
+                    <div className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-400">Rejected</div>
                   )}
                   <div className="mt-1 flex gap-2 text-[8px] text-zinc-500">
                     <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>

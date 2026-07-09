@@ -22,6 +22,7 @@ interface CodeMessage {
   timestamp: number;
   requiresPermission?: boolean;
   approved?: boolean;
+  rejected?: boolean;
   code?: string;
   provider?: string;
   model?: string;
@@ -216,6 +217,21 @@ Always format code in markdown code blocks with the language identifier.`;
     ));
   };
 
+  const rejectCode = () => {
+    if (!selectedRequest) return;
+    setRequests(requests.map(r =>
+      r.id === selectedRequestId
+        ? {
+            ...r,
+            status: 'rejected',
+            messages: r.messages.map((m, idx) =>
+              idx === r.messages.length - 1 ? { ...m, rejected: true } : m
+            )
+          }
+        : r
+    ));
+  };
+
   const copyToClipboard = (code: string) => {
     navigator.clipboard.writeText(code);
   };
@@ -397,7 +413,7 @@ Always format code in markdown code blocks with the language identifier.`;
                       <pre className="text-[11px] text-zinc-300 overflow-x-auto"><code>{msg.code}</code></pre>
                     </div>
                   )}
-                  {msg.requiresPermission && !msg.approved && (
+                  {msg.requiresPermission && !msg.approved && !msg.rejected && (
                     <div className="mt-2 flex gap-2">
                       <button
                         onClick={approveCode}
@@ -406,11 +422,15 @@ Always format code in markdown code blocks with the language identifier.`;
                         ✓ Approve
                       </button>
                       <button
+                        onClick={rejectCode}
                         className="text-xs px-2 py-1 bg-red-600/20 border border-red-500/50 text-red-300 rounded hover:bg-red-600/30 transition-colors"
                       >
                         ✗ Reject
                       </button>
                     </div>
+                  )}
+                  {msg.rejected && (
+                    <div className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-400">Rejected</div>
                   )}
                   <div className="mt-1 flex gap-2 text-[8px] text-zinc-500">
                     <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
