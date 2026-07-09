@@ -79,6 +79,8 @@ import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
+import { EruApp } from './components/apps/EruApp';
+import { JackieShell, type PcMode } from './components/JackieShell';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -91,6 +93,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'bot_studio', name: 'Offline AI Studio', type: 'app', icon: Bot, appId: 'bot_studio', bgColor: 'bg-gradient-to-br from-emerald-600 to-teal-900 border border-emerald-500/30 shadow-md' },
     { id: 'aiterm', name: 'ai-term', type: 'app', icon: Terminal, appId: 'aiterm', bgColor: 'bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950' },
     { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md' },
+    { id: 'eru', name: 'Eru', type: 'app', icon: Sparkles, appId: 'eru', bgColor: 'bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-700 border border-indigo-400/30 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
     { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
     { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
@@ -339,6 +342,9 @@ export const App: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [toast, setToast] = useState<{ title?: string; message: React.ReactNode } | null>(null);
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
+    // Jackie front-page shell: 'closed' = Jackie full screen (front page),
+    // 'half' = PC on top / Jackie below, 'full' = PC full screen.
+    const [pcMode, setPcMode] = useState<PcMode>('closed');
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
@@ -861,22 +867,43 @@ Body: ${emailToSummarize.body}`,
                 onFocusWindow={focusWindow}
             />
 
-            <FloatingNav
+            {/* The app-library menu lives inside the PC — hidden on Jackie's front page */}
+            {pcMode !== 'closed' && (
+                <FloatingNav
+                    apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                    onLaunchApp={handleLaunch}
+                    inkMode={inkMode}
+                    toggleInkMode={() => setInkMode(!inkMode)}
+                    onClearInk={() => setStrokes([])}
+                    onExecuteInk={executeInkAction}
+                    hasInk={strokes.length > 0}
+                    isProcessing={isProcessing}
+                    onBack={handleGlobalBack}
+                    desktopVisibility={desktopVisibility}
+                    onToggleDesktopVisibility={(appId) => {
+                        setDesktopVisibility(prev => ({
+                            ...prev,
+                            [appId]: prev[appId] === false ? true : false
+                        }));
+                    }}
+                />
+            )}
+
+            {/* Jackie — the front page. Sits over the PC (desktop) base layer. */}
+            <JackieShell
                 apps={desktopItems.filter(Boolean) as DesktopItem[]}
                 onLaunchApp={handleLaunch}
-                inkMode={inkMode}
-                toggleInkMode={() => setInkMode(!inkMode)}
-                onClearInk={() => setStrokes([])}
-                onExecuteInk={executeInkAction}
-                hasInk={strokes.length > 0}
-                isProcessing={isProcessing}
-                onBack={handleGlobalBack}
-                desktopVisibility={desktopVisibility}
-                onToggleDesktopVisibility={(appId) => {
-                    setDesktopVisibility(prev => ({
-                        ...prev,
-                        [appId]: prev[appId] === false ? true : false
-                    }));
+                pcMode={pcMode}
+                setPcMode={setPcMode}
+                onOpenEru={() => {
+                    const eru = (desktopItems.filter(Boolean) as DesktopItem[]).find(d => d.appId === 'eru');
+                    if (eru) handleLaunch(eru);
+                    setPcMode(prev => (prev === 'closed' ? 'half' : prev));
+                }}
+                onOpenSettings={() => {
+                    const settings = (desktopItems.filter(Boolean) as DesktopItem[]).find(d => d.appId === 'system_settings');
+                    if (settings) handleLaunch(settings);
+                    setPcMode(prev => (prev === 'closed' ? 'half' : prev));
                 }}
             />
 
@@ -929,6 +956,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'supersayen') content = <SuperSayenApp />;
                     else if (win.item.appId === 'data_pods') content = <DataPodsApp />;
                     else if (win.item.appId === 'jacky') content = <JackyV3App />;
+                    else if (win.item.appId === 'eru') content = <EruApp />;
                     else if (win.item.appId === 'app_connector') content = <AppConnectorApp />;
                     else if (win.item.appId === 'cybernetic67') content = <Cybernetic67App />;
                     else if (win.item.appId === 'prompt-to-json') content = <PromptToJsonApp />;
