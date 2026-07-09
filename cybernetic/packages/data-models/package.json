@@ -1,0 +1,20 @@
+{
+  "name": "@cybernetic/data-models",
+  "version": "0.1.0",
+  "description": "PostgreSQL Prisma schema & client for Cybernetic (replaces Base44 entities)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "prisma studio",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:prod": "prisma migrate deploy",
+    "generate": "prisma generate",
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.8.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.8.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@cybernetic/monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unified orchestration system: PC + Eru + Jacky + pi-web consolidated",
+  "scripts": {
+    "install": "pnpm install",
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "db:migrate": "cd packages/data-models && pnpm prisma migrate dev",
+    "db:generate": "cd packages/data-models && pnpm prisma generate"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
+}
