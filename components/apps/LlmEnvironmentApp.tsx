@@ -99,6 +99,40 @@ const DiagnosticsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
 export const LlmEnvironmentApp: React.FC = () => {
     const [currentView, setCurrentView] = useState<LlmView>('choose');
+    const [activeModel, setActiveModel] = useState<string | null>(
+        () => (typeof localStorage !== 'undefined' ? localStorage.getItem('llm_active_model') : null)
+    );
+    const [notice, setNotice] = useState<string | null>(null);
+
+    const selectModel = (name: string) => {
+        setActiveModel(name);
+        try { localStorage.setItem('llm_active_model', name); } catch {}
+        setNotice(`Active model set to ${name}`);
+        setTimeout(() => setNotice(null), 2200);
+    };
+
+    // Controlled custom-backend config so Save/Delete are real.
+    const [custom, setCustom] = useState(() => {
+        try {
+            const saved = localStorage.getItem('llm_custom_backend');
+            if (saved) return JSON.parse(saved);
+        } catch {}
+        return { name: 'Custom Backend', baseUrl: '', chatPath: '/v1/chat/completions', modelsPath: '/v1/models', auth: '', modelId: '' };
+    });
+    const setCustomField = (k: string, v: string) => setCustom((c: any) => ({ ...c, [k]: v }));
+
+    const saveCustom = () => {
+        try { localStorage.setItem('llm_custom_backend', JSON.stringify(custom)); } catch {}
+        setNotice('Custom backend saved');
+        setTimeout(() => setNotice(null), 2200);
+    };
+    const deleteCustom = () => {
+        if (!confirm('Delete this custom backend configuration?')) return;
+        try { localStorage.removeItem('llm_custom_backend'); } catch {}
+        setCustom({ name: 'Custom Backend', baseUrl: '', chatPath: '/v1/chat/completions', modelsPath: '/v1/models', auth: '', modelId: '' });
+        setNotice('Custom backend deleted');
+        setTimeout(() => setNotice(null), 2200);
+    };
 
     const renderChooseModel = () => (
         <div className="flex flex-col h-full bg-zinc-950 text-white">
@@ -225,7 +259,7 @@ export const LlmEnvironmentApp: React.FC = () => {
                                 { name: 'LFM2.5-1.2B-Thinking', params: '1.2B parameters · LiquidAI' },
                                 { name: 'LFM2.5-350M', params: '350M parameters · LiquidAI' }
                             ].map((model, idx) => (
-                                <button key={idx} className="w-full flex items-center justify-between p-4 border-b border-zinc-800/80 last:border-0 hover:bg-zinc-800/50 transition-colors">
+                                <button key={idx} onClick={() => selectModel(model.name)} className={`w-full flex items-center justify-between p-4 border-b border-zinc-800/80 last:border-0 transition-colors ${activeModel === model.name ? 'bg-emerald-500/10' : 'hover:bg-zinc-800/50'}`}>
                                     <div className="flex items-center gap-4">
                                         <div className="w-8 h-8 rounded bg-white flex items-center justify-center text-black">
                                             <span className="font-bold">L</span>
@@ -235,14 +269,16 @@ export const LlmEnvironmentApp: React.FC = () => {
                                             <div className="text-xs text-zinc-500">{model.params}</div>
                                         </div>
                                     </div>
-                                    <ArrowRight size={18} className="text-zinc-600" />
+                                    {activeModel === model.name
+                                        ? <span className="text-[10px] font-bold uppercase text-emerald-400">Active</span>
+                                        : <ArrowRight size={18} className="text-zinc-600" />}
                                 </button>
                             ))}
                             {[
                                 { name: 'Qwen3-0.6B', params: '0.6B parameters · Qwen' },
                                 { name: 'Qwen3-1.7B', params: '1.7B parameters · Qwen' }
                             ].map((model, idx) => (
-                                <button key={'q'+idx} className="w-full flex items-center justify-between p-4 border-b border-zinc-800/80 last:border-0 hover:bg-zinc-800/50 transition-colors">
+                                <button key={'q'+idx} onClick={() => selectModel(model.name)} className={`w-full flex items-center justify-between p-4 border-b border-zinc-800/80 last:border-0 transition-colors ${activeModel === model.name ? 'bg-emerald-500/10' : 'hover:bg-zinc-800/50'}`}>
                                     <div className="flex items-center gap-4">
                                         <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600">
                                             <span className="font-bold">Q</span>
@@ -252,7 +288,9 @@ export const LlmEnvironmentApp: React.FC = () => {
                                             <div className="text-xs text-zinc-500">{model.params}</div>
                                         </div>
                                     </div>
-                                    <ArrowRight size={18} className="text-zinc-600" />
+                                    {activeModel === model.name
+                                        ? <span className="text-[10px] font-bold uppercase text-emerald-400">Active</span>
+                                        : <ArrowRight size={18} className="text-zinc-600" />}
                                 </button>
                             ))}
                         </div>
@@ -261,7 +299,7 @@ export const LlmEnvironmentApp: React.FC = () => {
                     <div>
                         <h3 className="text-sm font-semibold text-zinc-500 mb-2 px-2">Translate Models</h3>
                         <div className="bg-zinc-900/80 rounded-3xl overflow-hidden border border-zinc-800">
-                            <button className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/50 transition-colors">
+                            <button onClick={() => selectModel('LFM2-350M-ENJP-MT')} className={`w-full flex items-center justify-between p-4 transition-colors ${activeModel === 'LFM2-350M-ENJP-MT' ? 'bg-emerald-500/10' : 'hover:bg-zinc-800/50'}`}>
                                 <div className="flex items-center gap-4">
                                     <div className="w-8 h-8 rounded bg-white flex items-center justify-center text-black">
                                         <span className="font-bold">L</span>
@@ -271,7 +309,9 @@ export const LlmEnvironmentApp: React.FC = () => {
                                         <div className="text-xs text-zinc-500">350M parameters · LiquidAI</div>
                                     </div>
                                 </div>
-                                <ArrowRight size={18} className="text-zinc-600" />
+                                {activeModel === 'LFM2-350M-ENJP-MT'
+                                    ? <span className="text-[10px] font-bold uppercase text-emerald-400">Active</span>
+                                    : <ArrowRight size={18} className="text-zinc-600" />}
                             </button>
                         </div>
                     </div>
@@ -303,7 +343,10 @@ export const LlmEnvironmentApp: React.FC = () => {
                 <div className="space-y-6">
                     <div>
                         <h3 className="text-sm font-semibold text-zinc-500 mb-2 px-2">OpenRouter Account</h3>
-                        <button className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 text-left font-medium hover:bg-zinc-800/50 transition-colors">
+                        <button
+                            onClick={() => window.open('https://openrouter.ai/keys', '_blank', 'noopener,noreferrer')}
+                            className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 text-left font-medium hover:bg-zinc-800/50 transition-colors"
+                        >
                             Log In
                         </button>
                     </div>
@@ -319,7 +362,10 @@ export const LlmEnvironmentApp: React.FC = () => {
 
                     <div>
                         <h3 className="text-sm font-semibold text-zinc-500 mb-2 px-2">Models</h3>
-                        <button className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors">
+                        <button
+                            onClick={() => setNotice('Add an API key or Base URL above, then reconnect to load models.')}
+                            className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+                        >
                             <span className="font-medium">Tap to load models</span>
                             <RefreshCw size={18} className="text-zinc-400" />
                         </button>
@@ -334,7 +380,7 @@ export const LlmEnvironmentApp: React.FC = () => {
             <div className="flex items-center justify-between p-4 border-b border-zinc-800">
                 <div className="w-16" />
                 <h2 className="text-lg font-semibold text-white">Custom Backend</h2>
-                <button className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-full border border-zinc-700 text-sm transition-colors">
+                <button onClick={saveCustom} className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-full border border-zinc-700 text-sm transition-colors">
                     Save
                 </button>
             </div>
@@ -350,23 +396,23 @@ export const LlmEnvironmentApp: React.FC = () => {
                         <div className="bg-zinc-900/80 rounded-3xl overflow-hidden border border-zinc-800">
                             <div className="flex items-center p-4 border-b border-zinc-800/80">
                                 <div className="w-24 text-[15px] font-medium text-white">Name</div>
-                                <input type="text" defaultValue="Custom Backend" className="flex-1 bg-transparent border-none outline-none text-white text-[15px]" />
+                                <input type="text" value={custom.name} onChange={e => setCustomField('name', e.target.value)} className="flex-1 bg-transparent border-none outline-none text-white text-[15px]" />
                             </div>
                             <div className="flex items-center p-4 border-b border-zinc-800/80">
                                 <div className="w-24 text-[15px] font-medium text-white">Base URL</div>
-                                <input type="text" placeholder="http://192.168.1.100:123" className="flex-1 bg-transparent border-none outline-none text-zinc-400 text-[15px]" />
+                                <input type="text" value={custom.baseUrl} onChange={e => setCustomField('baseUrl', e.target.value)} placeholder="http://192.168.1.100:123" className="flex-1 bg-transparent border-none outline-none text-white text-[15px] placeholder:text-zinc-500" />
                             </div>
                             <div className="flex items-center p-4 border-b border-zinc-800/80">
                                 <div className="w-24 text-[15px] font-medium text-white">Chat Path</div>
-                                <input type="text" defaultValue="/v1/chat/completions" className="flex-1 bg-transparent border-none outline-none text-white text-[15px]" />
+                                <input type="text" value={custom.chatPath} onChange={e => setCustomField('chatPath', e.target.value)} className="flex-1 bg-transparent border-none outline-none text-white text-[15px]" />
                             </div>
                             <div className="flex items-center p-4 border-b border-zinc-800/80">
                                 <div className="w-24 text-[15px] font-medium text-white">Models Path</div>
-                                <input type="text" defaultValue="/v1/models" className="flex-1 bg-transparent border-none outline-none text-white text-[15px]" />
+                                <input type="text" value={custom.modelsPath} onChange={e => setCustomField('modelsPath', e.target.value)} className="flex-1 bg-transparent border-none outline-none text-white text-[15px]" />
                             </div>
                             <div className="flex items-center p-4">
                                 <div className="w-24 text-[15px] font-medium text-white">Auth</div>
-                                <input type="text" placeholder="Bearer Token" className="flex-1 bg-transparent border-none outline-none text-zinc-400 text-[15px]" />
+                                <input type="text" value={custom.auth} onChange={e => setCustomField('auth', e.target.value)} placeholder="Bearer Token" className="flex-1 bg-transparent border-none outline-none text-white text-[15px] placeholder:text-zinc-500" />
                             </div>
                         </div>
                     </div>
@@ -375,6 +421,8 @@ export const LlmEnvironmentApp: React.FC = () => {
                         <h3 className="text-sm font-semibold text-zinc-500 mb-2 px-2">Custom Model</h3>
                         <input
                             type="text"
+                            value={custom.modelId}
+                            onChange={e => setCustomField('modelId', e.target.value)}
                             placeholder="model-id"
                             className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 text-white focus:outline-none focus:border-zinc-700 transition-colors placeholder:text-zinc-600 mb-2"
                         />
@@ -383,7 +431,10 @@ export const LlmEnvironmentApp: React.FC = () => {
 
                     <div>
                         <h3 className="text-sm font-semibold text-zinc-500 mb-2 px-2">Models</h3>
-                        <button className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors">
+                        <button
+                            onClick={() => setNotice('Add an API key or Base URL above, then reconnect to load models.')}
+                            className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+                        >
                             <span className="font-medium">Tap to load models</span>
                             <RefreshCw size={18} className="text-zinc-400" />
                         </button>
@@ -391,7 +442,7 @@ export const LlmEnvironmentApp: React.FC = () => {
 
                     <div>
                         <h3 className="text-sm font-semibold text-zinc-500 mb-2 px-2">Danger</h3>
-                        <button className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 text-left font-medium text-red-500 hover:bg-zinc-800/50 transition-colors">
+                        <button onClick={deleteCustom} className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 text-left font-medium text-red-500 hover:bg-zinc-800/50 transition-colors">
                             Delete
                         </button>
                     </div>
@@ -414,6 +465,12 @@ export const LlmEnvironmentApp: React.FC = () => {
             {currentView === 'openrouter' && renderOpenRouter()}
             {currentView === 'custom' && renderCustom()}
             {currentView === 'diagnostics' && <DiagnosticsView onBack={() => setCurrentView('choose')} />}
+
+            {notice && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-lg animate-in fade-in slide-in-from-bottom-2 max-w-[90%] text-center">
+                    {notice}
+                </div>
+            )}
         </div>
     );
 };

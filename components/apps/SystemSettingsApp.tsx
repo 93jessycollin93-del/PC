@@ -258,10 +258,31 @@ export const SystemSettingsApp: React.FC = () => {
             <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
               <h3 className="text-sm font-bold text-red-300 mb-3">Danger Zone</h3>
               <div className="space-y-2">
-                <button className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-300 rounded text-sm font-bold transition-colors">
+                <button
+                  onClick={() => {
+                    if (confirm('Clear ALL local PC data (settings, pinned apps, Jackie brain, caches)? This cannot be undone.')) {
+                      const keep = /^firebase:|^__/;
+                      Object.keys(localStorage)
+                        .filter(k => !keep.test(k))
+                        .forEach(k => localStorage.removeItem(k));
+                      alert('Local data cleared. Reload to start fresh.');
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-300 rounded text-sm font-bold transition-colors"
+                >
                   Clear All Data
                 </button>
-                <button className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-300 rounded text-sm font-bold transition-colors">
+                <button
+                  onClick={() => {
+                    if (confirm('Reset all settings to factory defaults?')) {
+                      setSettings(DEFAULT_SETTINGS);
+                      localStorage.setItem('pc_system_settings', JSON.stringify(DEFAULT_SETTINGS));
+                      setSaveStatus('saved');
+                      setTimeout(() => setSaveStatus('idle'), 2000);
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-300 rounded text-sm font-bold transition-colors"
+                >
                   Reset to Factory Defaults
                 </button>
               </div>
