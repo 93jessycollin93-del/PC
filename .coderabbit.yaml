@@ -1,14 +1,14 @@
 # CodeRabbit Configuration
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
 # Disable CodeRabbit reviews and status messages
-
 reviews:
-  # Disable review status messages
   review_status: false
-  # Disable automatic reviews
-  auto_review: false
-  # Disable draft PR reviews
-  draft_review: false
 
+# Disable automatic reviews for all PR types
+auto_review:
+  enabled: false
+
+# Disable chat functionality
 chat:
-  # Disable chat functionality
-  auto_reply: false
+  enabled: false
