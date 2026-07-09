@@ -1,0 +1,28 @@
+# Router Console v2 Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+COPY packages/ ./packages/
+COPY apps/router-console-v2/ ./apps/router-console-v2/
+
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+RUN pnpm --filter=@cybernetic/router-console-v2 build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/apps/router-console-v2/.next ./apps/router-console-v2/.next
+COPY --from=builder /app/apps/router-console-v2/public ./apps/router-console-v2/public
+COPY --from=builder /app/apps/router-console-v2/node_modules ./apps/router-console-v2/node_modules
+COPY --from=builder /app/apps/router-console-v2/package.json ./apps/router-console-v2/
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:3000 || exit 1
+
+WORKDIR /app/apps/router-console-v2
+CMD ["node_modules/.bin/next", "start"]

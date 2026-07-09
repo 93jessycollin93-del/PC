@@ -1,0 +1,25 @@
+# API Gateway Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy monorepo structure
+COPY package.json pnpm-lock.yaml ./
+COPY packages/ ./packages/
+COPY apps/router-console-v2/node_modules ./apps/router-console-v2/node_modules
+
+# Install dependencies
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+
+# Build packages
+RUN pnpm build
+
+# Expose API port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Start API Gateway
+CMD ["pnpm", "--filter=@cybernetic/api-gateway", "start"]
