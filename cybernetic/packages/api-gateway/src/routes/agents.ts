@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@cybernetic/data-models";
 import { Logger } from "winston";
 import { NotFoundError } from "../middleware/error-handler";
 
@@ -44,7 +44,7 @@ agentRoutes.get(
     });
 
     res.json({
-      agents: agents.map((agent) => ({
+      agents: agents.map((agent: any) => ({
         ...agent,
         activeTasks: agent.tasks.length,
         metrics: agent.metrics[0] || null,
@@ -102,10 +102,11 @@ agentRoutes.post(
     }
 
     if (agent.status === "active") {
-      return res.status(400).json({
+      res.status(400).json({
         error: "Agent is already active",
         currentStatus: agent.status,
       });
+      return;
     }
 
     // Update status

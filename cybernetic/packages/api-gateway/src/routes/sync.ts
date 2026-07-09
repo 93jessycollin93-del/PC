@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@cybernetic/data-models";
 import { Logger } from "winston";
 
 export const syncRoutes = Router();
@@ -51,7 +51,7 @@ syncRoutes.post(
       timestamp: new Date().toISOString(),
       data: {
         pendingTasks: pendingTasks.length,
-        agents: agents.map((a) => ({
+        agents: agents.map((a: any) => ({
           id: a.id,
           name: a.name,
           status: a.status,

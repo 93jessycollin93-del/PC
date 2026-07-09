@@ -6,7 +6,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@cybernetic/data-models";
 import { OrchestratorService } from "@cybernetic/core-orchestration";
 import { Logger } from "winston";
 import { ValidationError, NotFoundError } from "../middleware/error-handler";

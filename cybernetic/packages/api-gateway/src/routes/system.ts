@@ -7,7 +7,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@cybernetic/data-models";
 
 export const systemRoutes = Router();
 
@@ -38,10 +38,11 @@ systemRoutes.get(
     });
 
     if (!latest) {
-      return res.status(503).json({
+      res.status(503).json({
         error: "No thermal data available yet",
         timestamp: new Date().toISOString(),
       });
+      return;
     }
 
     // Determine status based on temperature
@@ -92,10 +93,11 @@ systemRoutes.get(
     });
 
     if (!latest) {
-      return res.status(503).json({
+      res.status(503).json({
         error: "No memory data available yet",
         timestamp: new Date().toISOString(),
       });
+      return;
     }
 
     const total = latest.memoryUsageMb! + latest.memoryAvailableMb!;
@@ -143,10 +145,11 @@ systemRoutes.get(
     });
 
     if (!latest) {
-      return res.status(503).json({
+      res.status(503).json({
         error: "No battery data available yet",
         timestamp: new Date().toISOString(),
       });
+      return;
     }
 
     // Estimate time to discharge at current drain rate
@@ -190,11 +193,12 @@ systemRoutes.get(
     });
 
     if (!latest) {
-      return res.status(503).json({
+      res.status(503).json({
         status: "unknown",
         message: "No system metrics available yet",
         timestamp: new Date().toISOString(),
       });
+      return;
     }
 
     const thermalOk = latest.gpuTempC! < 70;

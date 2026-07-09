@@ -7,7 +7,7 @@ import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@cybernetic/data-models";
 import { setupLogger } from "./middleware/logger";
 import { errorHandler } from "./middleware/error-handler";
 import { setupRoutes } from "./routes";
