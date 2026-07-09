@@ -305,7 +305,7 @@ export class CommandPlanner {
         estimatedTime: 'Instant',
       },
       risks: [],
-      explanation: 'I'll show you a detailed status report of all active pods, resource usage, and any warnings.',
+      explanation: "I'll show you a detailed status report of all active pods, resource usage, and any warnings.",
       requiresConfirmation: false,
       isDestructive: false,
     };

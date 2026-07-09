@@ -11,6 +11,8 @@ interface SystemSettings {
   enableNotifications: boolean;
   enableAutoBackup: boolean;
   enableTelemetry: boolean;
+  /** Master switch that lets Jackie modify the user's code. Default OFF. */
+  jackieCodeUnlock: boolean;
 }
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -21,7 +23,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   theme: 'dark',
   enableNotifications: true,
   enableAutoBackup: true,
-  enableTelemetry: false
+  enableTelemetry: false,
+  jackieCodeUnlock: false
 };
 
 export const SystemSettingsApp: React.FC = () => {
@@ -209,6 +212,34 @@ export const SystemSettingsApp: React.FC = () => {
         {/* Privacy & Security */}
         {activeTab === 'privacy' && (
           <div className="space-y-4">
+            {/* Jackie code-change master switch */}
+            <div className={`p-4 rounded-lg border transition-colors ${settings.jackieCodeUnlock ? 'bg-emerald-900/20 border-emerald-500/40' : 'bg-zinc-800/50 border-zinc-700'}`}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.jackieCodeUnlock}
+                  onChange={(e) => {
+                    updateSetting('jackieCodeUnlock', e.target.checked);
+                    // Persist immediately so Jackie sees the change without a Save.
+                    try {
+                      const next = { ...settings, jackieCodeUnlock: e.target.checked };
+                      localStorage.setItem('pc_system_settings', JSON.stringify(next));
+                    } catch {}
+                  }}
+                  className="cursor-pointer"
+                />
+                <div>
+                  <p className="text-sm font-bold text-white">
+                    Allow Jackie to change code {settings.jackieCodeUnlock ? '🔓' : '🔒'}
+                  </p>
+                  <p className="text-[10px] text-zinc-400">
+                    When OFF, Jackie can plan and explain code but never modify your files.
+                    Turn ON only when you want her to make real code changes.
+                  </p>
+                </div>
+              </label>
+            </div>
+
             <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
