@@ -69,8 +69,8 @@ def api_models_list():
                 "digest": m.get("digest", "")[:12],
             })
         return jsonify({"models": models})
-    except Exception as e:
-        return jsonify({"error": str(e), "models": []}), 503
+    except Exception:
+        return jsonify({"error": "model discovery failed", "models": []}), 503
 
 
 @app.route('/api/models/select', methods=['POST'])
@@ -163,8 +163,8 @@ def api_cloud_test(provider):
         client = CloudClient(provider)
         result = client.query("Reply with just 'ok'.", max_tokens=5)
         return jsonify({"provider": provider, "status": "ok", "response": result})
-    except Exception as e:
-        return jsonify({"provider": provider, "status": "error", "error": str(e)}), 503
+    except Exception:
+        return jsonify({"provider": provider, "status": "error", "error": "provider test failed"}), 503
 
 
 # ========================== RESOURCE CONTROLS ==========================
@@ -237,8 +237,8 @@ def api_integration_test(name):
                                          headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=10)
             return jsonify({"status": "ok", "integration": name})
-        except Exception as e:
-            return jsonify({"status": "error", "error": str(e)}), 503
+        except Exception:
+            return jsonify({"status": "error", "error": "integration test failed"}), 503
     return jsonify({"status": "no_test_available", "integration": name})
 
 
