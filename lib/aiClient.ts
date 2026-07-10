@@ -5,6 +5,7 @@
 
 import { modelRouter, ModelProvider } from './modelRouter';
 import { permissions } from './permissions';
+import { budgetGuardian } from './budgetGuardian';
 
 /** Providers that cost money — gated behind the `spend` capability. */
 const PAID_PROVIDERS: ModelProvider[] = ['grok', 'deepseek', 'anthropic'];
@@ -55,6 +56,16 @@ class AIClient {
       throw new Error(`Paid provider "${routing.provider}" is blocked for "${scope}" (spend disabled).`);
     }
 
+    // Budget gate: check if spending this estimated cost would exceed budget
+    if (!budgetGuardian.canSpend(scope, routing.estimatedCost)) {
+      throw new Error(`Budget limit would be exceeded for "${scope}" (estimated cost: $${routing.estimatedCost.toFixed(4)}). Current month spend: $${budgetGuardian.getCurrentSpend(scope).toFixed(2)}`);
+    }
+
+    // Budget gate: auto-stop if enabled and would exceed cap
+    if (budgetGuardian.isAutoStopActive(scope, routing.estimatedCost)) {
+      throw new Error(`Auto-stop active for "${scope}" — monthly budget exceeded.`);
+    }
+
     console.log(`[AIClient] Routing to ${routing.provider}/${routing.model}: ${routing.reason}`);
 
     // Build the full message list
@@ -83,6 +94,9 @@ class AIClient {
 
       // Track usage
       modelRouter.recordUsage(routing.provider, response.tokensUsed, response.cost);
+
+      // Track budget spend
+      budgetGuardian.recordSpend(scope, routing.provider, response.cost);
 
       return response;
     } catch (error) {
