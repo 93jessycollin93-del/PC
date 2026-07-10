@@ -104,6 +104,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
 import { PodControlPanel } from './components/PodControlPanel';
+import { JackieVibeBackground } from './components/JackieVibeBackground';
 import { EruApp } from './components/apps/EruApp';
 import { JackieShell, type PcMode } from './components/JackieShell';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
@@ -119,7 +120,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'termstudio', name: 'TermStudio', type: 'app', icon: Terminal, appId: 'termstudio', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
     { id: 'bot_studio', name: 'Offline AI Studio', type: 'app', icon: Bot, appId: 'bot_studio', bgColor: 'bg-gradient-to-br from-emerald-600 to-teal-900 border border-emerald-500/30 shadow-md' },
     { id: 'aiterm', name: 'ai-term', type: 'app', icon: Terminal, appId: 'aiterm', bgColor: 'bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950' },
-    { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md' },
+    { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md', featured: true },
     { id: 'eru', name: 'Eru', type: 'app', icon: Sparkles, appId: 'eru', bgColor: 'bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-700 border border-indigo-400/30 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
     { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
@@ -984,19 +985,23 @@ Body: ${emailToSummarize.body}`,
             />
 
             {/* Desktop Area with Dynamic Background */}
-            <div 
+            <div
                 className="h-full w-full relative overflow-hidden bg-zinc-900 transition-all duration-1000 ease-in-out"
                 style={{
-                    backgroundImage: wallpaperUrl 
-                       ? `url(${wallpaperUrl})` 
-                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.25) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.2) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.2) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 20%)',
+                    backgroundImage: wallpaperUrl
+                       ? `url(${wallpaperUrl})`
+                       : undefined,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                 }}
             >
-                
+                {/* Animated vibe-coding background (hidden when an AI wallpaper is set) */}
+                {!wallpaperUrl && <JackieVibeBackground />}
+
                 {/* Background Home Screen (Clicking it focuses desktop) */}
-                <div className="h-full w-full" onMouseDown={() => focusWindow(null)}>
+                {!wallpaperUrl && <JackieVibeBackground />}
+
+                <div className="h-full w-full relative" onMouseDown={() => focusWindow(null)}>
                      <HomeScreen 
                          items={desktopItems.filter(item => item && desktopVisibility[item.id] !== false)} 
                          onLaunch={handleLaunch} 
