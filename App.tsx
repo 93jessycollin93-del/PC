@@ -52,13 +52,15 @@ import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
 import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
 import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
+import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
+import { MissionControlApp } from './components/apps/MissionControlApp';
 import { BottomBar } from './components/BottomBar';
 import { StickyNotepadWidget } from './components/StickyNotepadWidget';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -77,6 +79,8 @@ import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { bus } from './lib/bus';
+import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
 import { PodControlPanel } from './components/PodControlPanel';
@@ -104,6 +108,8 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
     { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
+    { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
@@ -444,29 +450,19 @@ export const App: React.FC = () => {
     };
 
     useEffect(() => {
-        const handleRefresh = () => {
+        return bus.on('refresh-desktop', () => {
             setDesktopItems(getMergedDesktopItems());
-        };
-        window.addEventListener('refresh-desktop', handleRefresh);
-        return () => {
-            window.removeEventListener('refresh-desktop', handleRefresh);
-        };
+        });
     }, []);
 
     useEffect(() => {
-        const handleLaunchAppEvent = (e: Event) => {
-            const customEvent = e as CustomEvent<{ appId: AppId | string }>;
-            if (customEvent.detail && customEvent.detail.appId) {
-                const item = desktopItems.find(d => d && d.appId === customEvent.detail.appId);
-                if (item) {
-                    handleLaunch(item);
-                }
+        return bus.on('launch-app', ({ appId }) => {
+            if (!appId) return;
+            const item = desktopItems.find(d => d && d.appId === appId);
+            if (item) {
+                handleLaunch(item);
             }
-        };
-        window.addEventListener('launch-app', handleLaunchAppEvent);
-        return () => {
-            window.removeEventListener('launch-app', handleLaunchAppEvent);
-        };
+        });
     }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
 
     // Global shell hotkey: backtick (`) opens the ai-term terminal from
@@ -979,6 +975,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
                     else if (win.item.appId === 'archiver') content = <ArchiverApp />;
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
+                    else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
+                    else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
@@ -1056,6 +1054,8 @@ Body: ${emailToSummarize.body}`,
             />
 
             <StickyNotepadWidget />
+
+            <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
         </div>
     );
 };

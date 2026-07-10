@@ -4,6 +4,10 @@
  */
 
 import { modelRouter, ModelProvider } from './modelRouter';
+import { permissions } from './permissions';
+
+/** Providers that cost money — gated behind the `spend` capability. */
+const PAID_PROVIDERS: ModelProvider[] = ['grok', 'deepseek', 'anthropic'];
 
 export interface AIMessage {
   role: 'user' | 'assistant' | 'system';
@@ -30,13 +34,26 @@ class AIClient {
       temperature?: number;
       systemPrompt?: string;
       taskId?: string;
+      /** App/agent identity used by the Permission Broker (defaults to 'system'). */
+      scope?: string;
     } = {}
   ): Promise<AIResponse> {
     const maxTokens = options.maxTokens || 2000;
     const temperature = options.temperature || 0.7;
+    const scope = options.scope || 'system';
+
+    // Capability gate: is this app/agent allowed to call a model at all?
+    if (!permissions.require(scope, 'model_access', 'aiClient.sendMessage')) {
+      throw new Error(`Model access is disabled for "${scope}" in the Permission Broker.`);
+    }
 
     // Route to best provider
     const routing = modelRouter.route(['chat'], ['chat'], maxTokens, options.taskId);
+
+    // Capability gate: block paid providers when spend is revoked for this scope.
+    if (PAID_PROVIDERS.includes(routing.provider) && !permissions.require(scope, 'spend', routing.provider)) {
+      throw new Error(`Paid provider "${routing.provider}" is blocked for "${scope}" (spend disabled).`);
+    }
 
     console.log(`[AIClient] Routing to ${routing.provider}/${routing.model}: ${routing.reason}`);
 
