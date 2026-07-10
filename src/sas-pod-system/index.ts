@@ -11,7 +11,17 @@ export {
   SpawnEngine,
   PodLifecycleManager,
   PodCommunicationBroker,
+  runPodTask,
+  runPodTaskBudgeted,
+  deriveWordBudget,
 } from './pod-system-engine';
+export {
+  PodControlCenter,
+  getPodControlCenter,
+  formatBytes,
+  type PodView,
+  type PodAttachment,
+} from './pod-control';
 export type {
   PodSeed,
   CompressionCodebook,
@@ -24,14 +34,13 @@ export type {
   PodInstance,
   ReconstructedState,
   PodTask,
+  PodTaskResult,
   SpawnRules,
   SpawnTrigger,
   MutationRule,
   LifecycleConfig,
   ResourceLimits,
   PodMessage,
-  PodCommunicationBroker,
-  PodLifecycleManager,
   InfoPointer,
 } from './pod-system-design';
 
@@ -39,4 +48,3 @@ export { exampleFatherPod } from './pod-system-design';
 
 export { Conductor } from './conductor';
 export type { ConductorStepResult, ConductorRunResult } from './conductor';
-export { runPodTask } from './pod-system-engine';

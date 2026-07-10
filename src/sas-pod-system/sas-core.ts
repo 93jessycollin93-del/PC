@@ -80,6 +80,19 @@ export class SASCore {
    * SAS auto-adapts to whatever hardware it's deployed on
    */
   private detectHardware(): HardwareProfile {
+    // Browser (Vite) has no Node `process.platform` — use real navigator signals.
+    if (typeof process === 'undefined' || !process.platform) {
+      const nav = typeof navigator !== 'undefined' ? navigator : null;
+      const deviceMemoryGb = (nav as any)?.deviceMemory || 4; // real when supported
+      return {
+        name: 'Browser (Web)',
+        platform: 'web',
+        availableStorage: 256 * 1024 * 1024 * 1024, // schema capacity; real quota is async
+        availableMemory: deviceMemoryGb * 1024 * 1024 * 1024,
+        cpuCount: nav?.hardwareConcurrency || 4,
+      };
+    }
+
     const platform = process.platform; // 'darwin' = Mac, 'linux', 'win32'
 
     if (platform === 'darwin') {
@@ -227,6 +240,24 @@ export class SASCore {
   }
 
   /**
+   * List every tier defined in the pod schema (preset + on-demand)
+   */
+  listPodTiers(): { id: string; size: number; status: string; purpose: string }[] {
+    const tiers = this.podFactory.listTiers();
+    return tiers.total
+      .map((tierId) => this.podFactory.getTierSchema(tierId))
+      .filter((t): t is NonNullable<typeof t> => t !== null)
+      .map((t) => ({ id: t.id, size: t.size, status: t.status, purpose: t.purpose }));
+  }
+
+  /**
+   * Access the mother shell (pod registry, lifecycle manager, comms broker)
+   */
+  getMotherShell(): MotherShell {
+    return this.motherShell;
+  }
+
+  /**
    * Add a custom pod tier
    * For future AI models we don't know about yet
    */
@@ -264,4 +295,4 @@ export class SASCore {
   }
 }
 
-export { HardwareProfile, SystemStatus };
+export type { HardwareProfile, SystemStatus };

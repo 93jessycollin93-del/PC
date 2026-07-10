@@ -11,6 +11,7 @@ export interface PodSeed {
   id: string;
   fingerprint: string; // unique identifier for this seed type
   sizeBytes: number; // compressed size (typically 40 kB target)
+  wordBudget?: number; // hard cap on task output words; derived from size when unset
 
   codebook: CompressionCodebook; // patterns + reconstruction rules
   spawnRules: SpawnRules; // when/how to spawn children
@@ -141,9 +142,21 @@ export interface PodTask {
   id: string;
   description: string;
   status: 'queued' | 'running' | 'complete' | 'failed';
-  result?: any;
+  input?: string; // raw text handed to the pod
+  wordBudget?: number; // hard cap on output words for this task
+  result?: PodTaskResult | any;
   startedAt?: Date;
   completedAt?: Date;
+}
+
+export interface PodTaskResult {
+  output: string;
+  wordsIn: number;
+  wordsOut: number;
+  wordBudget: number;
+  truncated: boolean;
+  capabilitiesUsed: string[];
+  error?: string;
 }
 
 // ============================================================================
