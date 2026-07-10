@@ -6,3 +6,4 @@
 - [Mock/simulation removal pass](mock-removal-pass.md) — real-mode-only policy for PC apps, real backend endpoints added, and one deliberate scope cut (AiTerm's virtual FS).
 - [AiTerm real filesystem + Jackie gating](aiterm-real-fs.md) — sandboxed real disk FS behind a user toggle + shared token; only AiTerm + Jackie (when global mode on) can use it.
 - [Sticky notepad widget](sticky-notepad-widget.md) — global floating/resizable/fullscreen notepad with voice "take note"/"save that" commands, archives into the shared DataPods IndexedDB vault.
+- [Flipper Zero firmware update](flipper-firmware-update.md) — real GitHub release fetch + WebUSB DFU flashing with source picker; iOS browsers can't do WebUSB, so use Flipper's official mobile app there instead.

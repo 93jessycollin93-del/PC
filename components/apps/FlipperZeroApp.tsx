@@ -3,14 +3,28 @@ import {
     Bluetooth, Wifi, Cloud, Terminal, RefreshCw, UploadCloud, DownloadCloud, 
     AlertTriangle, RadioReceiver, Nfc, Zap, Key, CircleDot, Usb, Cpu, 
     ShieldCheck, HardDrive, BrainCircuit, Activity, Check, Radio, Play, Waves, Lock, History,
-    Camera, MapPin, CreditCard, Car, Network, Satellite
+    Camera, MapPin, CreditCard, Car, Network, Satellite, GitBranch, ExternalLink, Smartphone
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { getAiClient, MODEL_NAME } from '../../lib/gemini';
 import { queueSyncAction, getSyncQueue, deleteFromStore } from '../../lib/idb';
 
-type TabType = 'subghz' | 'nfc' | 'ir' | 'rfid' | 'ibutton' | 'badusb' | 'gpio' | 'u2f' | 'storage' | 'bluetooth' | 'wifi' | 'cloud' | 'terminal' | 'esp32' | 'nrf24' | 'magspoof' | 'gps' | 'camera' | 'geiger' | 'canbus' | 'ethernet';
+type TabType = 'subghz' | 'nfc' | 'ir' | 'rfid' | 'ibutton' | 'badusb' | 'gpio' | 'u2f' | 'storage' | 'bluetooth' | 'wifi' | 'cloud' | 'terminal' | 'esp32' | 'nrf24' | 'magspoof' | 'gps' | 'camera' | 'geiger' | 'canbus' | 'ethernet' | 'firmware';
+
+interface GithubReleaseAsset {
+    name: string;
+    browser_download_url: string;
+    size: number;
+}
+interface GithubRelease {
+    tag_name: string;
+    name: string;
+    published_at: string;
+    body: string;
+    html_url: string;
+    assets: GithubReleaseAsset[];
+}
 
 export const FlipperZeroApp: React.FC = () => {
     const [activeTab, setActiveTab] = useState<TabType>('subghz');
@@ -30,6 +44,39 @@ export const FlipperZeroApp: React.FC = () => {
     ]);
     const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    // Firmware update state
+    const [latestRelease, setLatestRelease] = useState<GithubRelease | null>(null);
+    const [firmwareError, setFirmwareError] = useState<string | null>(null);
+    const [checkingFirmware, setCheckingFirmware] = useState(false);
+    const [flashProgress, setFlashProgress] = useState<number | null>(null);
+    const [flashStatus, setFlashStatus] = useState<string | null>(null);
+    const [usbSupported] = useState('usb' in navigator);
+    const FIRMWARE_SOURCES = [
+        { id: 'official', label: 'Official (flipperdevices)', repo: 'flipperdevices/flipperzero-firmware' },
+        { id: 'unleashed', label: 'Unleashed (custom firmware)', repo: 'DarkFlippers/unleashed-firmware' },
+    ];
+    const [firmwareSource, setFirmwareSource] = useState(FIRMWARE_SOURCES[0].id);
+
+    const checkLatestFirmware = async (sourceId: string = firmwareSource) => {
+        const source = FIRMWARE_SOURCES.find(s => s.id === sourceId) || FIRMWARE_SOURCES[0];
+        setCheckingFirmware(true);
+        setFirmwareError(null);
+        setLatestRelease(null);
+        addLog(`Querying GitHub releases API for ${source.repo}...`);
+        try {
+            const res = await fetch(`https://api.github.com/repos/${source.repo}/releases/latest`);
+            if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
+            const data = await res.json();
+            setLatestRelease(data);
+            addLog(`Latest ${source.label} release found: ${data.tag_name}`);
+        } catch (error: any) {
+            setFirmwareError(error.message || 'Failed to reach GitHub releases API.');
+            addLog(`FIRMWARE CHECK ERROR: ${error.message}`);
+        } finally {
+            setCheckingFirmware(false);
+        }
+    };
 
     const addLog = (msg: string) => {
         setLog(prev => [...prev.slice(-99), `[${new Date().toISOString().split('T')[1].slice(0, -1)}] ${msg}`]);
@@ -159,6 +206,18 @@ export const FlipperZeroApp: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        if (activeTab === 'firmware' && !latestRelease && !checkingFirmware) {
+            checkLatestFirmware();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
+
+    const handleFirmwareSourceChange = (sourceId: string) => {
+        setFirmwareSource(sourceId);
+        checkLatestFirmware(sourceId);
+    };
+
+    useEffect(() => {
         let interval: NodeJS.Timeout;
         if (autoSync && isOnline) {
             interval = setInterval(() => syncToCloud(), 60000);
@@ -200,6 +259,212 @@ export const FlipperZeroApp: React.FC = () => {
         }
     };
 
+    // --- Real USB DFU firmware flashing (STM32 DfuSe protocol, as used by qFlipper/dfu-util) ---
+    // Parses a DfuSe (.dfu) file container into flashable {address, data} segments.
+    // Layout reference: ST AN3156 "DFU_1.1a" DfuSe file format.
+    const parseDfuFile = (buf: ArrayBuffer) => {
+        const bytes = new Uint8Array(buf);
+        const len = buf.byteLength;
+        if (len < 11 + 16) throw new Error('File too small to be a valid .dfu image.');
+        // DFU suffix: last 16 bytes, signature "UFD" at offset len-8..len-6 (ASCII, reversed on disk).
+        const sigStr = String.fromCharCode(bytes[len - 8], bytes[len - 7], bytes[len - 6]);
+        if (sigStr !== 'UFD') throw new Error('Not a valid .dfu file (missing UFD suffix signature).');
+        const body = buf.slice(0, len - 16);
+        const bodyBytes = new Uint8Array(body);
+        const prefixSig = String.fromCharCode(bodyBytes[0], bodyBytes[1], bodyBytes[2], bodyBytes[3], bodyBytes[4]);
+        if (prefixSig !== 'DfuSe') throw new Error('Not a DfuSe container (unexpected prefix signature).');
+        const bodyView = new DataView(body);
+        const targets: { address: number, data: Uint8Array }[] = [];
+        const targetCount = bodyBytes[10]; // byte after "DfuSe"(5)+version(1)+imageSize(4)
+        let offset = 11;
+        for (let t = 0; t < targetCount; t++) {
+            if (offset + 274 > bodyBytes.length) throw new Error('Malformed .dfu file: truncated target header.');
+            const targetSig = String.fromCharCode(bodyBytes[offset], bodyBytes[offset + 1], bodyBytes[offset + 2], bodyBytes[offset + 3], bodyBytes[offset + 4], bodyBytes[offset + 5]);
+            if (targetSig !== 'Target') throw new Error('Malformed .dfu file: expected "Target" signature.');
+            offset += 6; // signature
+            offset += 1; // alt setting
+            offset += 4; // target-named flag (dword)
+            offset += 255; // target name
+            const targetSize = bodyView.getUint32(offset, true); offset += 4;
+            const numElements = bodyView.getUint32(offset, true); offset += 4;
+            const targetEnd = offset + targetSize;
+            for (let e = 0; e < numElements; e++) {
+                if (offset + 8 > targetEnd) throw new Error('Malformed .dfu file: truncated element header.');
+                const address = bodyView.getUint32(offset, true); offset += 4;
+                const size = bodyView.getUint32(offset, true); offset += 4;
+                if (offset + size > bodyBytes.length) throw new Error('Malformed .dfu file: element data out of bounds.');
+                const data = bodyBytes.slice(offset, offset + size);
+                targets.push({ address, data });
+                offset += size;
+            }
+            offset = targetEnd;
+        }
+        if (targets.length === 0) throw new Error('No flashable data segments found in .dfu file.');
+        return targets;
+    };
+
+    const DFU_REQUEST = { DETACH: 0, DNLOAD: 1, UPLOAD: 2, GETSTATUS: 3, CLRSTATUS: 4, GETSTATE: 5, ABORT: 6 };
+    // DFU 1.1 state machine values (bState in GETSTATUS response).
+    const DFU_STATE = { DNLOAD_SYNC: 3, DNBUSY: 4, DNLOAD_IDLE: 5, MANIFEST_SYNC: 6, MANIFEST: 7, MANIFEST_WAIT_RESET: 8, ERROR: 10 };
+    const DFU_STATUS_OK = 0;
+    const ERASE_PAGE_SIZE = 4096; // STM32WB flash page size used by Flipper Zero's MCU
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, Math.max(ms, 5)));
+
+    const dfuGetStatus = async (device: any, ifaceNum: number) => {
+        const result = await device.controlTransferIn({
+            requestType: 'class', recipient: 'interface', request: DFU_REQUEST.GETSTATUS, value: 0, index: ifaceNum
+        }, 6);
+        const d = new DataView(result.data.buffer);
+        const status = d.getUint8(0);
+        const pollTimeout = d.getUint8(1) | (d.getUint8(2) << 8) | (d.getUint8(3) << 16);
+        const state = d.getUint8(4);
+        return { status, pollTimeout, state };
+    };
+
+    const dfuClearStatus = async (device: any, ifaceNum: number) => {
+        try {
+            await device.controlTransferOut({ requestType: 'class', recipient: 'interface', request: DFU_REQUEST.CLRSTATUS, value: 0, index: ifaceNum }, new Uint8Array(0));
+        } catch { /* best-effort */ }
+    };
+
+    // Sends one DNLOAD command/data block, then polls GETSTATUS until the device leaves DNBUSY.
+    // Throws (and clears the error) if the device reports a non-OK status.
+    const dfuDownloadAndWait = async (device: any, ifaceNum: number, blockNum: number, data: Uint8Array) => {
+        await device.controlTransferOut({ requestType: 'class', recipient: 'interface', request: DFU_REQUEST.DNLOAD, value: blockNum, index: ifaceNum }, data);
+        let st = await dfuGetStatus(device, ifaceNum);
+        let guard = 0;
+        while (st.state === DFU_STATE.DNBUSY && guard++ < 200) {
+            await sleep(st.pollTimeout);
+            st = await dfuGetStatus(device, ifaceNum);
+        }
+        if (st.state === DFU_STATE.DNBUSY) {
+            await dfuClearStatus(device, ifaceNum);
+            throw new Error('Device stayed busy (DNBUSY) past the maximum poll attempts; aborting transfer.');
+        }
+        if (st.status !== DFU_STATUS_OK) {
+            await dfuClearStatus(device, ifaceNum);
+            throw new Error(`Device reported DFU error (status ${st.status}, state ${st.state}) during transfer.`);
+        }
+        return st;
+    };
+
+    const dfuSetAddress = async (device: any, ifaceNum: number, address: number) => {
+        const buf = new Uint8Array(5);
+        buf[0] = 0x21; // "Set Address Pointer" command
+        new DataView(buf.buffer).setUint32(1, address, true);
+        await dfuDownloadAndWait(device, ifaceNum, 0, buf);
+    };
+
+    const dfuErasePage = async (device: any, ifaceNum: number, address: number) => {
+        const buf = new Uint8Array(5);
+        buf[0] = 0x41; // "Erase" command
+        new DataView(buf.buffer).setUint32(1, address, true);
+        await dfuDownloadAndWait(device, ifaceNum, 0, buf);
+    };
+
+    // Erases every flash page spanned by [address, address+length).
+    const dfuEraseRange = async (device: any, ifaceNum: number, address: number, length: number) => {
+        const firstPage = Math.floor(address / ERASE_PAGE_SIZE) * ERASE_PAGE_SIZE;
+        const lastByte = address + length - 1;
+        for (let page = firstPage; page <= lastByte; page += ERASE_PAGE_SIZE) {
+            await dfuErasePage(device, ifaceNum, page);
+        }
+    };
+
+    // Flash real firmware onto a connected Flipper Zero in DFU/bootloader mode over WebUSB.
+    const flashFirmwareViaUsb = async (asset: GithubReleaseAsset) => {
+        if (!usbSupported) {
+            addLog('ERROR: WebUSB is not supported in this browser/OS. Use a desktop Chrome/Edge browser plugged in via USB.');
+            return;
+        }
+        if (!asset.name.toLowerCase().endsWith('.dfu')) {
+            addLog(`ERROR: "${asset.name}" is not a .dfu image. Select the *.dfu asset for USB flashing.`);
+            return;
+        }
+        setFlashStatus('Downloading firmware image...');
+        setFlashProgress(0);
+        let device: any = null;
+        let ifaceNumber: number | null = null;
+        try {
+            const fwRes = await fetch(asset.browser_download_url);
+            if (!fwRes.ok) throw new Error(`Failed to download firmware (${fwRes.status})`);
+            const fwBuf = await fwRes.arrayBuffer();
+            addLog(`Downloaded ${asset.name} (${(fwBuf.byteLength / 1024).toFixed(0)} KB).`);
+
+            // Parse before touching hardware, so we never erase flash on a device if the image is bad.
+            const targets = parseDfuFile(fwBuf);
+            const totalBytes = targets.reduce((sum, t) => sum + t.data.length, 0);
+
+            setFlashStatus('Waiting for device selection (put Flipper into DFU/bootloader mode: hold BACK, press and release RESET, release BACK after the blue LED)...');
+            device = await (navigator as any).usb.requestDevice({ filters: [{ vendorId: 0x0483, productId: 0xdf11 }] });
+            await device.open();
+            if (device.configuration === null) await device.selectConfiguration(1);
+            const iface = device.configuration.interfaces.find((i: any) => i.alternates.some((a: any) => a.interfaceClass === 0xFE && a.interfaceSubclass === 1));
+            if (!iface) throw new Error('No DFU interface found on this USB device. Is it really in bootloader mode?');
+            ifaceNumber = iface.interfaceNumber;
+            await device.claimInterface(ifaceNumber);
+            addLog(`DFU device claimed: ${device.productName || 'STM32 Bootloader'}`);
+
+            let writtenBytes = 0;
+            setFlashStatus('Erasing flash sectors...');
+            for (const target of targets) {
+                await dfuEraseRange(device, ifaceNumber, target.address, target.data.length);
+            }
+
+            setFlashStatus('Writing firmware...');
+            const CHUNK = 2048;
+            for (const target of targets) {
+                await dfuSetAddress(device, ifaceNumber, target.address);
+                let blockNum = 2; // per DfuSe convention, data blocks start at wValue=2 after the address-pointer command
+                for (let off = 0; off < target.data.length; off += CHUNK) {
+                    const chunk = target.data.slice(off, off + CHUNK);
+                    await dfuDownloadAndWait(device, ifaceNumber, blockNum, chunk);
+                    blockNum++;
+                    writtenBytes += chunk.length;
+                    setFlashProgress(Math.round((writtenBytes / totalBytes) * 100));
+                }
+            }
+
+            // Empty DNLOAD signals end-of-firmware and triggers the manifestation phase; the device
+            // will reset into the new firmware and disconnect from USB, so treat disconnect as success.
+            setFlashStatus('Finalizing and rebooting device into new firmware...');
+            try {
+                await device.controlTransferOut({ requestType: 'class', recipient: 'interface', request: DFU_REQUEST.DNLOAD, value: 0, index: ifaceNumber }, new Uint8Array(0));
+                let st = await dfuGetStatus(device, ifaceNumber);
+                let guard = 0;
+                while ((st.state === DFU_STATE.MANIFEST_SYNC || st.state === DFU_STATE.MANIFEST) && guard++ < 50) {
+                    await sleep(st.pollTimeout);
+                    st = await dfuGetStatus(device, ifaceNumber);
+                }
+            } catch {
+                // Device commonly resets/disconnects mid-manifestation; that is the expected success path.
+            }
+
+            setFlashStatus('Firmware written successfully. Flipper is rebooting into the new firmware.');
+            addLog(`Firmware flash complete: ${asset.name}`);
+        } catch (error: any) {
+            setFlashStatus(null);
+            addLog(`USB FLASH ERROR: ${error.message}`);
+            setFirmwareError(error.message);
+            if (device && ifaceNumber !== null) {
+                await dfuClearStatus(device, ifaceNumber);
+                try { await device.controlTransferOut({ requestType: 'class', recipient: 'interface', request: DFU_REQUEST.ABORT, value: 0, index: ifaceNumber }, new Uint8Array(0)); } catch { /* best-effort */ }
+            }
+        } finally {
+            setFlashProgress(null);
+            if (device && ifaceNumber !== null) {
+                // Best-effort cleanup on both success and failure paths. Individually guarded because
+                // the device commonly resets/disconnects right after a successful manifestation.
+                await dfuClearStatus(device, ifaceNumber);
+                try { await device.controlTransferOut({ requestType: 'class', recipient: 'interface', request: DFU_REQUEST.ABORT, value: 0, index: ifaceNumber }, new Uint8Array(0)); } catch { /* best-effort */ }
+                try { await device.releaseInterface(ifaceNumber); } catch { /* device may already be disconnected */ }
+            }
+            if (device) {
+                try { await device.close(); } catch { /* device may already be disconnected */ }
+            }
+        }
+    };
+
     const TABS: { id: TabType, label: string, icon: any }[] = [
         { id: 'subghz', label: 'SubGHz', icon: Waves },
         { id: 'nfc', label: 'NFC', icon: Nfc },
@@ -220,6 +485,7 @@ export const FlipperZeroApp: React.FC = () => {
         { id: 'geiger', label: 'Geiger', icon: Activity },
         { id: 'canbus', label: 'CAN Bus', icon: Car },
         { id: 'ethernet', label: 'Ethernet', icon: Network },
+        { id: 'firmware', label: 'Firmware', icon: GitBranch },
         { id: 'cloud', label: 'Cloud Sync', icon: Cloud },
         { id: 'terminal', label: 'Terminal', icon: Terminal },
     ];
@@ -572,6 +838,103 @@ export const FlipperZeroApp: React.FC = () => {
                                     <button onClick={() => executeAction('eth_ping')} className="px-3 py-2 bg-orange-950 border border-orange-900 hover:bg-orange-900 rounded text-xs uppercase font-bold flex items-center gap-2"><Activity size={14}/> Ping Test</button>
                                 </div>
                                 <div className="p-4 bg-black border border-orange-900/30 rounded text-xs text-orange-700 italic">Wired network debugging and raw socket injection via SPI Ethernet module.</div>
+                            </div>
+                        )}
+
+                        {activeTab === 'firmware' && (
+                            <div className="flex flex-col h-full space-y-4">
+                                <div className="flex items-center justify-between border-b border-orange-900/30 pb-2 gap-2">
+                                    <h2 className="text-sm font-bold uppercase shrink-0">Firmware Update</h2>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={firmwareSource}
+                                            onChange={e => handleFirmwareSourceChange(e.target.value)}
+                                            className="bg-black border border-orange-900 text-orange-400 text-[10px] font-bold uppercase px-2 py-1.5 rounded"
+                                        >
+                                            {FIRMWARE_SOURCES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                                        </select>
+                                        <button onClick={() => checkLatestFirmware()} disabled={checkingFirmware} className="px-3 py-1.5 bg-orange-950 border border-orange-900 text-orange-500 text-xs font-bold uppercase hover:bg-orange-900 disabled:opacity-50 flex items-center gap-2 rounded">
+                                            <RefreshCw size={14} className={checkingFirmware ? 'animate-spin' : ''} /> Check for Updates
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-orange-700 -mt-2">Unleashed is a popular community firmware with extra protocols/sub-GHz regions unlocked; official is Flipper Devices' stock firmware.</div>
+
+                                {!usbSupported && (
+                                    <div className="p-3 bg-orange-950/20 border border-orange-900/50 rounded text-xs text-orange-400 flex items-start gap-2">
+                                        <Smartphone size={16} className="shrink-0 mt-0.5" />
+                                        <div>
+                                            WebUSB isn't available on this device/browser (this is an OS limitation on iOS &mdash; no iOS browser exposes raw USB access to web apps). You can still see release info below, but flashing from here needs a desktop Chrome/Edge browser with the Flipper on USB.
+                                            <div className="mt-1 text-orange-500">For updating over Bluetooth from a phone, use the official <strong>Flipper Mobile</strong> app from the App Store &mdash; it has real OTA update support this web app can't replicate on iOS.</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {firmwareError && (
+                                    <div className="p-3 bg-red-950/20 border border-red-900/50 rounded text-xs text-red-400 flex items-center gap-2">
+                                        <AlertTriangle size={14}/> {firmwareError}
+                                    </div>
+                                )}
+
+                                {checkingFirmware && !latestRelease && (
+                                    <div className="text-orange-700 text-xs italic">Querying GitHub for the latest official release...</div>
+                                )}
+
+                                {latestRelease && (
+                                    <div className="space-y-3 overflow-y-auto">
+                                        <div className="p-3 border border-orange-900/50 bg-black rounded text-xs space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-bold text-orange-400">{latestRelease.name || latestRelease.tag_name}</span>
+                                                <a href={latestRelease.html_url} target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:text-orange-400 flex items-center gap-1 text-[10px]"><ExternalLink size={12}/> View on GitHub</a>
+                                            </div>
+                                            <div className="text-orange-700">Published {new Date(latestRelease.published_at).toLocaleDateString()} &middot; Tag {latestRelease.tag_name}</div>
+                                            <div className="text-orange-600 max-h-24 overflow-y-auto whitespace-pre-wrap text-[10px] leading-relaxed border-t border-orange-900/30 pt-2">{latestRelease.body?.slice(0, 800) || 'No changelog provided.'}</div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="text-[10px] uppercase text-orange-600 font-bold">Release Assets</div>
+                                            {latestRelease.assets.length === 0 ? (
+                                                <div className="text-orange-800 text-xs italic">No downloadable assets on this release.</div>
+                                            ) : latestRelease.assets.map((asset, i) => (
+                                                <div key={i} className="p-2 border border-orange-900/50 bg-black flex items-center justify-between text-xs">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-orange-400 font-mono">{asset.name}</span>
+                                                        <span className="text-orange-800 text-[10px]">{(asset.size / 1024).toFixed(0)} KB</span>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <a href={asset.browser_download_url} className="px-2 py-1 bg-orange-950 border border-orange-900 hover:bg-orange-900 rounded text-[10px] uppercase font-bold flex items-center gap-1">
+                                                            <DownloadCloud size={12}/> Download
+                                                        </a>
+                                                        {asset.name.toLowerCase().endsWith('.dfu') && (
+                                                            <button
+                                                                onClick={() => flashFirmwareViaUsb(asset)}
+                                                                disabled={!usbSupported || flashProgress !== null}
+                                                                className="px-2 py-1 bg-orange-500 text-black hover:bg-orange-400 disabled:opacity-40 rounded text-[10px] uppercase font-bold flex items-center gap-1"
+                                                            >
+                                                                <Usb size={12}/> Flash via USB
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {flashProgress !== null && (
+                                    <div className="p-3 border border-orange-500/50 bg-orange-950/30 rounded text-xs space-y-2 shrink-0">
+                                        <div className="flex justify-between text-orange-400 font-bold"><span>Flashing firmware...</span><span>{flashProgress}%</span></div>
+                                        <div className="w-full h-2 bg-black rounded overflow-hidden"><div className="h-full bg-orange-500 transition-all" style={{ width: `${flashProgress}%` }} /></div>
+                                        <div className="text-orange-600 text-[10px]">Keep the device plugged in and do not disconnect until this completes.</div>
+                                    </div>
+                                )}
+                                {flashStatus && flashProgress === null && (
+                                    <div className="p-3 border border-orange-900/50 bg-black rounded text-xs text-orange-400 shrink-0">{flashStatus}</div>
+                                )}
+
+                                <div className="p-3 bg-black border border-orange-900/30 rounded text-[10px] text-orange-700 italic shrink-0">
+                                    To enter DFU/bootloader mode: hold <strong>BACK</strong>, press and release <strong>RESET</strong>, then release <strong>BACK</strong> once the screen goes blank/blue-LED lights &mdash; then click "Flash via USB" and select the device from the browser's picker.
+                                </div>
                             </div>
                         )}
 
