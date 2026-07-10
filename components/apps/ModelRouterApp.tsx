@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, BarChart3, Zap, DollarSign, Plus, Trash2, Download, Network, AlertCircle, CheckCircle, Eye, EyeOff, Shield } from 'lucide-react';
+import { Cpu, BarChart3, Zap, DollarSign, Plus, Trash2, Download, Network, AlertCircle, CheckCircle, Eye, EyeOff, Shield, TrendingUp, Activity, Clock } from 'lucide-react';
 
 interface ModelProvider {
     id: string;
@@ -168,6 +168,7 @@ export const ModelRouterApp: React.FC = () => {
     const [routingMode, setRoutingMode] = useState<'free_first' | 'balanced' | 'performance'>('free_first');
     const [showAddProvider, setShowAddProvider] = useState(false);
     const [newProviderForm, setNewProviderForm] = useState<Partial<ModelProvider>>({ hideKey: true });
+    const [activeTab, setActiveTab] = useState<'routing' | 'analytics' | 'comparison'>('routing');
 
     // Load from localStorage
     useEffect(() => {
@@ -232,6 +233,36 @@ export const ModelRouterApp: React.FC = () => {
     const totalFreeModels = Object.values(FREE_AI_MODELS).reduce((sum, p) => sum + p.models.length, 0);
     const activeProviders = providers.filter(p => p.status === 'available').length;
 
+    const getSpeedScore = (speed: string): number => {
+        switch(speed) {
+            case 'ultrafast': return 5;
+            case 'fast': return 4;
+            case 'medium': return 3;
+            case 'slow': return 2;
+            default: return 1;
+        }
+    };
+
+    const getCostScore = (cost: number): number => {
+        if (cost === 0) return 10;
+        if (cost <= 0.0005) return 9;
+        if (cost <= 0.001) return 8;
+        if (cost <= 0.01) return 5;
+        return 2;
+    };
+
+    const getModelScore = (model: AIModel): number => {
+        const speedScore = getSpeedScore(model.speedRating) * 1.5;
+        const costScore = getCostScore(model.costPerMRequest || 0);
+        const reasoningScore = model.reasoning_level === 'advanced' ? 10 : model.reasoning_level === 'intermediate' ? 5 : 2;
+        return (speedScore + costScore + reasoningScore) / 3;
+    };
+
+    const topModels = providers
+        .flatMap(p => p.models.map(m => ({ provider: p.name, model: m, score: getModelScore(m) })))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
     return (
         <div className="h-full w-full bg-[#09090b] text-slate-300 font-sans flex flex-col">
             {/* Header */}
@@ -247,20 +278,19 @@ export const ModelRouterApp: React.FC = () => {
                 </div>
             </div>
 
-            {/* Routing Mode */}
-            <div className="h-10 border-b border-zinc-800/80 bg-[#0f1115] flex items-center px-4 shrink-0 gap-2">
-                <span className="text-xs text-zinc-400">Routing:</span>
-                {(['free_first', 'balanced', 'performance'] as const).map(mode => (
+            {/* Tabs */}
+            <div className="h-10 border-b border-zinc-800/80 bg-[#0f1115] flex items-center px-4 shrink-0 gap-4">
+                {(['routing', 'analytics', 'comparison'] as const).map(tab => (
                     <button
-                        key={mode}
-                        onClick={() => setRoutingMode(mode)}
-                        className={`px-2 py-1 text-xs font-semibold rounded transition-colors ${
-                            routingMode === mode
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-3 py-1 text-xs font-semibold rounded transition-colors ${
+                            activeTab === tab
                                 ? 'bg-emerald-600 text-white'
                                 : 'text-slate-400 hover:text-slate-200'
                         }`}
                     >
-                        {mode === 'free_first' ? '💚 Free First' : mode === 'balanced' ? '⚖️ Balanced' : '⚡ Performance'}
+                        {tab === 'routing' ? '🔀 Routing' : tab === 'analytics' ? '📊 Analytics' : '⚔️ Compare'}
                     </button>
                 ))}
             </div>
@@ -268,6 +298,24 @@ export const ModelRouterApp: React.FC = () => {
             {/* Main Content */}
             <div className="flex-1 overflow-auto">
                 <div className="p-6 space-y-6">
+                    {activeTab === 'routing' && (
+                    <>
+                    <div className="h-10 flex items-center px-4 gap-2">
+                        <span className="text-xs text-zinc-400">Routing Mode:</span>
+                        {(['free_first', 'balanced', 'performance'] as const).map(mode => (
+                            <button
+                                key={mode}
+                                onClick={() => setRoutingMode(mode)}
+                                className={`px-2 py-1 text-xs font-semibold rounded transition-colors ${
+                                    routingMode === mode
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                {mode === 'free_first' ? '💚 Free First' : mode === 'balanced' ? '⚖️ Balanced' : '⚡ Performance'}
+                            </button>
+                        ))}
+                    </div>
                     {/* Routing Status */}
                     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
                         <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -380,6 +428,125 @@ export const ModelRouterApp: React.FC = () => {
                             This router always prioritizes free models and local Ollama. Paid APIs are only used if you explicitly set a budget and enable them. Never forced.
                         </p>
                     </div>
+                    </>
+                    )}
+
+                    {activeTab === 'analytics' && (
+                    <>
+                    {/* Top Performers */}
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                        <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                            <TrendingUp size={14} className="text-blue-400" />
+                            Top Performers
+                        </h2>
+                        <div className="space-y-2">
+                            {topModels.map((item, i) => (
+                                <div key={i} className="bg-zinc-950 rounded-lg p-2 border border-zinc-800 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs text-white font-semibold">{item.model.name}</div>
+                                        <div className="text-[8px] text-zinc-400">{item.provider}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-emerald-400">{item.score.toFixed(1)}/10</div>
+                                        <div className="text-[8px] text-zinc-400">{item.model.speedRating}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Cost Summary */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-1">
+                            <div className="text-[9px] text-zinc-400 flex items-center gap-1">
+                                <DollarSign size={12} /> Free Models
+                            </div>
+                            <div className="text-lg font-bold text-emerald-400">
+                                {providers.flatMap(p => p.models).filter(m => !m.costPerMRequest || m.costPerMRequest === 0).length}
+                            </div>
+                        </div>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-1">
+                            <div className="text-[9px] text-zinc-400 flex items-center gap-1">
+                                <Activity size={12} /> Providers
+                            </div>
+                            <div className="text-lg font-bold text-blue-400">{activeProviders}</div>
+                        </div>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 space-y-1">
+                            <div className="text-[9px] text-zinc-400 flex items-center gap-1">
+                                <Clock size={12} /> Fastest
+                            </div>
+                            <div className="text-lg font-bold text-yellow-400">
+                                {providers.flatMap(p => p.models).filter(m => m.speedRating === 'ultrafast').length}
+                            </div>
+                        </div>
+                    </div>
+                    </>
+                    )}
+
+                    {activeTab === 'comparison' && (
+                    <>
+                    {/* Capability Matrix */}
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                        <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                            <BarChart3 size={14} className="text-purple-400" />
+                            Model Capability Matrix
+                        </h2>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="border-b border-zinc-700">
+                                        <th className="text-left py-2 px-2 text-zinc-400">Model</th>
+                                        <th className="text-center py-2 px-2 text-zinc-400">Speed</th>
+                                        <th className="text-center py-2 px-2 text-zinc-400">Reasoning</th>
+                                        <th className="text-center py-2 px-2 text-zinc-400">Cost</th>
+                                        <th className="text-center py-2 px-2 text-zinc-400">Context</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {topModels.map((item, i) => (
+                                        <tr key={i} className="border-b border-zinc-800 hover:bg-zinc-800/50">
+                                            <td className="py-2 px-2 text-white font-semibold">{item.model.name}</td>
+                                            <td className="py-2 px-2 text-center">
+                                                <span className="text-emerald-400">{item.model.speedRating}</span>
+                                            </td>
+                                            <td className="py-2 px-2 text-center">
+                                                <span className="text-blue-400">{item.model.reasoning_level}</span>
+                                            </td>
+                                            <td className="py-2 px-2 text-center">
+                                                <span className={item.model.costPerMRequest === 0 ? 'text-green-400' : 'text-yellow-400'}>
+                                                    {item.model.costPerMRequest === 0 ? 'Free' : `$${item.model.costPerMRequest}`}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-2 text-center text-zinc-400">
+                                                {item.model.contextWindow ? `${(item.model.contextWindow / 1000).toFixed(0)}K` : '-'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Speed vs Cost Ranking */}
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                        <h2 className="text-sm font-bold text-white">Speed vs Cost Trade-off</h2>
+                        <div className="space-y-1 text-xs">
+                            <div className="flex justify-between items-center bg-zinc-950 p-2 rounded border border-zinc-800">
+                                <span className="text-zinc-300">Best Value</span>
+                                <span className="text-emerald-400 font-bold">Groq Free Tier</span>
+                            </div>
+                            <div className="flex justify-between items-center bg-zinc-950 p-2 rounded border border-zinc-800">
+                                <span className="text-zinc-300">Most Capable</span>
+                                <span className="text-purple-400 font-bold">Claude 3.5 Haiku</span>
+                            </div>
+                            <div className="flex justify-between items-center bg-zinc-950 p-2 rounded border border-zinc-800">
+                                <span className="text-zinc-300">Most Flexible</span>
+                                <span className="text-blue-400 font-bold">Gemini 2.0 Flash</span>
+                            </div>
+                        </div>
+                    </div>
+                    </>
+                    )}
                 </div>
             </div>
         </div>
