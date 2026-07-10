@@ -22,7 +22,6 @@ export const FlipperZeroApp: React.FC = () => {
     const [autoSync, setAutoSync] = useState(false);
     const [localOnly, setLocalOnly] = useState(true);
     const bluetoothSupported = 'bluetooth' in navigator;
-    const [simulationMode, setSimulationMode] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [log, setLog] = useState<string[]>([
         'SAS_BRIDGE v2.1.0 ONLINE',
@@ -38,17 +37,6 @@ export const FlipperZeroApp: React.FC = () => {
 
     // Bluetooth
     const scanBluetooth = async () => {
-        if (simulationMode) {
-            setScanning(true);
-            addLog('SIMULATED: Initiating Bluetooth LE scan sequence...');
-            setTimeout(() => {
-                setBtDevices(prev => [...prev, { name: 'MOCK_DEVICE_' + Math.floor(Math.random()*1000), id: 'XX:YY:ZZ' }]);
-                addLog('SIMULATED: Found Mock BT Device.');
-                setScanning(false);
-            }, 1000);
-            return;
-        }
-
         if (!(navigator as any).bluetooth) {
             addLog('ERROR: Web Bluetooth API not supported in this environment.');
             return;
@@ -239,16 +227,6 @@ export const FlipperZeroApp: React.FC = () => {
 
     const executeAction = async (actionName: string) => {
         addLog(`RPC Dispatch: /api/flipper/${activeTab}/${actionName}`);
-        
-        if (simulationMode) {
-            setScanning(true);
-            setTimeout(() => {
-                addLog(`RPC Response (SIMULATED): [${actionName}] SUCCESS`);
-                setScanning(false);
-                handleAnalyzeAI(`Action executed (Simulated): ${actionName} on domain ${activeTab}. Status returned: SUCCESS.`);
-            }, 1500);
-            return;
-        }
 
         // Real Hardware Mode via Web Serial API
         if (!('serial' in navigator)) {
@@ -295,10 +273,9 @@ export const FlipperZeroApp: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-orange-950/40 px-2 py-1 rounded border border-orange-900/50">
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-orange-400">
-                            <input type="checkbox" checked={simulationMode} onChange={e => setSimulationMode(e.target.checked)} className="accent-orange-500"/>
-                            {simulationMode ? 'Simulation (Mock)' : 'Real Hardware (Web APIs)'}
-                        </label>
+                        <span className="flex items-center gap-1.5 text-[10px] text-orange-400">
+                            <ShieldCheck size={12} /> Real Hardware (Web APIs)
+                        </span>
                     </div>
                     <div className="flex items-center gap-2 bg-orange-950/40 px-2 py-1 rounded border border-orange-900/50">
                         <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-orange-400">
@@ -443,7 +420,7 @@ export const FlipperZeroApp: React.FC = () => {
                                 <div className="flex gap-2">
                                     <button onClick={() => executeAction('list_dir')} className="px-3 py-2 bg-orange-950 border border-orange-900 hover:bg-orange-900 rounded text-xs uppercase font-bold flex items-center gap-2"><HardDrive size={14}/> Browse Files</button>
                                 </div>
-                                <div className="p-4 bg-black border border-orange-900/30 rounded text-xs text-orange-700 italic">Read and list contents of simulated /ext storage directories.</div>
+                                <div className="p-4 bg-black border border-orange-900/30 rounded text-xs text-orange-700 italic">Read and list contents of the device's /ext storage directory over the real serial link.</div>
                             </div>
                         )}
 

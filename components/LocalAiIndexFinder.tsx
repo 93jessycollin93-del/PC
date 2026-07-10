@@ -23,6 +23,11 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
     const [aiResponse, setAiResponse] = useState<string | null>(null);
     const [isThinking, setIsThinking] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    // Compression-cycle unfold stage for the settings dashboard: each tap of
+    // the gear while settings are open unfolds one layer bigger (0 → 1 → 2),
+    // revealing progressively more context, then wraps back around.
+    const [unfoldStage, setUnfoldStage] = useState<0 | 1 | 2>(0);
+    const [unfoldKey, setUnfoldKey] = useState(0);
 
     // Advanced Local Model Config States
     const [modelSource, setModelSource] = useState<'rule' | 'wasm'>('rule');
@@ -380,6 +385,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                 setIsExpanded(false);
                 setAiResponse(null);
                 setShowSettings(false);
+                setUnfoldStage(0);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -394,7 +400,16 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
         >
             {/* Expanded State (Dynamic Island opened) — pops up above the bottom bar */}
             {isExpanded ? (
-                <div className="absolute bottom-full right-0 mb-2 w-[295px] max-w-[85vw] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 rounded-[1.75rem] p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] text-zinc-100 flex flex-col gap-3 animate-in zoom-in-95 duration-200 select-none">
+                <div
+                    key={unfoldKey}
+                    className={`unfold-panel absolute bottom-full right-0 mb-2 max-w-[90vw] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] text-zinc-100 flex flex-col gap-3 select-none ${
+                        showSettings && unfoldStage === 2
+                            ? 'w-[440px] rounded-[1.25rem]'
+                            : showSettings && unfoldStage === 1
+                                ? 'w-[360px] rounded-[1.5rem]'
+                                : 'w-[295px] rounded-[1.75rem]'
+                    }`}
+                >
                     {/* Compact Header */}
                     <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
                         <div className="flex items-center gap-1.5">
@@ -406,16 +421,26 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                         <div className="flex items-center gap-1.5">
                             <button
                                 onClick={() => {
-                                    setShowSettings(!showSettings);
                                     setAiResponse(null);
+                                    if (!showSettings) {
+                                        // First open: unfold one layer.
+                                        setShowSettings(true);
+                                        setUnfoldStage(1);
+                                    } else {
+                                        // Already open: unfold bigger, revealing more context —
+                                        // wraps back to a fresh single fold after the deepest layer.
+                                        setUnfoldStage(prev => (prev >= 2 ? 1 : (prev + 1) as 1 | 2));
+                                    }
+                                    setUnfoldKey(k => k + 1);
+                                    addTerminalLog(`[UNFOLD] Compression layer expanded (stage ${showSettings ? Math.min((unfoldStage + 1), 2) : 1}/2).`);
                                 }}
                                 className={`p-1 rounded-md transition-all cursor-pointer ${showSettings ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'}`}
-                                title="Toggle On-Device Model Manager"
+                                title="Unfold On-Device Model Manager — tap again to unfold deeper"
                             >
                                 <Settings2 className="w-4 h-4" />
                             </button>
                             <button 
-                                onClick={() => { setIsExpanded(false); setAiResponse(null); setShowSettings(false); }}
+                                onClick={() => { setIsExpanded(false); setAiResponse(null); setShowSettings(false); setUnfoldStage(0); }}
                                 className="p-1 hover:bg-zinc-800 rounded-md transition-all text-zinc-400 hover:text-zinc-200 cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
@@ -425,14 +450,17 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
 
                     {showSettings ? (
                         /* Advanced 150MB Custom On-Device Model Configuration Dashboard */
-                        <div className="flex flex-col gap-3 animate-in fade-in duration-150 text-left">
-                            <div className="flex items-center gap-1.5 text-indigo-400">
-                                <Cpu className="w-4 h-4" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">Model Configuration Dashboard</span>
+                        <div className="flex flex-col gap-3 text-left">
+                            <div className="unfold-layer flex items-center justify-between text-indigo-400" style={{ '--unfold-delay': '0ms' } as React.CSSProperties}>
+                                <div className="flex items-center gap-1.5">
+                                    <Cpu className="w-4 h-4" />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider">Model Configuration Dashboard</span>
+                                </div>
+                                <span className="text-[8px] font-mono text-zinc-500">fold {unfoldStage}/2</span>
                             </div>
 
                             {/* Model Engine Selector */}
-                            <div className="grid grid-cols-2 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-center text-[10px] font-bold uppercase">
+                            <div className="unfold-layer grid grid-cols-2 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-center text-[10px] font-bold uppercase" style={{ '--unfold-delay': '60ms' } as React.CSSProperties}>
                                 <button
                                     onClick={() => {
                                         setModelSource('rule');
@@ -460,14 +488,14 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                             </div>
 
                             {modelSource === 'rule' ? (
-                                <div className="bg-emerald-950/10 border border-emerald-900/30 p-2.5 rounded-xl flex gap-2 items-start text-[10px] text-zinc-400 leading-relaxed">
+                                <div className="unfold-layer bg-emerald-950/10 border border-emerald-900/30 p-2.5 rounded-xl flex gap-2 items-start text-[10px] text-zinc-400 leading-relaxed" style={{ '--unfold-delay': '110ms' } as React.CSSProperties}>
                                     <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                                     <div>
                                         <span className="font-bold text-emerald-300">Default Ultra-low Power:</span> Running a highly compressed, instant local lookup table that requires <strong>0 MB memory allocation</strong>. Extremely battery-friendly for daily iPhone use.
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-2.5">
+                                <div className="unfold-layer flex flex-col gap-2.5" style={{ '--unfold-delay': '110ms' } as React.CSSProperties}>
                                     {/* Custom Model Source Fields */}
                                     <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5 flex flex-col gap-2">
                                         <div className="flex justify-between items-center text-[9px] text-zinc-400 font-bold uppercase">
@@ -551,7 +579,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                                     </div>
 
                                     {/* Local Hardware Acceleration Status Diagnostics */}
-                                    <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-[8px] uppercase tracking-wide">
+                                    <div className="unfold-layer grid grid-cols-4 gap-1.5 text-center font-mono text-[8px] uppercase tracking-wide" style={{ '--unfold-delay': '160ms' } as React.CSSProperties}>
                                         <div className={`p-1 rounded-lg border ${hardwareSupport.webAssembly ? 'bg-emerald-950/25 border-emerald-900/35 text-emerald-400' : 'bg-red-950/25 border-red-900/35 text-red-400'}`}>
                                             <div>Wasm</div>
                                             <div className="font-bold mt-0.5">{hardwareSupport.webAssembly ? 'YES' : 'NO'}</div>
@@ -573,7 +601,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                             )}
 
                             {/* Live Terminal Log stream */}
-                            <div className="bg-zinc-950 border border-zinc-900 p-2 rounded-xl">
+                            <div className="unfold-layer bg-zinc-950 border border-zinc-900 p-2 rounded-xl" style={{ '--unfold-delay': '200ms' } as React.CSSProperties}>
                                 <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-bold uppercase mb-1 pb-1 border-b border-zinc-900/60">
                                     <Terminal className="w-3 h-3" />
                                     <span>Model Inference compiler Console</span>
@@ -584,6 +612,30 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Deepest fold: only revealed on the second unfold — a bigger,
+                                richer context layer summarizing everything above it. */}
+                            {unfoldStage === 2 && (
+                                <div className="unfold-layer bg-indigo-950/20 border border-indigo-800/40 rounded-xl p-2.5 flex flex-col gap-1.5" style={{ '--unfold-delay': '260ms' } as React.CSSProperties}>
+                                    <div className="flex items-center gap-1.5 text-indigo-300">
+                                        <Layers className="w-3.5 h-3.5" />
+                                        <span className="text-[9px] font-bold uppercase tracking-wider">Deep Context — Full Pod Snapshot</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] font-mono text-zinc-400">
+                                        <span>Engine</span>
+                                        <span className="text-zinc-200 text-right">{modelSource === 'wasm' ? 'Custom ONNX' : 'Rule Matrix'}</span>
+                                        <span>Footprint</span>
+                                        <span className="text-zinc-200 text-right">{modelSource === 'wasm' ? `${modelSizeMb} MB` : '128 B'}</span>
+                                        <span>Heap reserved</span>
+                                        <span className="text-zinc-200 text-right">{allocatedTestMemory}</span>
+                                        <span>Log depth</span>
+                                        <span className="text-zinc-200 text-right">{terminalLogs.length} events</span>
+                                    </div>
+                                    <p className="text-[8px] text-indigo-300/70 leading-relaxed pt-1 border-t border-indigo-900/40">
+                                        This is the compressed pod's full reconstructed state — every layer above folded together into one context window.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         /* Standard Chat / Search UI interface */
