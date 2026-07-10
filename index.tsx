@@ -18,9 +18,26 @@ const RootApp = () => {
     const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
-        initializeGlobalState().then(() => {
-            setInitialized(true);
+        // Hard UI-side ceiling: never let the loading screen hang indefinitely,
+        // regardless of how long IndexedDB/cloud/localStorage restoration takes.
+        let settled = false;
+        const finish = () => {
+            if (!settled) {
+                settled = true;
+                setInitialized(true);
+            }
+        };
+        initializeGlobalState().then(finish).catch((e) => {
+            console.error('initializeGlobalState failed, starting with empty state.', e);
+            finish();
         });
+        // Set comfortably above persist.ts's own worst-case internal budget
+        // (1200ms cloud timeout + 800ms IDB timeout + decompression), so this
+        // only fires as a true last-resort safety net, not on the common path
+        // — firing early would let App's save effect persist default state
+        // over a still-in-flight restore.
+        const ceiling = setTimeout(finish, 3000);
+        return () => clearTimeout(ceiling);
     }, []);
 
     if (!initialized) {
