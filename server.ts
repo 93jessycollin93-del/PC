@@ -226,6 +226,140 @@ async function startServer() {
     }
   });
 
+  // Real, sandboxed home-directory filesystem for AiTermApp. Files live for
+  // real on this container's disk under TERM_FS_ROOT — nothing fabricated.
+  // Access is gated by a persisted on/off switch (only the terminal owner
+  // toggles it) and a shared client token so only AiTermApp and Jackie's
+  // mini-PC integration (when Jackie's global mode is on) can reach it —
+  // no other entity in this app has the token.
+  const TERM_FS_ROOT = path.resolve(process.cwd(), 'data', 'aiterm-fs');
+  const TERM_FS_STATE_FILE = path.resolve(process.cwd(), 'data', 'aiterm-fs-state.json');
+  const TERM_FS_CLIENT_TOKEN = 'jackie-term-fs-v1';
+  const fsPromises = await import('fs/promises');
+
+  async function readTermFsState(): Promise<{ enabled: boolean }> {
+    try {
+      const raw = await fsPromises.readFile(TERM_FS_STATE_FILE, 'utf-8');
+      return JSON.parse(raw);
+    } catch {
+      return { enabled: true };
+    }
+  }
+  async function writeTermFsState(state: { enabled: boolean }) {
+    await fsPromises.mkdir(path.dirname(TERM_FS_STATE_FILE), { recursive: true });
+    await fsPromises.writeFile(TERM_FS_STATE_FILE, JSON.stringify(state));
+  }
+  async function seedTermFsIfEmpty() {
+    await fsPromises.mkdir(TERM_FS_ROOT, { recursive: true });
+    const entries = await fsPromises.readdir(TERM_FS_ROOT);
+    if (entries.length > 0) return;
+    await fsPromises.writeFile(path.join(TERM_FS_ROOT, 'README.md'),
+      '# ai-term\nExpert AI-driven terminal.\n\nThis is your real home directory — files here live on disk in this container.\n');
+    await fsPromises.writeFile(path.join(TERM_FS_ROOT, 'notes.txt'),
+      'TODO:\n- wire wasm python\n- improve kubectl parser\n- add tmux layout save\n');
+    await fsPromises.writeFile(path.join(TERM_FS_ROOT, '.zshrc'),
+      'export EDITOR=nvim\nalias ll="ls -la"\nalias gs="git status"\nalias k="kubectl"\nexport PATH=$HOME/bin:$PATH\n');
+    await fsPromises.mkdir(path.join(TERM_FS_ROOT, 'projects'), { recursive: true });
+  }
+  await seedTermFsIfEmpty();
+
+  function resolveTermFsPath(rel: string): string | null {
+    const cleaned = (rel || '').replace(/^\/+/, '');
+    const resolved = path.resolve(TERM_FS_ROOT, cleaned);
+    if (!resolved.startsWith(TERM_FS_ROOT)) return null;
+    return resolved;
+  }
+
+  function requireTermFsAccess(req: express.Request, res: express.Response): boolean {
+    if (req.headers['x-term-fs-token'] !== TERM_FS_CLIENT_TOKEN) {
+      res.status(403).json({ error: 'Not authorized to access the real terminal filesystem.' });
+      return false;
+    }
+    return true;
+  }
+
+  app.get('/api/term-fs/access', async (_req, res) => {
+    res.json(await readTermFsState());
+  });
+  app.post('/api/term-fs/access', async (req, res) => {
+    const { enabled } = req.body as { enabled: boolean };
+    await writeTermFsState({ enabled: !!enabled });
+    res.json({ enabled: !!enabled });
+  });
+
+  app.get('/api/term-fs/list', async (req, res) => {
+    if (!requireTermFsAccess(req, res)) return;
+    const state = await readTermFsState();
+    if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
+    const relPath = String(req.query.path || '');
+    const abs = resolveTermFsPath(relPath);
+    if (!abs) return res.status(400).json({ error: 'Invalid path' });
+    try {
+      const stat = await fsPromises.stat(abs);
+      if (!stat.isDirectory()) return res.status(400).json({ error: 'Not a directory' });
+      const names = await fsPromises.readdir(abs);
+      const entries = await Promise.all(names.map(async (n) => {
+        const s = await fsPromises.stat(path.join(abs, n));
+        return { name: n, isDir: s.isDirectory(), size: s.size };
+      }));
+      res.json({ entries });
+    } catch (err: any) {
+      res.status(404).json({ error: `No such directory: ${relPath} (${err.message})` });
+    }
+  });
+
+  app.get('/api/term-fs/read', async (req, res) => {
+    if (!requireTermFsAccess(req, res)) return;
+    const state = await readTermFsState();
+    if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
+    const relPath = String(req.query.path || '');
+    const abs = resolveTermFsPath(relPath);
+    if (!abs) return res.status(400).json({ error: 'Invalid path' });
+    try {
+      const stat = await fsPromises.stat(abs);
+      if (stat.isDirectory()) return res.status(400).json({ error: 'Is a directory' });
+      const content = await fsPromises.readFile(abs, 'utf-8');
+      res.json({ content });
+    } catch (err: any) {
+      res.status(404).json({ error: `No such file: ${relPath} (${err.message})` });
+    }
+  });
+
+  app.post('/api/term-fs/write', async (req, res) => {
+    if (!requireTermFsAccess(req, res)) return;
+    const state = await readTermFsState();
+    if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
+    const { path: relPath, content, mkdir } = req.body as { path: string; content?: string; mkdir?: boolean };
+    const abs = resolveTermFsPath(relPath);
+    if (!abs) return res.status(400).json({ error: 'Invalid path' });
+    try {
+      if (mkdir) {
+        await fsPromises.mkdir(abs, { recursive: true });
+      } else {
+        await fsPromises.mkdir(path.dirname(abs), { recursive: true });
+        await fsPromises.writeFile(abs, content ?? '');
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.post('/api/term-fs/rm', async (req, res) => {
+    if (!requireTermFsAccess(req, res)) return;
+    const state = await readTermFsState();
+    if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
+    const { path: relPath } = req.body as { path: string };
+    const abs = resolveTermFsPath(relPath);
+    if (!abs || abs === TERM_FS_ROOT) return res.status(400).json({ error: 'Invalid path' });
+    try {
+      await fsPromises.rm(abs, { recursive: true, force: true });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
   // Real build runner for BuildVaultApp — actually runs `npm run build` in
   // this container and returns the real stdout/stderr and exit status.
   app.post('/api/build/run', async (req, res) => {

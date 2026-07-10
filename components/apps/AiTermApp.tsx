@@ -2,79 +2,54 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Terminal as TerminalIcon, ToggleLeft, ToggleRight, Laptop, Smartphone, HelpCircle, RefreshCw } from 'lucide-react';
 import { getAiClient, MODEL_NAME } from '../../lib/gemini';
 
-// Virtual File System Definition
-interface FSEntry {
-    type: 'dir' | 'file';
-    children?: { [key: string]: FSEntry };
-    content?: string;
-}
+// Real home-directory filesystem client. Files really live on this
+// container's disk (server-side, under data/aiterm-fs) — nothing here is
+// simulated. Access is gated by a real on/off switch you control (the
+// "Real FS Access" toggle in the header) plus a shared client token, so
+// only this terminal and Jackie's mini-PC integration (when Jackie's
+// global mode is on) can reach it.
+const TERM_FS_TOKEN = 'jackie-term-fs-v1';
+const termFsHeaders = { 'Content-Type': 'application/json', 'x-term-fs-token': TERM_FS_TOKEN };
 
-const FS: { [key: string]: FSEntry } = {
-    '/': {
-        type: 'dir',
-        children: {
-            home: {
-                type: 'dir',
-                children: {
-                    expert: {
-                        type: 'dir',
-                        children: {
-                            '.ssh': { type: 'dir', children: {} },
-                            '.zshrc': {
-                                type: 'file',
-                                content: 'export EDITOR=nvim\nalias ll="ls -la"\nalias gs="git status"\nalias k="kubectl"\nexport PATH=$HOME/bin:$PATH'
-                            },
-                            'README.md': {
-                                type: 'file',
-                                content: '# ai-term\nExpert AI-driven terminal.\n\nOffline-first, local history, AI translates natural language to shell.\n\n> Built for iPhone mini form factor.'
-                            },
-                            'notes.txt': {
-                                type: 'file',
-                                content: 'TODO:\n- wire wasm python\n- improve kubectl parser\n- add tmux layout save'
-                            },
-                            'projects': {
-                                type: 'dir',
-                                children: {
-                                    'ai-term': {
-                                        type: 'dir',
-                                        children: {
-                                            'index.html': { type: 'file', content: '<!doctype html><html><!-- ai-term source -->' },
-                                            'terminal.js': { type: 'file', content: '// core loop\nfunction exec(){/*...*/}' },
-                                            'README.md': { type: 'file', content: 'mini terminal' }
-                                        }
-                                    },
-                                    'model-server': {
-                                        type: 'dir',
-                                        children: {
-                                            'Dockerfile': { type: 'file', content: 'FROM python:3.11-slim' },
-                                            'server.py': { type: 'file', content: 'import fastapi' }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            etc: {
-                type: 'dir',
-                children: {
-                    hosts: { type: 'file', content: '127.0.0.1 localhost\n::1 localhost' }
-                }
-            },
-            var: {
-                type: 'dir',
-                children: {
-                    log: { type: 'dir', children: {} }
-                }
-            },
-            tmp: { type: 'dir', children: {} }
+const termFsList = async (relPath: string) => {
+    const resp = await fetch(`/api/term-fs/list?path=${encodeURIComponent(relPath)}`, { headers: termFsHeaders });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'list failed');
+    return data.entries as { name: string; isDir: boolean; size: number }[];
+};
+const termFsRead = async (relPath: string) => {
+    const resp = await fetch(`/api/term-fs/read?path=${encodeURIComponent(relPath)}`, { headers: termFsHeaders });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'read failed');
+    return data.content as string;
+};
+const termFsWrite = async (relPath: string, content?: string, mkdir?: boolean) => {
+    const resp = await fetch('/api/term-fs/write', { method: 'POST', headers: termFsHeaders, body: JSON.stringify({ path: relPath, content, mkdir }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'write failed');
+};
+const termFsRm = async (relPath: string) => {
+    const resp = await fetch('/api/term-fs/rm', { method: 'POST', headers: termFsHeaders, body: JSON.stringify({ path: relPath }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'rm failed');
+};
+const termFsStat = async (relPath: string): Promise<'dir' | 'file' | null> => {
+    if (relPath === '' || relPath === '.') return 'dir';
+    try {
+        await termFsList(relPath);
+        return 'dir';
+    } catch {
+        try {
+            await termFsRead(relPath);
+            return 'file';
+        } catch {
+            return null;
         }
     }
 };
 
 const cmdList = [
-    'ls', 'pwd', 'cd', 'cat', 'echo', 'clear', 'uname', 'whoami', 'date', 'ps',
+    'ls', 'pwd', 'cd', 'cat', 'echo', 'mkdir', 'touch', 'rm', 'clear', 'uname', 'whoami', 'date', 'ps',
     'top', 'neofetch', 'git', 'docker', 'kubectl', 'python3', 'node', 'curl',
     'ping', 'ifconfig', 'history', 'help', 'kill', 'df',
     // Real, app-aware system commands (operate on live browser/device state)
@@ -216,15 +191,28 @@ export const AiTermApp: React.FC = () => {
         setHistIdx(history.length);
     }, [history]);
 
-    const getNode = (path: string): FSEntry | null => {
-        const parts = path.split('/').filter(Boolean);
-        let n: FSEntry = FS['/'];
-        for (const p of parts) {
-            if (!n.children || !n.children[p]) return null;
-            n = n.children[p];
+    const [fsAccessEnabled, setFsAccessEnabled] = useState(true);
+
+    // Load the real access-control switch from the server on mount.
+    useEffect(() => {
+        fetch('/api/term-fs/access').then(r => r.json()).then(d => setFsAccessEnabled(!!d.enabled)).catch(() => {});
+    }, []);
+
+    const toggleFsAccess = async () => {
+        const next = !fsAccessEnabled;
+        try {
+            const resp = await fetch('/api/term-fs/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }) });
+            const data = await resp.json();
+            setFsAccessEnabled(!!data.enabled);
+            addLine(`Real filesystem access turned ${data.enabled ? 'ON' : 'OFF'}.`, 'info');
+        } catch (e: any) {
+            addLine(`Failed to toggle filesystem access: ${e.message}`, 'err');
         }
-        return n;
     };
+
+    // Virtual "/home/expert" is the display root; strip it to get the real
+    // relative path on disk under the sandboxed server-side fs root.
+    const toRel = (p: string) => p.replace(/^\/home\/expert\/?/, '');
 
     const normalizePath = (p: string) => {
         const out: string[] = [];
@@ -505,29 +493,27 @@ SHORTCUTS
             }
 
             case 'ls': {
-                const node = getNode(cwd);
-                if (!node || node.type !== 'dir') {
-                    addLine(`ls: directory error`, 'err');
+                if (!fsAccessEnabled) {
+                    addLine('ls: real filesystem access is turned off. Toggle "Real FS" in the header to enable it.', 'err');
                     break;
                 }
-                const items = Object.keys(node.children || {});
-                const showAll = args.includes('-a') || args.includes('-la') || args.includes('-al');
-                const long = args.includes('-l') || args.includes('-la') || args.includes('-al');
-                
-                let list = showAll ? items : items.filter(n => !n.startsWith('.'));
-                list.sort((a, b) => a.localeCompare(b));
-
-                if (long) {
-                    const lines = [`total ${list.length}`];
-                    list.forEach(n => {
-                        const c = node.children ? node.children[n] : null;
-                        const isDir = c?.type === 'dir';
-                        const size = isDir ? 128 : new Blob([c?.content || '']).size;
-                        lines.push(`${isDir ? 'drwxr-xr-x' : '-rw-r--r--'} 1 expert staff  ${size} — ${n}`);
-                    });
-                    addLine(lines.join('\n'));
-                } else {
-                    addLine(list.join('  '));
+                try {
+                    const entries = await termFsList(toRel(cwd));
+                    const showAll = args.includes('-a') || args.includes('-la') || args.includes('-al');
+                    const long = args.includes('-l') || args.includes('-la') || args.includes('-al');
+                    let list = showAll ? entries : entries.filter(n => !n.name.startsWith('.'));
+                    list.sort((a, b) => a.name.localeCompare(b.name));
+                    if (long) {
+                        const lines = [`total ${list.length}`];
+                        list.forEach(e => {
+                            lines.push(`${e.isDir ? 'drwxr-xr-x' : '-rw-r--r--'} 1 expert staff  ${e.size} — ${e.name}`);
+                        });
+                        addLine(lines.join('\n'));
+                    } else {
+                        addLine(list.map(e => e.name).join('  '));
+                    }
+                } catch (e: any) {
+                    addLine(`ls: ${e.message}`, 'err');
                 }
                 break;
             }
@@ -537,10 +523,14 @@ SHORTCUTS
                 break;
 
             case 'cd': {
+                if (!fsAccessEnabled) {
+                    addLine('cd: real filesystem access is turned off. Toggle "Real FS" in the header to enable it.', 'err');
+                    break;
+                }
                 const target = args[0] || '~';
                 const np = resolvePath(target);
-                const n = getNode(np);
-                if (!n || n.type !== 'dir') {
+                const kind = await termFsStat(toRel(np));
+                if (kind !== 'dir') {
                     addLine(`cd: no such directory: ${target}`, 'err');
                 } else {
                     setCwd(np);
@@ -548,26 +538,93 @@ SHORTCUTS
                 break;
             }
 
+            case 'mkdir': {
+                if (!fsAccessEnabled) {
+                    addLine('mkdir: real filesystem access is turned off.', 'err');
+                    break;
+                }
+                if (!args[0]) { addLine('mkdir: missing directory name', 'err'); break; }
+                try {
+                    await termFsWrite(toRel(resolvePath(args[0])), undefined, true);
+                    addLine('');
+                } catch (e: any) {
+                    addLine(`mkdir: ${e.message}`, 'err');
+                }
+                break;
+            }
+
+            case 'touch': {
+                if (!fsAccessEnabled) {
+                    addLine('touch: real filesystem access is turned off.', 'err');
+                    break;
+                }
+                if (!args[0]) { addLine('touch: missing file name', 'err'); break; }
+                try {
+                    await termFsWrite(toRel(resolvePath(args[0])), '');
+                    addLine('');
+                } catch (e: any) {
+                    addLine(`touch: ${e.message}`, 'err');
+                }
+                break;
+            }
+
+            case 'rm': {
+                if (!fsAccessEnabled) {
+                    addLine('rm: real filesystem access is turned off.', 'err');
+                    break;
+                }
+                if (!args[0]) { addLine('rm: missing operand', 'err'); break; }
+                try {
+                    await termFsRm(toRel(resolvePath(args[args.length - 1])));
+                    addLine('');
+                } catch (e: any) {
+                    addLine(`rm: ${e.message}`, 'err');
+                }
+                break;
+            }
+
             case 'cat': {
+                if (!fsAccessEnabled) {
+                    addLine('cat: real filesystem access is turned off. Toggle "Real FS" in the header to enable it.', 'err');
+                    break;
+                }
                 if (!args[0]) {
                     addLine('cat: missing file', 'err');
                     break;
                 }
                 const p = resolvePath(args[0]);
-                const n = getNode(p);
-                if (!n) {
-                    addLine(`cat: ${args[0]}: No such file`, 'err');
-                } else if (n.type === 'dir') {
-                    addLine(`cat: ${args[0]}: Is a directory`, 'err');
-                } else {
-                    addLine(n.content || '');
+                try {
+                    const content = await termFsRead(toRel(p));
+                    addLine(content);
+                } catch {
+                    addLine(`cat: ${args[0]}: No such file or is a directory`, 'err');
                 }
                 break;
             }
 
-            case 'echo':
-                addLine(args.join(' ').replace(/^["']|["']$/g, ''));
+            case 'echo': {
+                const joined = args.join(' ');
+                const redirMatch = joined.match(/^(.*?)\s*(>>|>)\s*(\S+)$/);
+                if (redirMatch && fsAccessEnabled) {
+                    const [, textPart, op, filePart] = redirMatch;
+                    const text = textPart.replace(/^["']|["']$/g, '');
+                    try {
+                        let finalContent = text + '\n';
+                        if (op === '>>') {
+                            try { finalContent = (await termFsRead(toRel(resolvePath(filePart)))) + text + '\n'; } catch { /* file may not exist yet */ }
+                        }
+                        await termFsWrite(toRel(resolvePath(filePart)), finalContent);
+                        addLine('');
+                    } catch (e: any) {
+                        addLine(`echo: ${e.message}`, 'err');
+                    }
+                } else if (redirMatch && !fsAccessEnabled) {
+                    addLine('echo: real filesystem access is turned off, cannot write file.', 'err');
+                } else {
+                    addLine(joined.replace(/^["']|["']$/g, ''));
+                }
                 break;
+            }
 
             case 'uname':
             case 'whoami':
@@ -733,19 +790,17 @@ SHORTCUTS
                 } else if (matches.length > 1) {
                     addLine(matches.join('  '));
                 }
-            } else {
-                // Autocomplete files in cwd
-                const node = getNode(cwd);
-                if (node && node.children) {
-                    const files = Object.keys(node.children);
-                    const matches = files.filter(f => f.startsWith(last));
+            } else if (fsAccessEnabled) {
+                // Autocomplete real files in cwd
+                termFsList(toRel(cwd)).then(entries => {
+                    const matches = entries.filter(f => f.name.startsWith(last));
                     if (matches.length === 1) {
-                        parts[parts.length - 1] = matches[0];
+                        parts[parts.length - 1] = matches[0].name;
                         setTermInput(parts.join(' ') + ' ');
                     } else if (matches.length > 1) {
-                        addLine(matches.join('  '));
+                        addLine(matches.map(m => m.name).join('  '));
                     }
-                }
+                }).catch(() => {});
             }
         } else if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
             e.preventDefault();
@@ -861,6 +916,13 @@ SHORTCUTS
                                             className={`text-[8px] tracking-wide border rounded px-1.5 py-0.5 leading-none transition-all ${aiEnabled ? 'bg-emerald-950/30 border-emerald-500 text-emerald-400 font-bold' : 'border-zinc-800 text-zinc-500'}`}
                                         >
                                             AI {aiEnabled ? 'ON' : 'OFF'}
+                                        </button>
+                                        <button
+                                            onClick={toggleFsAccess}
+                                            title="Real filesystem access — only this terminal and Jackie (when global mode is on) can use it"
+                                            className={`text-[8px] tracking-wide border rounded px-1.5 py-0.5 leading-none transition-all ${fsAccessEnabled ? 'bg-blue-950/30 border-blue-500 text-blue-400 font-bold' : 'border-zinc-800 text-zinc-500'}`}
+                                        >
+                                            FS {fsAccessEnabled ? 'ON' : 'OFF'}
                                         </button>
                                         <span className="tracking-tighter font-bold">●●●</span>
                                         <span>{battery}</span>
