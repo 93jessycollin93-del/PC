@@ -17,7 +17,19 @@ interface Agent {
     lastRun?: number;
     runsCompleted: number;
     totalCost: number;
+    lastOutput?: string;
+    running?: boolean;
 }
+
+// Real per-token pricing used to compute real cost from real usage metadata
+// (Gemini Flash-tier public pricing, per token). Free-tier local models cost $0.
+const COST_PER_TOKEN: Record<Agent['modelTier'], number> = {
+    free: 0,
+    low: 0.000000075,
+    medium: 0.00000015,
+    high: 0.0000005,
+    burst: 0.000002,
+};
 
 const CAPABILITY_TEMPLATES: Record<string, Partial<Agent>> = {
     observer: {
@@ -177,6 +189,37 @@ export const AgentBuilderApp: React.FC = () => {
 
     const toggleAgent = (id: string) => {
         setAgents(agents.map(a => a.id === id ? { ...a, active: !a.active } : a));
+    };
+
+    // Real execution: actually calls the backend's Gemini proxy with the
+    // agent's real system prompt and records real token usage as cost.
+    const runAgent = async (id: string) => {
+        const agent = agents.find(a => a.id === id);
+        if (!agent) return;
+        setAgents(prev => prev.map(a => a.id === id ? { ...a, running: true } : a));
+        try {
+            const resp = await fetch('/api/gemini/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: `${agent.systemPrompt}\n\nTask: ${agent.tasksDefinition[0] || agent.role}`,
+                }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Request failed');
+            const tokens = (data.usageMetadata?.totalTokenCount as number) || 0;
+            const cost = tokens * COST_PER_TOKEN[agent.modelTier];
+            setAgents(prev => prev.map(a => a.id === id ? {
+                ...a,
+                running: false,
+                lastRun: Date.now(),
+                runsCompleted: a.runsCompleted + 1,
+                totalCost: a.totalCost + cost,
+                lastOutput: data.response || '(no output)',
+            } : a));
+        } catch (err: any) {
+            setAgents(prev => prev.map(a => a.id === id ? { ...a, running: false, lastOutput: `Error: ${err.message}` } : a));
+        }
     };
 
     const applyTemplate = (templateKey: string) => {
@@ -379,6 +422,14 @@ export const AgentBuilderApp: React.FC = () => {
                                                 </div>
                                                 <div className="flex gap-1">
                                                     <button
+                                                        onClick={() => runAgent(agent.id)}
+                                                        disabled={agent.running}
+                                                        title="Run agent now (real Gemini call)"
+                                                        className="p-1 hover:bg-emerald-900/20 rounded text-emerald-400 disabled:opacity-50"
+                                                    >
+                                                        <Play size={12} />
+                                                    </button>
+                                                    <button
                                                         onClick={() => duplicateAgent(agent.id)}
                                                         className="p-1 hover:bg-blue-900/20 rounded text-blue-400"
                                                     >
@@ -410,9 +461,17 @@ export const AgentBuilderApp: React.FC = () => {
                                                 </div>
                                                 <div className="bg-zinc-950 rounded px-1.5 py-1">
                                                     <span className="text-zinc-400">Cost:</span>
-                                                    <span className="text-white ml-0.5 font-bold">${agent.totalCost.toFixed(2)}</span>
+                                                    <span className="text-white ml-0.5 font-bold">${agent.totalCost.toFixed(4)}</span>
                                                 </div>
                                             </div>
+                                            {agent.running && (
+                                                <div className="text-[9px] text-emerald-400 animate-pulse">Running real call…</div>
+                                            )}
+                                            {agent.lastOutput && !agent.running && (
+                                                <div className="bg-zinc-950 border border-zinc-800 rounded p-2 text-[9px] text-zinc-300 whitespace-pre-wrap max-h-24 overflow-y-auto">
+                                                    {agent.lastOutput}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}

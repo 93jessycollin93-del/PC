@@ -169,6 +169,52 @@ export const ModelRouterApp: React.FC = () => {
     const [showAddProvider, setShowAddProvider] = useState(false);
     const [newProviderForm, setNewProviderForm] = useState<Partial<ModelProvider>>({ hideKey: true });
     const [activeTab, setActiveTab] = useState<'routing' | 'analytics' | 'comparison'>('routing');
+    const [activeTab, setActiveTab] = useState<'routing' | 'analytics' | 'comparison'>('routing');
+    const [checkingHealth, setCheckingHealth] = useState(false);
+    const [lastHealthCheck, setLastHealthCheck] = useState<number | null>(null);
+    const [healthError, setHealthError] = useState<string | null>(null);
+
+    // Real availability check: actually reaches each provider's API (via the
+    // backend, using whatever key you saved in API Keys Manager) instead of
+    // reporting a hardcoded 'unavailable'.
+    const checkProviderHealth = async () => {
+        setCheckingHealth(true);
+        setHealthError(null);
+        try {
+            const keys = {
+                groq: localStorage.getItem('groq_api_key') || '',
+                deepseek: localStorage.getItem('deepseek_api_key') || '',
+                anthropic: localStorage.getItem('anthropic_api_key') || '',
+            };
+            const resp = await fetch('/api/health/providers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keys }),
+            });
+            const results = await resp.json();
+            setProviders(prev => prev.map(p => {
+                const idMap: Record<string, string> = { google: 'gemini' };
+                const key = idMap[p.id] || p.id;
+                if (p.id === 'ollama') return p; // local, checked separately
+                if (results[key]) {
+                    return { ...p, status: results[key].ok ? 'available' : 'unavailable' };
+                }
+                return p;
+            }));
+            // Real local Ollama check via the existing tags endpoint.
+            try {
+                const ollamaResp = await fetch('/api/ollama/tags');
+                setProviders(prev => prev.map(p => p.id === 'ollama' ? { ...p, status: ollamaResp.ok ? 'available' : 'unavailable' } : p));
+            } catch {
+                setProviders(prev => prev.map(p => p.id === 'ollama' ? { ...p, status: 'unavailable' } : p));
+            }
+            setLastHealthCheck(Date.now());
+        } catch (err: any) {
+            setHealthError(err.message || 'Health check request failed');
+        } finally {
+            setCheckingHealth(false);
+        }
+    };
 
     // Load from localStorage
     useEffect(() => {
@@ -276,7 +322,25 @@ export const ModelRouterApp: React.FC = () => {
                         <p className="text-[10px] text-slate-500">{activeProviders} providers • {totalFreeModels} free models</p>
                     </div>
                 </div>
+                <button
+                    onClick={checkProviderHealth}
+                    disabled={checkingHealth}
+                    className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition-colors"
+                    title="Actually ping each provider's API"
+                >
+                    {checkingHealth ? 'Checking…' : 'Check Real Status'}
+                </button>
             </div>
+            {lastHealthCheck && (
+                <div className="px-4 py-1 text-[9px] text-zinc-500 border-b border-zinc-800/80 bg-[#0f1115]">
+                    Last real check: {new Date(lastHealthCheck).toLocaleTimeString()}
+                </div>
+            )}
+            {healthError && (
+                <div className="px-4 py-1 text-[9px] text-red-400 border-b border-zinc-800/80 bg-[#0f1115]">
+                    Health check failed: {healthError}
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="h-10 border-b border-zinc-800/80 bg-[#0f1115] flex items-center px-4 shrink-0 gap-4">

@@ -65,3 +65,53 @@
 * {
     transition-duration: 150ms;
 }
+
+/* ============================================================================
+   Compression-cycle "unfold" system — reusable across mini-AI / pod widgets.
+   A widget "unfolds" from a compact capsule: each open grows the panel and
+   reveals a new layer of context, like origami opening one more fold.
+   Apply `.unfold-panel` to the growing container and `.unfold-layer` (with a
+   staggered `--unfold-delay`) to each content block that should reveal in.
+   ========================================================================= */
+@keyframes unfold-pop {
+    0% {
+        transform: scaleY(0.72) scaleX(0.94) translateY(6px);
+        opacity: 0.4;
+        filter: blur(2px);
+    }
+    55% {
+        transform: scaleY(1.03) scaleX(1.01) translateY(-1px);
+        opacity: 1;
+        filter: blur(0);
+    }
+    100% {
+        transform: scaleY(1) scaleX(1) translateY(0);
+        opacity: 1;
+        filter: blur(0);
+    }
+}
+
+@keyframes unfold-layer-reveal {
+    0% {
+        opacity: 0;
+        transform: translateY(6px) scaleY(0.9);
+        max-height: 0;
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+        max-height: 400px;
+    }
+}
+
+.unfold-panel {
+    transform-origin: bottom right;
+    animation: unfold-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    transition: width 380ms cubic-bezier(0.16, 1, 0.3, 1), border-radius 380ms ease;
+}
+
+.unfold-layer {
+    animation: unfold-layer-reveal 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--unfold-delay, 0ms);
+    overflow: hidden;
+}

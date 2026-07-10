@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Archive, Clock, HardDrive, CheckCircle, AlertCircle, Play, Zap, Database, Video, Cloud, Pause } from 'lucide-react';
+import { compressToGzipBase64 } from '../../lib/compression';
+import { db } from '../../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface ArchiveJob {
   id: string;
@@ -82,58 +85,97 @@ export const ArchiverApp: React.FC = () => {
     return total;
   };
 
-  const simulateCompress = (size: number): number => {
-    // Simulate 80-90% compression ratio
-    return Math.floor(size * (0.1 + Math.random() * 0.1));
+  // Real gzip compression via the browser's native CompressionStream (lib/compression.ts).
+  // Returns the actual compressed byte length — no fabricated ratio.
+  const realCompress = async (text: string): Promise<{ base64: string; compressedBytes: number }> => {
+    const base64 = await compressToGzipBase64(text);
+    // Each base64 char encodes 6 bits; real byte length of the compressed payload:
+    const compressedBytes = Math.ceil((base64.length * 3) / 4);
+    return { base64, compressedBytes };
   };
 
-  const simulateScreenRecording = async () => {
-    // Minimal buffer: only capture state snapshot, compress, release immediately
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Real screen capture: grabs a short real clip via the Screen Capture API,
+  // gzip-compresses its actual bytes, and — if cloud upload is on — really
+  // writes the compressed clip to Firestore. No random numbers, no fake delays.
+  const captureRealScreenClip = async (): Promise<void> => {
+    if (!mediaStreamRef.current) return;
     const startTime = performance.now();
 
-    // 1. Capture: minimal buffer (just state diffs, ~5-15MB equivalent)
-    const captureSize = Math.floor(Math.random() * 10) + 5; // 5-15MB (small delta frames)
+    try {
+      const recorder = new MediaRecorder(mediaStreamRef.current, { mimeType: 'video/webm' });
+      const chunks: Blob[] = [];
+      const stopped = new Promise<void>(resolve => {
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => resolve();
+      });
+      recorder.start();
+      await new Promise(r => setTimeout(r, 2500)); // real 2.5s capture window
+      recorder.stop();
+      await stopped;
 
-    // 2. Compress immediately (don't hold both in memory)
-    const compressTime = performance.now();
-    const compressedSize = simulateCompress(captureSize * 1024 * 1024);
-    const compressionDuration = (performance.now() - compressTime).toFixed(0);
+      const clipBlob = new Blob(chunks, { type: 'video/webm' });
+      const captureBytes = clipBlob.size;
+      if (captureBytes === 0) return; // nothing captured (e.g. tab hidden) — don't fabricate a job
 
-    // 3. Release capture buffer, only hold compressed data
-    const uploadTime = performance.now();
-    let uploadedToCloud = false;
-    if (status.cloudUploadEnabled) {
-      // Minimal upload: just send compressed buffer
-      await new Promise(resolve => setTimeout(resolve, 100)); // Fast upload simulation
-      uploadedToCloud = true;
+      const compressTime = performance.now();
+      // Gzip the real video bytes. WebM is already compressed, so the ratio
+      // will honestly be small/near-zero — that's real data, not a fake 90%.
+      const buffer = await clipBlob.arrayBuffer();
+      const gzipStream = new Blob([buffer]).stream().pipeThrough(new CompressionStream('gzip'));
+      const compressedBlob = await new Response(gzipStream).blob();
+      const compressedSize = compressedBlob.size;
+      const compressionDuration = (performance.now() - compressTime).toFixed(0);
+
+      const uploadTime = performance.now();
+      let uploadedToCloud = false;
+      if (status.cloudUploadEnabled) {
+        try {
+          // Real Firestore write of the compressed clip (base64-encoded).
+          const compressedBuffer = await compressedBlob.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(compressedBuffer)));
+          await addDoc(collection(db, 'os_screen_archives'), {
+            timestamp: serverTimestamp(),
+            originalBytes: captureBytes,
+            compressedBytes: compressedSize,
+            clipBase64: base64,
+          });
+          uploadedToCloud = true;
+        } catch (uploadErr: any) {
+          setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Cloud upload failed: ${uploadErr.message}`]);
+        }
+      }
+      const uploadDuration = (performance.now() - uploadTime).toFixed(0);
+      const totalDuration = (performance.now() - startTime).toFixed(0);
+
+      const completedJob: ArchiveJob = {
+        id: `screen_${Date.now()}`,
+        source: 'screen',
+        dataSize: captureBytes,
+        compressed: true,
+        archived: true,
+        timestamp: Date.now(),
+        compressedSize,
+        uploadedToCloud,
+      };
+
+      setStatus(prev => ({
+        ...prev,
+        totalArchived: prev.totalArchived + captureBytes,
+        totalCompressed: prev.totalCompressed + compressedSize,
+        totalUploadedToCloud: uploadedToCloud ? prev.totalUploadedToCloud + compressedSize : prev.totalUploadedToCloud,
+        jobs: [completedJob, ...prev.jobs].slice(0, 50),
+      }));
+
+      setArchiveLog(prev => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] 📹 ${(captureBytes / 1024 / 1024).toFixed(2)}MB → ${(compressedSize / 1024 / 1024).toFixed(2)}MB (compress: ${compressionDuration}ms${uploadedToCloud ? ` upload: ${uploadDuration}ms` : ''}) total: ${totalDuration}ms`,
+      ]);
+    } catch (err: any) {
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Screen capture error: ${err.message}`]);
     }
-
-    const uploadDuration = (performance.now() - uploadTime).toFixed(0);
-    const totalDuration = (performance.now() - startTime).toFixed(0);
-
-    const completedJob: ArchiveJob = {
-      id: `screen_${Date.now()}`,
-      source: 'screen',
-      dataSize: captureSize * 1024 * 1024,
-      compressed: true,
-      archived: true,
-      timestamp: Date.now(),
-      compressedSize,
-      uploadedToCloud,
-    };
-
-    setStatus(prev => ({
-      ...prev,
-      totalArchived: prev.totalArchived + captureSize * 1024 * 1024,
-      totalCompressed: prev.totalCompressed + compressedSize,
-      totalUploadedToCloud: uploadedToCloud ? prev.totalUploadedToCloud + compressedSize : prev.totalUploadedToCloud,
-      jobs: [completedJob, ...prev.jobs].slice(0, 50),
-    }));
-
-    setArchiveLog(prev => [
-      ...prev,
-      `[${new Date().toLocaleTimeString()}] 📹 ${captureSize}MB → ${(compressedSize / 1024 / 1024).toFixed(1)}MB (compress: ${compressionDuration}ms${uploadedToCloud ? ` upload: ${uploadDuration}ms` : ''}) total: ${totalDuration}ms`,
-    ]);
   };
 
   const toggleArchiverEnabled = () => {
@@ -144,26 +186,46 @@ export const ArchiverApp: React.FC = () => {
     ]);
   };
 
-  const toggleScreenRecording = () => {
+  const screenLoopRef = useRef<NodeJS.Timeout | null>(null);
+
+  const toggleScreenRecording = async () => {
     if (!status.isEnabled) {
       setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Cannot record: Archiver is disabled`]);
       return;
     }
 
     if (status.screenRecordingActive) {
+      if (screenLoopRef.current) clearInterval(screenLoopRef.current);
+      mediaStreamRef.current?.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
       setStatus(prev => ({ ...prev, screenRecordingActive: false }));
       setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording stopped`]);
-    } else {
+      return;
+    }
+
+    if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getDisplayMedia) {
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Screen Capture API not supported in this browser`]);
+      return;
+    }
+
+    try {
+      // Real browser permission prompt — the user picks a real screen/tab/window to share.
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      mediaStreamRef.current = stream;
+      // If the user stops sharing from the browser's own UI, stop our loop too.
+      stream.getVideoTracks()[0].addEventListener('ended', () => {
+        if (screenLoopRef.current) clearInterval(screenLoopRef.current);
+        mediaStreamRef.current = null;
+        setStatus(prev => ({ ...prev, screenRecordingActive: false }));
+        setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording stopped (source ended)`]);
+      });
+
       setStatus(prev => ({ ...prev, screenRecordingActive: true }));
-      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording started (10s loop)`]);
-      // Simulate recording loop every 10 seconds
-      const loopRef = setInterval(() => {
-        if (!status.screenRecordingActive) {
-          clearInterval(loopRef);
-          return;
-        }
-        simulateScreenRecording();
-      }, status.screenRecordingDuration);
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Screen recording started (real capture, ${status.screenRecordingDuration / 1000}s loop)`]);
+      screenLoopRef.current = setInterval(captureRealScreenClip, status.screenRecordingDuration);
+      captureRealScreenClip(); // capture the first clip immediately
+    } catch (err: any) {
+      setArchiveLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✗ Screen share permission denied or cancelled: ${err.message}`]);
     }
   };
 
@@ -203,26 +265,44 @@ export const ArchiverApp: React.FC = () => {
         return;
       }
 
-      // Simulate compression
-      const compressedSize = simulateCompress(dataSize);
-      const ratio = ((1 - compressedSize / dataSize) * 100).toFixed(1);
+      // Real gzip compression of the actual localStorage payload.
+      const rawText = [
+        localStorage.getItem('shared_chat_history') || '',
+        localStorage.getItem('claude_assistant_tasks') || '',
+        localStorage.getItem('pc_system_settings') || '',
+      ].join('\n');
+      const { base64, compressedBytes: compressedSize } = await realCompress(rawText);
+      const ratio = dataSize > 0 ? ((1 - compressedSize / dataSize) * 100).toFixed(1) : '0';
 
       newLog.push(`Compressed: ${(compressedSize / 1024 / 1024).toFixed(2)}MB (${ratio}% reduction)`);
-      newLog.push('Simulating cloud upload...');
 
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (status.cloudUploadEnabled) {
+        newLog.push('Uploading to cloud...');
+        try {
+          await addDoc(collection(db, 'os_archives'), {
+            timestamp: serverTimestamp(),
+            originalBytes: dataSize,
+            compressedBytes: compressedSize,
+            payloadBase64: base64,
+          });
+          newLog.push('✓ Cloud upload complete');
+        } catch (uploadErr: any) {
+          newLog.push(`✗ Cloud upload failed: ${uploadErr.message}`);
+        }
+      }
 
       newLog.push('✓ Archive complete');
 
+      const uploadedToCloud = status.cloudUploadEnabled && newLog.some(l => l.includes('Cloud upload complete'));
       const newJob: ArchiveJob = {
         id: `archive_${Date.now()}`,
-        source: 'all',
+        source: 'logs',
         dataSize,
         compressed: true,
         archived: true,
         timestamp: Date.now(),
         compressedSize,
+        uploadedToCloud,
       };
 
       setStatus(prev => ({
@@ -232,6 +312,7 @@ export const ArchiverApp: React.FC = () => {
         isRunning: false,
         totalArchived: prev.totalArchived + dataSize,
         totalCompressed: prev.totalCompressed + compressedSize,
+        totalUploadedToCloud: uploadedToCloud ? prev.totalUploadedToCloud + compressedSize : prev.totalUploadedToCloud,
         jobs: [newJob, ...prev.jobs].slice(0, 20),
       }));
     } catch (err) {

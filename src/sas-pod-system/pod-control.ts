@@ -8,7 +8,7 @@
  */
 
 import { SASCore } from './sas-core';
-import { runPodTask } from './pod-system-engine';
+import { runPodTaskBudgeted } from './pod-system-engine';
 import type { PodMetadata, PodSeed, PodTask } from './pod-system-design';
 
 const STORAGE_KEY = 'sas_pod_control_v1';
@@ -277,7 +277,7 @@ export class PodControlCenter {
       throw new Error(this.lastErrors.get(podId) || 'Pod could not hydrate');
     }
 
-    const pending = runPodTask(instance, input, meta.seed.wordBudget);
+    const pending = runPodTaskBudgeted(instance, input, meta.seed.wordBudget);
     this.emit(); // task is now 'running' on the real instance
     const task = await pending;
 

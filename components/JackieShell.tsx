@@ -353,8 +353,8 @@ export const JackieShell: React.FC<JackieShellProps> = ({
               )}
             </div>
 
-            {/* Composer */}
-            <div className="relative p-3 border-t border-white/5">
+            {/* Composer — bottom padding clears the fixed status bar below it */}
+            <div className="relative p-3 pb-[calc(0.75rem+2rem)] border-t border-white/5">
               <div className="flex items-end gap-2">
                 <textarea
                   value={input}

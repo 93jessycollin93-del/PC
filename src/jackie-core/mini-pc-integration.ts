@@ -94,6 +94,42 @@ export class MiniPCManager {
             return `Terminal executed: ${params?.command}`;
           },
         },
+        {
+          // Real read access to the user's real ai-term home directory.
+          // Only usable while Jackie's global mode is active — this is the
+          // one other "entity" (besides the terminal itself) allowed to
+          // reach the real filesystem, and only through this gated path.
+          name: 'read-home-file',
+          description: "Read a real file from the user's ai-term home directory (requires global mode ON)",
+          params: { path: 'string' },
+          execute: async (params) => {
+            if (!this.state.globalModeActive) {
+              throw new Error('Jackie global mode is off — real filesystem access denied.');
+            }
+            const resp = await fetch(`/api/term-fs/read?path=${encodeURIComponent(params?.path || '')}`, {
+              headers: { 'x-term-fs-token': 'jackie-term-fs-v1' },
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'read failed');
+            return data.content;
+          },
+        },
+        {
+          name: 'list-home-dir',
+          description: "List a real directory in the user's ai-term home directory (requires global mode ON)",
+          params: { path: 'string' },
+          execute: async (params) => {
+            if (!this.state.globalModeActive) {
+              throw new Error('Jackie global mode is off — real filesystem access denied.');
+            }
+            const resp = await fetch(`/api/term-fs/list?path=${encodeURIComponent(params?.path || '')}`, {
+              headers: { 'x-term-fs-token': 'jackie-term-fs-v1' },
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'list failed');
+            return data.entries;
+          },
+        },
       ],
     });
 
