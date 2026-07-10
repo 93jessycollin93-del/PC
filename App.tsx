@@ -66,6 +66,7 @@ import { AppHealthMonitorApp } from './components/apps/AppHealthMonitorApp';
 import { ActivityCenterApp } from './components/apps/ActivityCenterApp';
 import { VoiceCommandsApp } from './components/apps/VoiceCommandsApp';
 import { ClipboardManagerApp } from './components/apps/ClipboardManagerApp';
+import { TimeMachineApp } from './components/apps/TimeMachineApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startNotificationCollector } from './lib/notifications';
@@ -138,6 +139,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'activity_center', name: 'Activity Center', type: 'app', icon: Clock, appId: 'activity_center', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-zinc-950 border border-cyan-500/30 shadow-md' },
     { id: 'voice_commands', name: 'Voice Commands', type: 'app', icon: Mic, appId: 'voice_commands', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'clipboard_manager', name: 'Clipboard', type: 'app', icon: Copy, appId: 'clipboard_manager', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-zinc-950 border border-teal-500/30 shadow-md' },
+    { id: 'time_machine', name: 'Time Machine', type: 'app', icon: RotateCcw, appId: 'time_machine', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
@@ -1024,6 +1026,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'activity_center') content = <ActivityCenterApp />;
                     else if (win.item.appId === 'voice_commands') content = <VoiceCommandsApp />;
                     else if (win.item.appId === 'clipboard_manager') content = <ClipboardManagerApp />;
+                    else if (win.item.appId === 'time_machine') content = <TimeMachineApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
