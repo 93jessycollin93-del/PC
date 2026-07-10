@@ -175,9 +175,17 @@ export const AiTermApp: React.FC = () => {
         updateTime();
         const interval = setInterval(updateTime, 30000);
 
-        // Randomize battery level over time slightly
-        const b = Math.floor(80 + Math.random() * 19);
-        setBattery(`${b}%`);
+        // Real battery reading via the Battery Status API where supported.
+        const nav = navigator as unknown as { getBattery?: () => Promise<{ level: number; addEventListener: (e: string, cb: () => void) => void }> };
+        if (nav.getBattery) {
+            nav.getBattery().then(bat => {
+                const update = () => setBattery(`${Math.round(bat.level * 100)}%`);
+                update();
+                bat.addEventListener('levelchange', update);
+            }).catch(() => setBattery('n/a'));
+        } else {
+            setBattery('n/a');
+        }
 
         return () => clearInterval(interval);
     }, []);
@@ -284,7 +292,7 @@ export const AiTermApp: React.FC = () => {
     const queryGeminiTranslator = async (query: string): Promise<string> => {
         try {
             const ai = getAiClient();
-            const prompt = `You are an expert command translator for 'ai-term', a simulated unix-like shell environment.
+            const prompt = `You are an expert command translator for 'ai-term', a real in-browser unix-like shell that proxies several commands to a real backend and the real Battery/Storage/Network browser APIs.
 Given the natural language request: "${query}", translate it into ONE appropriate UNIX command from the supported list:
 Supported commands:
 - \`ls\` or \`ls -la\` or \`ls -la <path>\`
@@ -374,16 +382,12 @@ Return ONLY the raw command string to run (e.g. 'ls -la') with no explanations, 
         const localIntent = resolveLocalIntent(query);
         if (localIntent) {
             addLine(`copilot → ${localIntent}`, 'ai');
-            await new Promise(resolve => setTimeout(resolve, 120));
             const t = parseArgs(localIntent);
             await executeCoreCommand(t[0], t.slice(1), localIntent);
             return;
         }
 
         setIsThinking(true);
-        // Artificial delay for futuristic retro loading effect
-        await new Promise(resolve => setTimeout(resolve, 600));
-
         const translated = await queryGeminiTranslator(query);
         setIsThinking(false);
 
@@ -394,7 +398,6 @@ Return ONLY the raw command string to run (e.g. 'ls -la') with no explanations, 
         }
 
         addLine(`AI → ${translated}`, 'ai');
-        await new Promise(resolve => setTimeout(resolve, 150));
 
         // Execute the translated command
         const tokens = parseArgs(translated);
@@ -470,8 +473,7 @@ SHORTCUTS
                 break;
             }
 
-            case 'storage':
-            case 'df': {
+            case 'storage': {
                 if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
                     const { usage = 0, quota = 0 } = await navigator.storage.estimate();
                     const pct = quota ? ((usage / quota) * 100).toFixed(1) : '0';
@@ -520,9 +522,8 @@ SHORTCUTS
                     list.forEach(n => {
                         const c = node.children ? node.children[n] : null;
                         const isDir = c?.type === 'dir';
-                        const size = isDir ? 128 : Math.floor(Math.random() * 900 + 40);
-                        const mins = String(Math.floor(Math.random() * 59)).padStart(2, '0');
-                        lines.push(`${isDir ? 'drwxr-xr-x' : '-rw-r--r--'} 1 expert staff  ${size} Jul  4 09:${mins} ${n}`);
+                        const size = isDir ? 128 : new Blob([c?.content || '']).size;
+                        lines.push(`${isDir ? 'drwxr-xr-x' : '-rw-r--r--'} 1 expert staff  ${size} — ${n}`);
                     });
                     addLine(lines.join('\n'));
                 } else {
@@ -569,45 +570,33 @@ SHORTCUTS
                 break;
 
             case 'uname':
-                addLine(args.includes('-a') ? 'Darwin ai-term 23.5.0 Darwin Kernel Version 23.5.0: arm64' : 'Darwin');
-                break;
-
             case 'whoami':
-                addLine('expert');
-                break;
-
             case 'date':
-                addLine(new Date().toString());
-                break;
-
-            case 'ps': {
-                const aux = args.includes('aux');
-                if (aux) {
-                    addLine(`USER   PID %CPU %MEM COMMAND
-expert 1024 12.4  3.2 node server.js --port 8000
-expert 2048  0.3  0.8 python3 -m uvicorn api:app
-root      1  0.0  0.1 /sbin/launchd
-expert  428  0.1  0.5 ai-term`);
-                } else {
-                    addLine(`PID TTY          TIME CMD
-  1 ?        00:00:02 launchd
-428 ?        00:00:12 ai-term
-1024 ?       00:12:44 node
-2048 ?       00:00:03 python3`);
+            case 'ps':
+            case 'df': {
+                // Real command executed server-side in this container via /api/shell/exec.
+                try {
+                    const resp = await fetch('/api/shell/exec', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cmd, args, cwd }),
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        addLine(`${cmd}: ${data.error || 'command failed'}`, 'err');
+                    } else if (data.error) {
+                        addLine(data.stderr || `${cmd}: command failed`, 'err');
+                    } else {
+                        addLine((data.stdout || data.stderr || '').replace(/\n$/, ''));
+                    }
+                } catch (e: any) {
+                    addLine(`${cmd}: real shell backend unreachable (${e.message})`, 'err');
                 }
                 break;
             }
 
             case 'top':
-                addLine(`top - ${new Date().toLocaleTimeString()} up 3 days,  2 users,  load average: 1.23, 0.97, 0.85
-Tasks: 128 total,   2 running, 126 sleeping
-%Cpu(s): 12.4 us,  3.1 sy,  0.0 ni, 83.9 id
-MiB Mem : 7936.0 total, 2142.3 free, 3120.1 used, 2673.6 buff/cache
-
-  PID USER      PR  NI    VIRT    RES  %CPU %MEM     TIME+ COMMAND
- 1024 expert    20   0 1258304 245760  34.2  3.1  12:44.01 node server.js
- 2048 expert    20   0  823112  81920   2.1  1.0   0:03.12 python3
-  428 expert    20   0  542112  49152   0.7  0.6   0:12.44 ai-term`);
+                addLine('top: not available — this browser terminal cannot show a live real-time process table. Try "ps" for a real one-shot process snapshot of this container.', 'err');
                 break;
 
             case 'neofetch': {
@@ -637,108 +626,70 @@ MiB Mem : 7936.0 total, 2142.3 free, 3120.1 used, 2673.6 buff/cache
             }
 
             case 'git':
-                if (args[0] === 'status') {
-                    addLine(`On branch main\nYour branch is up to date with 'origin/main'.\n\nnothing to commit, working tree clean`);
-                } else if (args[0] === 'log') {
-                    addLine(`commit 4f3a2b1c8d9e0f2a7b6c5d4e3f2a1b0c9d8e7f6 (HEAD -> main, origin/main)
-Author: expert <expert@ai-term.local>
-Date:   Thu Jul 3 16:22:11 2025 -0700
-
-    feat: add ai control parser
-
-commit 9e1d4c2b3a5f6e7d8c9b0a1d2e3f4a5b6c7d8e9f
-Author: expert <expert@ai-term.local>
-Date:   Wed Jul 2 11:09:44 2025 -0700
-
-    chore: seed filesystem`);
-                } else {
-                    addLine('git: usage: git status | git log', 'err');
+            case 'docker': {
+                // Real command executed server-side; honest error if the tool/repo
+                // isn't actually present in this container (no fabricated output).
+                try {
+                    const resp = await fetch('/api/shell/exec', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cmd, args, cwd }),
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        addLine(`${cmd}: ${data.error || 'command failed'}`, 'err');
+                    } else if (data.error) {
+                        addLine(data.stderr || `${cmd}: command failed`, 'err');
+                    } else {
+                        addLine((data.stdout || data.stderr || '').replace(/\n$/, ''));
+                    }
+                } catch (e: any) {
+                    addLine(`${cmd}: real shell backend unreachable (${e.message})`, 'err');
                 }
                 break;
-
-            case 'docker':
-                if (args[0] === 'ps') {
-                    addLine(`CONTAINER ID   IMAGE                     COMMAND                  CREATED       STATUS       PORTS                    NAMES
-a3f1c2ea8b1d   ghcr.io/expert/api:latest   "uvicorn app:api --po…"   3 hours ago   Up 3 hours   0.0.0.0:8000->8000/tcp   api
-d9c4f1a2e7b2   redis:7-alpine              "redis-server --save…"   3 hours ago   Up 3 hours   6379/tcp                 cache`);
-                } else {
-                    addLine('docker: usage: docker ps', 'err');
-                }
-                break;
+            }
 
             case 'kubectl':
-                if (args[0] === 'get' && args[1] === 'pods') {
-                    addLine(`NAME                               READY   STATUS    RESTARTS   AGE   IP            NODE
-api-gateway-7d9c8f6b4-2xqkm        1/1     Running   0          3d    10.244.1.12   worker-1
-worker-queue-5b6fd4c9-9ztlp        2/2     Running   1          3d    10.244.2.5    worker-2
-model-inference-0                  1/1     Running   0          5h    10.244.1.44   worker-1`);
-                } else {
-                    addLine('kubectl: usage: kubectl get pods', 'err');
-                }
+                addLine('kubectl: not available — no Kubernetes cluster is connected to this environment.', 'err');
                 break;
 
             case 'python3':
-                addLine('Python 3.11.5 (main, Aug 24 2023) [Clang 15.0.0]\n>>> ');
+                addLine('python3: not installed in this container', 'err');
                 break;
 
             case 'node':
-                addLine('v20.9.0');
+                addLine('node: not exposed to this browser shell — the backend runs Node, but this terminal cannot query its version', 'err');
                 break;
 
             case 'curl': {
                 const url = args[0] || '';
-                if (url.includes('ifconfig.me')) {
-                    addLine('203.0.113.42');
-                } else {
-                    addLine(`curl: (simulated) fetched ${url || '(no url)'}`);
+                if (!url) { addLine('curl: missing URL', 'err'); break; }
+                try {
+                    // Real fetch. Will honestly fail with a CORS/network error for
+                    // most cross-origin targets — that's real browser behavior, not fakery.
+                    const r = await fetch(url);
+                    const text = await r.text();
+                    addLine(text.slice(0, 4000));
+                } catch (e: any) {
+                    addLine(`curl: (real) request failed — ${e.message} (likely blocked by CORS from a browser context)`, 'err');
                 }
                 break;
             }
 
-            case 'ping': {
-                const host = args[0] || 'google.com';
-                addLine(`PING ${host} (142.250.72.14): 56 data bytes
-64 bytes from 142.250.72.14: icmp_seq=0 ttl=117 time=12.4 ms
-64 bytes from 142.250.72.14: icmp_seq=1 ttl=117 time=11.9 ms
-64 bytes from 142.250.72.14: icmp_seq=2 ttl=117 time=13.1 ms
-64 bytes from 142.250.72.14: icmp_seq=3 ttl=117 time=12.0 ms
-
---- ${host} ping statistics ---
-4 packets transmitted, 4 packets received, 0.0% packet loss`);
+            case 'ping':
+                addLine('ping: not available — browsers cannot send raw ICMP packets. Try "net" for real connection info.', 'err');
                 break;
-            }
 
             case 'ifconfig':
-                addLine(`en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
-\tinet 192.168.1.42 netmask 0xffffff00 broadcast 192.168.1.255
-\tinet6 fe80::1c2d:3eff:fe4a:5b6c%en0 prefixlen 64 secured scopeid 0x6
-\tnd6 options=201<PERFORMNUD,DAD>
-\tmedia: autoselect
-\tstatus: active`);
+                addLine('ifconfig: not available — browsers cannot read real network interface details. Try "net" for real connection info.', 'err');
                 break;
 
             case 'history':
                 addLine(history.map((h, i) => ` ${String(i + 1).padStart(3)}  ${h}`).join('\n'));
                 break;
 
-            case 'kill': {
-                const raw = args.join(' ');
-                if (raw.includes('pgrep') && raw.includes('node')) {
-                    addLine('kill: SIGTERM sent to 1024 (node)');
-                } else {
-                    addLine(`kill: ${raw || 'usage: kill [-s sigspec] pid'}`, 'err');
-                }
-                break;
-            }
-
-            case 'df':
-                if (args.includes('-h')) {
-                    addLine(`Filesystem      Size   Used  Avail Capacity iused      ifree %iused  Mounted on
-/dev/disk1s1     59G    23G    33G    41%  486302 4290123456    0%   /
-devfs           199K   199K     0B   100%     687          0  100%   /dev`);
-                } else {
-                    addLine('df: use -h', 'err');
-                }
+            case 'kill':
+                addLine('kill: not available — this browser terminal has no OS process control.', 'err');
                 break;
 
             default:

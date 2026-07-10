@@ -58,13 +58,12 @@ export const FlipperZeroApp: React.FC = () => {
     const checkNetwork = async () => {
         setScanning(true);
         addLog('Checking network status...');
-        setTimeout(() => {
-            addLog(`Network is currently ${isOnline ? 'ONLINE' : 'OFFLINE'}.`);
-            if (networkInfo) {
-                addLog(`Connection type: ${networkInfo.type}, Downlink: ${networkInfo.downlink} Mbps`);
-            }
-            setScanning(false);
-        }, 500);
+        const conn = (navigator as any).connection;
+        addLog(`Network is currently ${navigator.onLine ? 'ONLINE' : 'OFFLINE'}.`);
+        if (conn) {
+            addLog(`Connection type: ${conn.effectiveType || '?'}, Downlink: ${conn.downlink ?? '?'} Mbps`);
+        }
+        setScanning(false);
     };
 
     // Cloud
