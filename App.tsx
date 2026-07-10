@@ -59,6 +59,7 @@ import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
 import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
 import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
 import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
+import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startNotificationCollector } from './lib/notifications';
@@ -124,6 +125,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
     { id: 'budget_guardian', name: 'Budget Guardian', type: 'app', icon: DollarSign, appId: 'budget_guardian', bgColor: 'bg-gradient-to-br from-amber-600 via-amber-700 to-zinc-950 border border-amber-500/30 shadow-md' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
+    { id: 'workspace_manager', name: 'Workspaces', type: 'app', icon: Grid2X2, appId: 'workspace_manager', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-zinc-950 border border-cyan-400/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
@@ -1003,6 +1005,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'notification_center') content = <NotificationCenterApp />;
                     else if (win.item.appId === 'ondevice_models') content = <OnDeviceModelsApp />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
+                    else if (win.item.appId === 'workspace_manager') content = <WorkspaceManagerApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
