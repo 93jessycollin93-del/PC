@@ -84,6 +84,7 @@ import { EruApp } from './components/apps/EruApp';
 import { JackieShell, type PcMode } from './components/JackieShell';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
 import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
+import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -110,6 +111,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
     { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'cost_analytics', name: 'Cost Analytics', type: 'app', icon: DollarSign, appId: 'cost_analytics', bgColor: 'bg-gradient-to-br from-yellow-500 via-orange-600 to-red-600 border border-yellow-400/30 shadow-[0_0_15px_rgba(234,179,8,0.3)]' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
     { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
@@ -994,6 +996,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
                     else if (win.item.appId === 'archiver') content = <ArchiverApp />;
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
+                    else if (win.item.appId === 'cost_analytics') content = <CostAnalyticsApp />;
                     else if (win.item.appId === 'tool_registry') content = <ToolRegistryApp />;
                     else if (win.item.appId === 'agent_orchestration') content = <AgentOrchestrationDashboard />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
