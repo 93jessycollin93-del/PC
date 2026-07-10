@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Download, ExternalLink, Copy, Check, ChevronDown, Filter, Star } from 'lucide-react';
+import { Search, Download, ExternalLink, Copy, Check, ChevronDown, Filter, Star, Download as DownloadIcon, Zap, TrendingUp, Clock, DollarSign } from 'lucide-react';
 
 interface Tool {
   id: string;
@@ -15,11 +15,29 @@ interface Tool {
   requiresKey: boolean;
   apiKeyField?: string;
   rating?: number;
+  estimatedMonthlyCost?: number;
+  freeUsageTier?: string;
+}
+
+interface InstalledTool {
+  toolId: string;
+  installedAt: number;
+  setupCompleted: boolean;
+  usageCount: number;
+  costUsed: number;
+  lastUsed?: number;
+}
+
+interface ToolUsage {
+  toolId: string;
+  count: number;
+  lastUsed: number;
+  totalCost: number;
 }
 
 const TOOLS_DATABASE: Tool[] = [
   // AI/LLM
-  { id: 'groq', name: 'Groq', category: 'AI/LLM', type: 'API', description: 'High-speed LLM inference platform', pricing: 'Free', url: 'https://groq.com', docs: 'https://console.groq.com/docs', features: ['Mixtral', 'Llama 2', 'Ultra-fast inference'], setupTime: '5 min', requiresKey: true, apiKeyField: 'GROQ_API_KEY', rating: 5 },
+  { id: 'groq', name: 'Groq', category: 'AI/LLM', type: 'API', description: 'High-speed LLM inference platform', pricing: 'Free', url: 'https://groq.com', docs: 'https://console.groq.com/docs', features: ['Mixtral', 'Llama 2', 'Ultra-fast inference'], setupTime: '5 min', requiresKey: true, apiKeyField: 'GROQ_API_KEY', rating: 5, estimatedMonthlyCost: 0, freeUsageTier: 'Unlimited free tier' },
   { id: 'ollama', name: 'Ollama', category: 'AI/LLM', type: 'Local', description: 'Run LLMs locally with simple setup', pricing: 'Free', url: 'https://ollama.ai', docs: 'https://github.com/ollama/ollama', features: ['Local execution', 'No internet needed', 'Multiple models'], setupTime: '10 min', requiresKey: false, rating: 5 },
   { id: 'openrouter', name: 'OpenRouter', category: 'AI/LLM', type: 'API', description: 'Unified API for multiple LLM providers', pricing: 'Free tier + pay-as-you-go', url: 'https://openrouter.ai', docs: 'https://openrouter.ai/docs', features: ['Multiple models', 'Cost aggregation', 'Fallback routing'], setupTime: '5 min', requiresKey: true, apiKeyField: 'OPENROUTER_API_KEY', rating: 4.5 },
   { id: 'gemini', name: 'Google Gemini', category: 'AI/LLM', type: 'API', description: 'Google\'s multimodal AI API', pricing: 'Free tier', url: 'https://ai.google.dev', docs: 'https://ai.google.dev/docs', features: ['Multimodal', 'Vision', 'Text generation'], setupTime: '5 min', requiresKey: true, apiKeyField: 'GEMINI_API_KEY', rating: 4.5 },
@@ -69,6 +87,10 @@ export const ToolRegistryApp: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [installedTools, setInstalledTools] = useState<InstalledTool[]>([]);
+  const [showMarketplace, setShowMarketplace] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showCostCalculator, setShowCostCalculator] = useState(false);
 
   const categories = useMemo(() => {
     const cats = new Map<string, number>();
@@ -97,6 +119,57 @@ export const ToolRegistryApp: React.FC = () => {
     setApiKeys(prev => ({ ...prev, [toolId]: key }));
     localStorage.setItem(`tool_api_key_${toolId}`, key);
   };
+
+  // Load/save installed tools
+  React.useEffect(() => {
+    const saved = localStorage.getItem('installed_tools');
+    if (saved) {
+      try {
+        setInstalledTools(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load installed tools:', e);
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    localStorage.setItem('installed_tools', JSON.stringify(installedTools));
+  }, [installedTools]);
+
+  const installTool = (toolId: string) => {
+    if (!installedTools.find(t => t.toolId === toolId)) {
+      setInstalledTools([...installedTools, {
+        toolId,
+        installedAt: Date.now(),
+        setupCompleted: false,
+        usageCount: 0,
+        costUsed: 0
+      }]);
+    }
+  };
+
+  const uninstallTool = (toolId: string) => {
+    setInstalledTools(installedTools.filter(t => t.toolId !== toolId));
+  };
+
+  const markSetupComplete = (toolId: string) => {
+    setInstalledTools(installedTools.map(t =>
+      t.toolId === toolId ? { ...t, setupCompleted: true } : t
+    ));
+  };
+
+  const recordToolUsage = (toolId: string, cost: number = 0) => {
+    setInstalledTools(installedTools.map(t =>
+      t.toolId === toolId
+        ? { ...t, usageCount: t.usageCount + 1, costUsed: t.costUsed + cost, lastUsed: Date.now() }
+        : t
+    ));
+  };
+
+  const totalInstalledCount = installedTools.length;
+  const setupCompletedCount = installedTools.filter(t => t.setupCompleted).length;
+  const totalCostUsed = installedTools.reduce((sum, t) => sum + t.costUsed, 0);
+  const totalUsageCount = installedTools.reduce((sum, t) => sum + t.usageCount, 0);
 
   const getCategoryColor = (category: string): string => {
     const colors: Record<string, string> = {
@@ -167,6 +240,154 @@ export const ToolRegistryApp: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Control Panels */}
+      <div className="bg-slate-800 border-b border-slate-700 p-4">
+        <div className="max-w-7xl mx-auto flex gap-3">
+          <button
+            onClick={() => setShowMarketplace(!showMarketplace)}
+            className={`px-4 py-2 rounded text-xs font-semibold flex items-center gap-2 transition ${showMarketplace ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            <Star size={14} /> Marketplace ({totalInstalledCount})
+          </button>
+          <button
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className={`px-4 py-2 rounded text-xs font-semibold flex items-center gap-2 transition ${showAnalytics ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            <TrendingUp size={14} /> Analytics
+          </button>
+          <button
+            onClick={() => setShowCostCalculator(!showCostCalculator)}
+            className={`px-4 py-2 rounded text-xs font-semibold flex items-center gap-2 transition ${showCostCalculator ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            <DollarSign size={14} /> Cost Calculator
+          </button>
+        </div>
+      </div>
+
+      {/* Marketplace Panel */}
+      {showMarketplace && (
+        <div className="bg-slate-900 border-b border-slate-700 p-4">
+          <div className="max-w-7xl mx-auto space-y-3">
+            <h3 className="text-white font-bold text-sm">📦 Package Manager</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Installed</div>
+                <div className="text-2xl font-bold text-emerald-400">{totalInstalledCount}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{setupCompletedCount} configured</div>
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Available</div>
+                <div className="text-2xl font-bold text-purple-400">{TOOLS_DATABASE.length - totalInstalledCount}</div>
+                <div className="text-[10px] text-slate-500 mt-1">Ready to install</div>
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Total Usage</div>
+                <div className="text-2xl font-bold text-blue-400">{totalUsageCount}</div>
+                <div className="text-[10px] text-slate-500 mt-1">Times executed</div>
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Setup Time</div>
+                <div className="text-2xl font-bold text-amber-400">~{totalInstalledCount * 5}m</div>
+                <div className="text-[10px] text-slate-500 mt-1">Estimated total</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Panel */}
+      {showAnalytics && (
+        <div className="bg-slate-900 border-b border-slate-700 p-4">
+          <div className="max-w-7xl mx-auto space-y-3">
+            <h3 className="text-white font-bold text-sm">📊 Usage Analytics</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-2">Most Used Tools</div>
+                {installedTools.length === 0 ? (
+                  <div className="text-slate-500 text-xs">No tools used yet</div>
+                ) : (
+                  <div className="space-y-1">
+                    {installedTools.sort((a, b) => b.usageCount - a.usageCount).slice(0, 3).map(t => {
+                      const tool = TOOLS_DATABASE.find(x => x.id === t.toolId);
+                      return (
+                        <div key={t.toolId} className="flex justify-between text-[10px] text-slate-300">
+                          <span>{tool?.name}</span>
+                          <span className="text-emerald-400 font-bold">{t.usageCount} uses</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-2">Setup Progress</div>
+                <div className="bg-slate-700 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-emerald-500 h-2 rounded-full transition"
+                    style={{ width: `${totalInstalledCount > 0 ? (setupCompletedCount / totalInstalledCount) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="text-[10px] text-slate-300">
+                  {setupCompletedCount}/{totalInstalledCount} completed
+                </div>
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-2">Activity Timeline</div>
+                <div className="flex gap-1">
+                  {[...Array(7)].map((_, i) => {
+                    const recentUse = installedTools.filter(t => {
+                      if (!t.lastUsed) return false;
+                      const dayAgo = Date.now() - (i * 24 * 60 * 60 * 1000);
+                      const dayStart = dayAgo - (24 * 60 * 60 * 1000);
+                      return t.lastUsed > dayStart && t.lastUsed < dayAgo;
+                    }).length;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex-1 h-6 rounded text-[8px] text-center leading-6 ${recentUse > 0 ? 'bg-emerald-600' : 'bg-slate-700'}`}
+                        title={`${recentUse} uses ${i} days ago`}
+                      >
+                        {recentUse > 0 ? recentUse : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cost Calculator Panel */}
+      {showCostCalculator && (
+        <div className="bg-slate-900 border-b border-slate-700 p-4">
+          <div className="max-w-7xl mx-auto space-y-3">
+            <h3 className="text-white font-bold text-sm">💰 Cost Analysis</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Total Cost Used</div>
+                <div className="text-2xl font-bold text-yellow-400">${totalCostUsed.toFixed(2)}</div>
+                <div className="text-[10px] text-slate-500 mt-1">Across all tools</div>
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Avg Cost/Tool</div>
+                <div className="text-2xl font-bold text-blue-400">
+                  ${totalInstalledCount > 0 ? (totalCostUsed / totalInstalledCount).toFixed(2) : '0.00'}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Usage cost distribution</div>
+              </div>
+              <div className="bg-slate-800 rounded p-3 border border-slate-700">
+                <div className="text-slate-400 text-xs mb-1">Free Tier Usage</div>
+                <div className="text-2xl font-bold text-emerald-400">
+                  {installedTools.filter(t => TOOLS_DATABASE.find(x => x.id === t.toolId)?.freeUsageTier).length}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">Using free tiers</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tools Grid */}
       <div className="flex-1 overflow-auto">
@@ -250,29 +471,35 @@ export const ToolRegistryApp: React.FC = () => {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex gap-2 mt-auto">
+                    <div className="flex gap-2 mt-auto flex-wrap">
+                      {installedTools.find(t => t.toolId === tool.id) ? (
+                        <button
+                          onClick={() => uninstallTool(tool.id)}
+                          className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-500 rounded text-xs font-medium text-white flex items-center justify-center gap-1 transition"
+                        >
+                          ✓ Installed - Uninstall
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => installTool(tool.id)}
+                          className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium text-white flex items-center justify-center gap-1 transition"
+                        >
+                          <DownloadIcon size={12} /> Install
+                        </button>
+                      )}
                       <button
                         onClick={() => handleCopyUrl(tool.url, tool.id)}
                         className="flex-1 px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium text-slate-200 flex items-center justify-center gap-1 transition"
                       >
                         {copiedId === tool.id ? <Check size={14} /> : <Copy size={14} />}
-                        {copiedId === tool.id ? 'Copied!' : 'Copy URL'}
                       </button>
-                      <a
-                        href={tool.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded text-xs font-medium text-white flex items-center justify-center gap-1 transition"
-                      >
-                        <Download size={14} /> Get
-                      </a>
                       <a
                         href={tool.docs}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium text-slate-200 flex items-center gap-1 transition"
+                        className="flex-1 px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium text-slate-200 flex items-center justify-center gap-1 transition"
                       >
-                        <ExternalLink size={14} />
+                        <ExternalLink size={12} />
                       </a>
                     </div>
                   </div>
@@ -285,9 +512,18 @@ export const ToolRegistryApp: React.FC = () => {
 
       {/* Footer Stats */}
       <div className="bg-slate-800 border-t border-slate-700 p-4">
-        <div className="max-w-7xl mx-auto text-center text-slate-400 text-sm">
-          Showing {filteredTools.length} of {TOOLS_DATABASE.length} tools
-          {selectedCategory && ` in ${selectedCategory}`}
+        <div className="max-w-7xl mx-auto text-slate-400 text-xs">
+          <div className="flex justify-between items-center">
+            <span>
+              Showing {filteredTools.length} of {TOOLS_DATABASE.length} tools
+              {selectedCategory && ` in ${selectedCategory}`}
+            </span>
+            <div className="flex gap-4">
+              <span>✓ {totalInstalledCount} installed</span>
+              <span>📊 {totalUsageCount} total uses</span>
+              <span>💰 ${totalCostUsed.toFixed(2)} spent</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
