@@ -4,7 +4,7 @@
  * Priority: Groq (free) → Gemini (free tier) → DeepSeek (cheap) → Anthropic (fallback)
  */
 
-export type ModelProvider = 'groq' | 'gemini' | 'deepseek' | 'anthropic' | 'grok';
+export type ModelProvider = 'groq' | 'gemini' | 'deepseek' | 'anthropic' | 'grok' | 'ollama';
 export type ModelCapability = 'chat' | 'code' | 'analysis' | 'vision';
 
 interface ModelConfig {
@@ -31,6 +31,7 @@ interface APIKey {
 
 // Model configurations
 const MODEL_REGISTRY: Record<ModelProvider, ModelConfig[]> = {
+  ollama: [],
   grok: [
     {
       provider: 'grok',
@@ -202,7 +203,7 @@ class ModelRouter {
    * Get usage statistics
    */
   public getStats(): Record<ModelProvider, { calls: number; totalTokens: number; totalCost: number }> {
-    const result: Record<ModelProvider, any> = {};
+    const result = {} as Record<ModelProvider, { calls: number; totalTokens: number; totalCost: number }>;
     this.usageStats.forEach((v, k) => {
       result[k] = v;
     });

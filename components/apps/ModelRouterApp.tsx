@@ -169,7 +169,6 @@ export const ModelRouterApp: React.FC = () => {
     const [showAddProvider, setShowAddProvider] = useState(false);
     const [newProviderForm, setNewProviderForm] = useState<Partial<ModelProvider>>({ hideKey: true });
     const [activeTab, setActiveTab] = useState<'routing' | 'analytics' | 'comparison'>('routing');
-    const [activeTab, setActiveTab] = useState<'routing' | 'analytics' | 'comparison'>('routing');
     const [checkingHealth, setCheckingHealth] = useState(false);
     const [lastHealthCheck, setLastHealthCheck] = useState<number | null>(null);
     const [healthError, setHealthError] = useState<string | null>(null);

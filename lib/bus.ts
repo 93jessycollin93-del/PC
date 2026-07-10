@@ -45,6 +45,23 @@ export interface BusChannels {
   'automation-run': { ruleId: string; name: string; ok: boolean; detail?: string };
   /** A scheduled job fired (lib/scheduler.ts). */
   'scheduler-run': { jobId: string; name: string; ok: boolean; detail?: string };
+  'restore-workspace-profile': { profile: unknown };
+  'app-error': { appId?: string; error?: string; detail?: string; timestamp?: number };
+  'app-reset': { appId: string; timestamp: number };
+  'activity-retry': { activityId: string; retryCount: number };
+  'pod-message': unknown;
+  'team-execution-started': unknown;
+  'agent-message': unknown;
+  'task-status-changed': { taskId: string; phase: string; executionId?: string };
+  'clipboard-copied': { dataType?: string; sourceApp?: string; destinationApp?: string; length?: number; text?: string; timestamp?: number };
+  'clipboard-pasted': { dataType?: string; sourceApp?: string; destinationApp?: string; length?: number; text?: string; timestamp?: number };
+  'voice-state-changed': { state: string };
+  'voice-transcript': { interim?: string; final?: string; transcript?: string; confidence?: number };
+  'voice-error': { error: string };
+  'voice-woken': { transcript: string; confidence?: number };
+  'voice-dictate': { text: string };
+  'automation-trigger': { ruleId: string };
+  'voice-command-executed': { command?: string; commandId?: string; keyword?: string; intent?: string; transcript?: string; ok?: boolean };
 }
 
 export type BusChannel = keyof BusChannels;

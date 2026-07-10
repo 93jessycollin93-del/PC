@@ -50,7 +50,7 @@ class AIClient {
     }
 
     // Route to best provider
-    const routing = modelRouter.route(['chat'], ['chat'], maxTokens, options.taskId);
+    const routing = modelRouter.route(messages.map(message => message.content).join('\n'), ['chat'], maxTokens, options.taskId);
 
     // Capability gate: block paid providers when spend is revoked for this scope.
     if (PAID_PROVIDERS.includes(routing.provider) && !permissions.require(scope, 'spend', routing.provider)) {

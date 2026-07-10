@@ -79,7 +79,7 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge, Bell, Brain } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge, Bell, Brain, Star, Grid2X2, Activity, Clock, Copy, RotateCcw, Lock } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -301,6 +301,7 @@ const INITIAL_EMAILS: Email[] = [
 interface OpenWindow {
     id: string;
     item: DesktopItem;
+    itemId: string;
     zIndex: number;
     pos: { x: number, y: number };
     size?: { width: number, height: number };
@@ -454,8 +455,7 @@ export const App: React.FC = () => {
             }
         };
 
-        bus.on('restore-workspace-profile', handleRestoreProfile);
-        return () => bus.off('restore-workspace-profile', handleRestoreProfile);
+        return bus.on('restore-workspace-profile', handleRestoreProfile);
     }, [desktopItems]);
 
     useEffect(() => {
@@ -520,6 +520,7 @@ export const App: React.FC = () => {
         setOpenWindows(prev => [...prev, {
             id: item.id,
             item: item,
+            itemId: item.id,
             zIndex: nextZIndex,
             pos: { x: 100 + (prev.length * 30), y: 80 + (prev.length * 30) },
             size: initialSize

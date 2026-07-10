@@ -59,6 +59,17 @@ class BudgetGuardian {
     storage.set('spend', spend);
   }
 
+  private createSpendByProvider(): Record<ModelProvider, number> {
+    return {
+      gemini: 0,
+      deepseek: 0,
+      anthropic: 0,
+      groq: 0,
+      grok: 0,
+      ollama: 0,
+    };
+  }
+
   private getOrCreateSpend(scope: string): ScopeSpend {
     if (!this.spend.has(scope)) {
       this.spend.set(scope, {
@@ -66,7 +77,7 @@ class BudgetGuardian {
         currentMonthSpend: 0,
         currentMonthStart: Date.now(),
         lastUpdated: Date.now(),
-        spendByProvider: {},
+        spendByProvider: this.createSpendByProvider(),
       });
     }
     return this.spend.get(scope)!;
@@ -77,7 +88,7 @@ class BudgetGuardian {
     const monthAgo = 30 * 24 * 60 * 60 * 1000;
     if (now - spend.currentMonthStart > monthAgo) {
       spend.currentMonthSpend = 0;
-      spend.spendByProvider = {};
+      spend.spendByProvider = this.createSpendByProvider();
       spend.currentMonthStart = now;
       this.notifiedAt.set(spend.scope, []);
     }

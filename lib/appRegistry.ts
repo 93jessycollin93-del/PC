@@ -46,7 +46,7 @@ export interface AppDefinition {
 }
 
 export const APP_REGISTRY: Partial<Record<AppId, AppDefinition>> = {
-    jackie: {
+    jacky: {
         defaultSize: { width: 500, height: 700 },
         Component: lazy(() => import('../components/apps/JackieChatApp').then(m => ({ default: m.JackieChatApp }))),
         props: (ctx) => ({ onNavigate: ctx.navigate }),
