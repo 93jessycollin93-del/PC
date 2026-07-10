@@ -731,16 +731,6 @@ model-inference-0                  1/1     Running   0          5h    10.244.1.4
                 break;
             }
 
-            case 'df':
-                if (args.includes('-h')) {
-                    addLine(`Filesystem      Size   Used  Avail Capacity iused      ifree %iused  Mounted on
-/dev/disk1s1     59G    23G    33G    41%  486302 4290123456    0%   /
-devfs           199K   199K     0B   100%     687          0  100%   /dev`);
-                } else {
-                    addLine('df: use -h', 'err');
-                }
-                break;
-
             default:
                 addLine(`zsh: command not found: ${cmd}`, 'err');
                 break;
