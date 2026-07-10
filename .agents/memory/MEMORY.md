@@ -4,3 +4,5 @@
 - [App audit backlog](app-functionality-audit.md) — user wants a future pass checking every app in the OS actually works as advertised, not simulated; flag UI clutter fixes per-instance, not globally.
 - [Two pod task executors kept](pod-task-executors.md) — runPodTask (Conductor) and runPodTaskBudgeted (Claude's PodControlPanel) both kept intentionally, not deduplicated; compare before deleting either.
 - [Mock/simulation removal pass](mock-removal-pass.md) — real-mode-only policy for PC apps, real backend endpoints added, and one deliberate scope cut (AiTerm's virtual FS).
+- [AiTerm real filesystem + Jackie gating](aiterm-real-fs.md) — sandboxed real disk FS behind a user toggle + shared token; only AiTerm + Jackie (when global mode on) can use it.
+- [Sticky notepad widget](sticky-notepad-widget.md) — global floating/resizable/fullscreen notepad with voice "take note"/"save that" commands, archives into the shared DataPods IndexedDB vault.

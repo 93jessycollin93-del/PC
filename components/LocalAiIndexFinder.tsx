@@ -269,7 +269,6 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
             { keywords: ['game', 'snake', 'play game'], appName: 'snake', appId: 'snake' },
             { keywords: ['telegram', 'chat', 'replica', 'cybernetic67'], appName: 'Telegram Replica', appId: 'cybernetic67' },
             { keywords: ['email', 'mail', 'inbox'], appName: 'Mail', appId: 'mail' },
-            { keywords: ['slide', 'presentation'], appName: 'Slides', appId: 'slides' },
             { keywords: ['chess', 'zenith'], appName: 'Zenith Chess AI', appId: 'chess' },
             { keywords: ['laser', 'tag'], appName: 'Laser Tag Arcade', appId: 'laser-tag' },
             { keywords: ['note', 'todo', 'notepad'], appName: 'Notes', appId: 'notepad' },

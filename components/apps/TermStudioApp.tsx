@@ -528,8 +528,6 @@ export const TermStudioApp: React.FC = () => {
         if (nameLower.includes('ollama') || nameLower.includes('deepseek')) return 'ollama';
         if (nameLower.includes('openclaw') || nameLower.includes('crewai') || nameLower.includes('autogen') || nameLower.includes('agent sdk')) return 'openclaw';
         if (nameLower.includes('coderabbit') || nameLower.includes('aider') || nameLower.includes('devika') || nameLower.includes('meta_gpt') || nameLower.includes('gpt engineer') || nameLower.includes('opendevin')) return 'coderabbit';
-        if (nameLower.includes('scholar') || nameLower.includes('semantic scholar')) return 'semantic_scholar';
-        if (nameLower.includes('researchrabbit') || nameLower.includes('research rabbit')) return 'research_rabbit';
         if (nameLower.includes('papers with code')) return 'papers_with_code';
         if (nameLower.includes('unreal')) return 'unreal_engine';
         if (nameLower.includes('blender')) return 'blender';
@@ -1252,8 +1250,6 @@ Keep the output styled like a real UNIX developer terminal with clear logs, exec
                 else if (appName.includes('ollama') || appName.includes('local ai')) targetAppId = 'ollama';
                 else if (appName.includes('openclaw')) targetAppId = 'openclaw';
                 else if (appName.includes('coderabbit') || appName.includes('rabbit')) targetAppId = 'coderabbit';
-                else if (appName.includes('scholar') || appName.includes('semantic')) targetAppId = 'semantic_scholar';
-                else if (appName.includes('researchrabbit') || appName.includes('research')) targetAppId = 'research_rabbit';
                 else if (appName.includes('papers') || appName.includes('code')) targetAppId = 'papers_with_code';
                 else if (appName.includes('unreal')) targetAppId = 'unreal_engine';
                 else if (appName.includes('blender')) targetAppId = 'blender';

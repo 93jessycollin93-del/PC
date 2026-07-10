@@ -266,7 +266,11 @@ async function startServer() {
   function resolveTermFsPath(rel: string): string | null {
     const cleaned = (rel || '').replace(/^\/+/, '');
     const resolved = path.resolve(TERM_FS_ROOT, cleaned);
-    if (!resolved.startsWith(TERM_FS_ROOT)) return null;
+    // Strict containment: resolved must be the root itself, or a real child
+    // of it separated by path.sep — a bare startsWith() check would wrongly
+    // allow sibling directories that merely share the root's string prefix
+    // (e.g. TERM_FS_ROOT + '-evil').
+    if (resolved !== TERM_FS_ROOT && !resolved.startsWith(TERM_FS_ROOT + path.sep)) return null;
     return resolved;
   }
 
@@ -278,10 +282,12 @@ async function startServer() {
     return true;
   }
 
-  app.get('/api/term-fs/access', async (_req, res) => {
+  app.get('/api/term-fs/access', async (req, res) => {
+    if (!requireTermFsAccess(req, res)) return;
     res.json(await readTermFsState());
   });
   app.post('/api/term-fs/access', async (req, res) => {
+    if (!requireTermFsAccess(req, res)) return;
     const { enabled } = req.body as { enabled: boolean };
     await writeTermFsState({ enabled: !!enabled });
     res.json({ enabled: !!enabled });

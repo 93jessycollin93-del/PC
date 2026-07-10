@@ -69,10 +69,8 @@ const PC_APPS: PcApp[] = [
     { cmd: 'chess', appId: 'chess', name: 'Zenith Chess', aliases: ['chess'] },
     { cmd: 'snake', appId: 'snake', name: 'Snake', aliases: ['snake', 'game'] },
     { cmd: 'ollama', appId: 'ollama', name: 'Local AI (Ollama)', aliases: ['ollama', 'local ai'] },
-    { cmd: 'llm', appId: 'llm_environment', name: 'LLM Studio', aliases: ['llm', 'llm studio', 'model studio'] },
     { cmd: 'pods', appId: 'data_pods', name: 'Data Pods Vault', aliases: ['pods', 'vault', 'data pods'] },
     { cmd: 'github', appId: 'github_sync', name: 'GitHub Sync', aliases: ['github', 'git sync', 'repo'] },
-    { cmd: 'atlas', appId: 'fleet_atlas', name: 'Fleet Atlas', aliases: ['atlas', 'fleet', 'globe', 'network map'] },
     { cmd: 'compressor', appId: 'knowledge_compressor', name: 'Knowledge Condenser', aliases: ['compress', 'compressor', 'condenser', 'condense'] },
     { cmd: 'cyber', appId: 'cyber_rulebook', name: 'Cyber Codex', aliases: ['cyber', 'codex', 'security', 'rulebook'] },
     { cmd: 'export', appId: 'cybernetic_export', name: 'Export OS', aliases: ['export', 'backup os'] },
@@ -195,13 +193,13 @@ export const AiTermApp: React.FC = () => {
 
     // Load the real access-control switch from the server on mount.
     useEffect(() => {
-        fetch('/api/term-fs/access').then(r => r.json()).then(d => setFsAccessEnabled(!!d.enabled)).catch(() => {});
+        fetch('/api/term-fs/access', { headers: termFsHeaders }).then(r => r.json()).then(d => setFsAccessEnabled(!!d.enabled)).catch(() => {});
     }, []);
 
     const toggleFsAccess = async () => {
         const next = !fsAccessEnabled;
         try {
-            const resp = await fetch('/api/term-fs/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }) });
+            const resp = await fetch('/api/term-fs/access', { method: 'POST', headers: termFsHeaders, body: JSON.stringify({ enabled: next }) });
             const data = await resp.json();
             setFsAccessEnabled(!!data.enabled);
             addLine(`Real filesystem access turned ${data.enabled ? 'ON' : 'OFF'}.`, 'info');
