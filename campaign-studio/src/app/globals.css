@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Print-shop proof desk — design tokens                                */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  --color-paper: #efede4;
+  --color-card: #faf9f4;
+  --color-ink: #16202e;
+  --color-ink-soft: #57616f;
+  --color-cobalt: #2743d6;
+  --color-cobalt-deep: #1d33a8;
+  --color-marker: #f5d442;
+  --color-redline: #c0392b;
+  --color-approve: #1f7a4d;
+  --color-line: #cfccbe;
+  --color-line-soft: #e3e1d6;
+
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --shadow-card: 0 1px 2px rgb(22 32 46 / 0.06), 0 6px 24px -12px rgb(22 32 46 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(22 32 46 / 0.08), 0 16px 40px -16px rgb(22 32 46 / 0.25);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                 */
+/* ------------------------------------------------------------------ */
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* faint pinboard grain via a dot grid — cheap, no image asset */
+  background-image: radial-gradient(rgb(22 32 46 / 0.025) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+::selection {
+  background: var(--color-marker);
+  color: var(--color-ink);
+}
+
+/* ------------------------------------------------------------------ */
+/* Signature utilities                                                  */
+/* ------------------------------------------------------------------ */
+
+/* Wide display type via Archivo's width axis */
+.display-wide {
+  font-variation-settings: "wdth" 125;
+  letter-spacing: -0.01em;
+}
+
+/* Marker-pen highlight behind key phrases */
+.hl-marker {
+  background: linear-gradient(
+    180deg,
+    transparent 52%,
+    var(--color-marker) 52%,
+    var(--color-marker) 94%,
+    transparent 94%
+  );
+  padding-inline: 0.08em;
+}
+
+/* Rubber stamp (loading / status) */
+.stamp {
+  display: inline-block;
+  border: 2.5px solid currentColor;
+  border-radius: 4px;
+  padding: 0.2em 0.65em;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+
+/* Staggered rise-in for board sections */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--rise-i, 0) * 90ms);
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--color-line-soft) 40%,
+    #f2f0e7 50%,
+    var(--color-line-soft) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 4px;
+}
+
+/* Blinking status cursor for the production log */
+@keyframes blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.blink {
+  animation: blink 1.1s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .skeleton,
+  .blink {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
