@@ -54,13 +54,18 @@ import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
 import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
 import { MissionControlApp } from './components/apps/MissionControlApp';
+import { AutomationApp } from './components/apps/AutomationApp';
+import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
+import { automationEngine } from './lib/automation';
+import { schedulerEngine } from './lib/scheduler';
+import { startNotificationCollector } from './lib/notifications';
 import { BottomBar } from './components/BottomBar';
 import { StickyNotepadWidget } from './components/StickyNotepadWidget';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge, Bell } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -109,6 +114,8 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
     { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
+    { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
+    { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
@@ -448,6 +455,13 @@ export const App: React.FC = () => {
         setNextZIndex(prev => prev + 1);
         setFocusedId(item.id);
     };
+
+    // Boot the always-on platform engines (idempotent — each guards itself).
+    useEffect(() => {
+        automationEngine.start();
+        schedulerEngine.start();
+        startNotificationCollector();
+    }, []);
 
     useEffect(() => {
         return bus.on('refresh-desktop', () => {
@@ -977,6 +991,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
                     else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
+                    else if (win.item.appId === 'automation') content = <AutomationApp />;
+                    else if (win.item.appId === 'notification_center') content = <NotificationCenterApp />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;

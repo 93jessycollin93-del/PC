@@ -41,6 +41,10 @@ export interface BusChannels {
     message?: string;
     source?: string;
   };
+  /** An automation rule fired (lib/automation.ts). */
+  'automation-run': { ruleId: string; name: string; ok: boolean; detail?: string };
+  /** A scheduled job fired (lib/scheduler.ts). */
+  'scheduler-run': { jobId: string; name: string; ok: boolean; detail?: string };
 }
 
 export type BusChannel = keyof BusChannels;

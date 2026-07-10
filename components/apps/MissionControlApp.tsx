@@ -25,6 +25,8 @@ const WATCHED: BusChannel[] = [
   'cloud-sync-status',
   'sync-queue-updated',
   'jackie-notification',
+  'automation-run',
+  'scheduler-run',
 ];
 
 const PROVIDER_COLORS: Record<ModelProvider, string> = {
