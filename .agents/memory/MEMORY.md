@@ -1,0 +1,3 @@
+- [50-agent pod chain concept](pod-chain-vision.md) — user's long-term vision for a ring of ~50 tiny expert AIs chained into one answer; not built yet, design-only.
+- [Pod control panel vision](pod-control-panel.md) — user wants a small always-visible dashboard with colored status dots per pod, not a visual redesign of the pods themselves.
+- [Cybernetic67 repo history](cybernetic67-repo-notes.md) — GitHub repo history is unrelated/rewritten vs early clones; treat "pull updates" as a possible full replace, not a fast-forward.
