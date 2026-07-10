@@ -60,6 +60,7 @@ import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
 import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
 import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
+import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
 import { PromptLibraryApp } from './components/apps/PromptLibraryApp';
 import { AppHealthMonitorApp } from './components/apps/AppHealthMonitorApp';
@@ -409,6 +410,43 @@ export const App: React.FC = () => {
     useEffect(() => {
         localStorage.setItem('desktop_visibility_v1', JSON.stringify(desktopVisibility));
     }, [desktopVisibility]);
+
+    useEffect(() => {
+        const handleRestoreProfile = (detail: { profile: WorkspaceProfile }) => {
+            const profile = detail.profile;
+            const allItemsMap = new Map<string, DesktopItem>();
+            const populateMap = (items: (DesktopItem | null)[]) => {
+                for (const item of items) {
+                    if (item) {
+                        allItemsMap.set(item.id, item);
+                        if (item.type === 'folder' && item.contents) {
+                            populateMap(item.contents);
+                        }
+                    }
+                }
+            };
+            populateMap(desktopItems);
+
+            const restoredWindows = profile.windows
+                .map(sw => {
+                    let item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
+                    if (!item) return null;
+                    return { ...sw, id: sw.id, item };
+                })
+                .filter((w): w is OpenWindow => w !== null);
+
+            setOpenWindows(restoredWindows);
+            if (profile.focusedId) {
+                setFocusedId(profile.focusedId);
+            }
+            if (profile.nextZIndex) {
+                setNextZIndex(profile.nextZIndex);
+            }
+        };
+
+        bus.on('restore-workspace-profile', handleRestoreProfile);
+        return () => bus.off('restore-workspace-profile', handleRestoreProfile);
+    }, [desktopItems]);
 
     useEffect(() => {
         const desktopItemIds = desktopItems.map(item => item ? item.id : null);
