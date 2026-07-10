@@ -62,6 +62,7 @@ import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
 import { PromptLibraryApp } from './components/apps/PromptLibraryApp';
+import { AppHealthMonitorApp } from './components/apps/AppHealthMonitorApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startNotificationCollector } from './lib/notifications';
@@ -130,6 +131,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'workspace_manager', name: 'Workspaces', type: 'app', icon: Grid2X2, appId: 'workspace_manager', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-zinc-950 border border-cyan-400/30 shadow-md' },
     { id: 'storage_stats', name: 'Storage Stats', type: 'app', icon: HardDrive, appId: 'storage_stats', bgColor: 'bg-gradient-to-br from-blue-600 via-blue-700 to-zinc-950 border border-blue-500/30 shadow-md' },
     { id: 'prompt_library', name: 'Prompt Library', type: 'app', icon: BookOpen, appId: 'prompt_library', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+    { id: 'app_health_monitor', name: 'App Health', type: 'app', icon: Activity, appId: 'app_health_monitor', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-500/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
@@ -1012,6 +1014,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'workspace_manager') content = <WorkspaceManagerApp />;
                     else if (win.item.appId === 'storage_stats') content = <StorageStatsApp />;
                     else if (win.item.appId === 'prompt_library') content = <PromptLibraryApp />;
+                    else if (win.item.appId === 'app_health_monitor') content = <AppHealthMonitorApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
