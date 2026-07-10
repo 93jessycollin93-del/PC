@@ -6,6 +6,7 @@
 import { modelRouter, ModelProvider } from './modelRouter';
 import { permissions } from './permissions';
 import { budgetGuardian } from './budgetGuardian';
+import { fallbackOrchestrator } from './fallbackOrchestrator';
 
 /** Providers that cost money — gated behind the `spend` capability. */
 const PAID_PROVIDERS: ModelProvider[] = ['grok', 'deepseek', 'anthropic'];
@@ -98,9 +99,65 @@ class AIClient {
       // Track budget spend
       budgetGuardian.recordSpend(scope, routing.provider, response.cost);
 
+      // Mark provider as healthy (recovery)
+      if (routing.provider !== 'ollama') {
+        fallbackOrchestrator.markProviderUp(routing.provider as ModelProvider);
+      }
+
       return response;
     } catch (error) {
-      console.error(`[AIClient] Error calling ${routing.provider}:`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[AIClient] Error calling ${routing.provider}:`, errorMsg);
+
+      // Mark provider as down for future requests
+      if (routing.provider !== 'ollama') {
+        fallbackOrchestrator.markProviderDown(routing.provider as ModelProvider, errorMsg);
+      }
+
+      // Try to get a fallback provider and retry
+      if (routing.provider !== 'ollama') {
+        const fallback = fallbackOrchestrator.getFallback(routing.provider as ModelProvider);
+        if (fallback && fallback !== routing.provider) {
+          console.log(`[AIClient] Attempting fallback to ${fallback}`);
+          try {
+            let fallbackResponse: AIResponse;
+
+            if (fallback === 'ollama') {
+              // Local Ollama fallback — return a safe degraded response
+              return {
+                content: '[Offline Mode] Cloud providers unavailable. Local Ollama not integrated for direct calls. Try again when cloud is available.',
+                provider: 'groq', // Mark as groq (free alternative)
+                model: 'offline-fallback',
+                tokensUsed: 0,
+                cost: 0,
+                timestamp: Date.now(),
+              };
+            } else if (fallback === 'grok') {
+              fallbackResponse = await this.callGrok(allMessages, maxTokens, temperature);
+            } else if (fallback === 'groq') {
+              fallbackResponse = await this.callGroq(allMessages, maxTokens, temperature, 'mixtral-8x7b-32768');
+            } else if (fallback === 'gemini') {
+              fallbackResponse = await this.callGemini(allMessages, maxTokens, temperature);
+            } else if (fallback === 'deepseek') {
+              fallbackResponse = await this.callDeepSeek(allMessages, maxTokens, temperature);
+            } else if (fallback === 'anthropic') {
+              fallbackResponse = await this.callAnthropic(allMessages, maxTokens, temperature);
+            } else {
+              throw new Error(`Unknown fallback provider: ${fallback}`);
+            }
+
+            // Track fallback usage
+            modelRouter.recordUsage(fallback as ModelProvider, fallbackResponse.tokensUsed, fallbackResponse.cost);
+            budgetGuardian.recordSpend(scope, fallback as ModelProvider, fallbackResponse.cost);
+
+            console.log(`[AIClient] Fallback to ${fallback} succeeded`);
+            return fallbackResponse;
+          } catch (fallbackError) {
+            console.error(`[AIClient] Fallback to ${fallback} also failed:`, fallbackError);
+          }
+        }
+      }
+
       throw error;
     }
   }
