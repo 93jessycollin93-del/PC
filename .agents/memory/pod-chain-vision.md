@@ -18,6 +18,9 @@ User wants this to feel deliberate/serious, not decorative — explicitly said "
 ## Sizing target (refined 2026-07-10)
 User wants the core set of chain pods to total roughly 250–500MB combined when accounting for compression (idle pods are just a compressed "seed"). Sequential activation mechanic: asking a question opens pod 1, it analyzes and triggers opening pod 2, etc., closing each behind it; only the central compiler pod stays open persistently. Purely conceptual/metaphorical framing from the user (sphere, "beautiful") — the requirement underneath is real functional sequential activation with real compression/decompression, not a visual show.
 
+## Orchestration should be automatic, not user-managed (refined 2026-07-10)
+User does not want to personally operate the pod system — it should be a built-in app feature, invisible in daily use. Preferred mechanism: a tiny "conductor" pod (~1MB or less) whose only job is orchestration — on app open it initiates the "mother pod," then commands the rest of the chain to open/close in the right order and knows how pods link to each other. The user is open to either this conductor pod OR a simpler self-running mechanism ("like a little battery") — the requirement is that pod sequencing works automatically, not that a conductor pod specifically must exist.
+
 ## How to apply
 - This is not yet scoped into a buildable plan (model sizing, which 50 domains, how "condensed reasoning" is serialized between pods, RAM ceiling enforcement mechanism are all open). Do not start implementing without a follow-up scoping conversation — user said "we'll think about it" more than once.
 - Distinct from the existing Jackie per-app mini-AI / pod-registry system already in the codebase; this chain concept is a separate, bigger idea for one unified reasoning pipeline, not per-window helpers.
