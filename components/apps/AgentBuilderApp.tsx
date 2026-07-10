@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Bot, Plus, Trash2, Play, Settings, Save, Copy, AlertCircle, CheckCircle, Eye, Code2, Target, Zap } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Bot, Plus, Trash2, Play, Settings, Save, Copy, AlertCircle, CheckCircle, Eye, Code2, Target, Zap, Workflow, History, Bug } from 'lucide-react';
 
 interface Agent {
     id: string;
@@ -17,6 +17,28 @@ interface Agent {
     lastRun?: number;
     runsCompleted: number;
     totalCost: number;
+}
+
+interface WorkflowTemplate {
+    id: string;
+    name: string;
+    description: string;
+    agentSequence: string[];
+    estimatedTime: number;
+    tags: string[];
+    createdAt: number;
+}
+
+interface ExecutionRun {
+    id: string;
+    workflowId?: string;
+    agentId?: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    startTime: number;
+    endTime?: number;
+    logs: string[];
+    result?: string;
+    error?: string;
 }
 
 const CAPABILITY_TEMPLATES: Record<string, Partial<Agent>> = {
@@ -98,11 +120,56 @@ const MODEL_TIER_INFO = {
     burst: { label: 'Burst Premium', color: 'from-red-600 to-red-900', maxDaily: 5 }
 };
 
+const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
+    {
+        id: 'wf_1',
+        name: 'Monitor → Analyze → Report',
+        description: 'Observe system, analyze metrics, generate report',
+        agentSequence: ['observer', 'analyzer'],
+        estimatedTime: 15,
+        tags: ['monitoring', 'reporting'],
+        createdAt: Date.now()
+    },
+    {
+        id: 'wf_2',
+        name: 'Daily Health Check',
+        description: 'Quick system health check and status update',
+        agentSequence: ['observer', 'coordinator'],
+        estimatedTime: 5,
+        tags: ['health-check', 'quick'],
+        createdAt: Date.now()
+    },
+    {
+        id: 'wf_3',
+        name: 'Data Processing Pipeline',
+        description: 'Analyze data and execute processing tasks',
+        agentSequence: ['analyzer', 'executor'],
+        estimatedTime: 20,
+        tags: ['data', 'processing'],
+        createdAt: Date.now()
+    },
+    {
+        id: 'wf_4',
+        name: 'Full System Analysis',
+        description: 'Comprehensive monitoring and analysis workflow',
+        agentSequence: ['observer', 'analyzer', 'coordinator'],
+        estimatedTime: 30,
+        tags: ['comprehensive', 'analysis'],
+        createdAt: Date.now()
+    }
+];
+
 export const AgentBuilderApp: React.FC = () => {
     const [agents, setAgents] = useState<Agent[]>([]);
+    const [workflows, setWorkflows] = useState<WorkflowTemplate[]>(WORKFLOW_TEMPLATES);
+    const [executionHistory, setExecutionHistory] = useState<ExecutionRun[]>([]);
     const [showBuilder, setShowBuilder] = useState(false);
+    const [showWorkflows, setShowWorkflows] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const [showDebug, setShowDebug] = useState(false);
     const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+    const [selectedRun, setSelectedRun] = useState<string | null>(null);
     const [newAgentForm, setNewAgentForm] = useState<Partial<Agent>>({
         modelTier: 'free',
         cloudAssignment: 'local',
@@ -114,12 +181,28 @@ export const AgentBuilderApp: React.FC = () => {
 
     // Load from localStorage
     useEffect(() => {
-        const saved = localStorage.getItem('agents');
-        if (saved) {
+        const savedAgents = localStorage.getItem('agents');
+        if (savedAgents) {
             try {
-                setAgents(JSON.parse(saved));
+                setAgents(JSON.parse(savedAgents));
             } catch (e) {
                 console.error('Failed to load agents:', e);
+            }
+        }
+        const savedWorkflows = localStorage.getItem('agent_workflows');
+        if (savedWorkflows) {
+            try {
+                setWorkflows(JSON.parse(savedWorkflows));
+            } catch (e) {
+                console.error('Failed to load workflows:', e);
+            }
+        }
+        const savedHistory = localStorage.getItem('agent_execution_history');
+        if (savedHistory) {
+            try {
+                setExecutionHistory(JSON.parse(savedHistory));
+            } catch (e) {
+                console.error('Failed to load execution history:', e);
             }
         }
     }, []);
@@ -128,6 +211,14 @@ export const AgentBuilderApp: React.FC = () => {
     useEffect(() => {
         localStorage.setItem('agents', JSON.stringify(agents));
     }, [agents]);
+
+    useEffect(() => {
+        localStorage.setItem('agent_workflows', JSON.stringify(workflows));
+    }, [workflows]);
+
+    useEffect(() => {
+        localStorage.setItem('agent_execution_history', JSON.stringify(executionHistory));
+    }, [executionHistory]);
 
     const createAgent = () => {
         if (!newAgentForm.name || !newAgentForm.role || !newAgentForm.systemPrompt) return;
@@ -189,9 +280,91 @@ export const AgentBuilderApp: React.FC = () => {
         setSelectedTemplate(templateKey);
     };
 
+    const executeWorkflow = (workflowId: string) => {
+        const workflow = workflows.find(w => w.id === workflowId);
+        if (!workflow) return;
+
+        const run: ExecutionRun = {
+            id: `run_${Date.now()}`,
+            workflowId,
+            status: 'running',
+            startTime: Date.now(),
+            logs: [`Starting workflow: ${workflow.name}`, ...workflow.agentSequence.map(cap => `Preparing ${cap} agent...`)]
+        };
+
+        setExecutionHistory([run, ...executionHistory]);
+
+        setTimeout(() => {
+            setExecutionHistory(prev =>
+                prev.map(r =>
+                    r.id === run.id
+                        ? {
+                            ...r,
+                            status: 'completed',
+                            endTime: Date.now(),
+                            logs: [...r.logs, 'Workflow completed successfully', `Total time: ${workflow.estimatedTime}s`],
+                            result: `Workflow executed successfully across ${workflow.agentSequence.length} agents`
+                          }
+                        : r
+                )
+            );
+        }, workflow.estimatedTime * 1000);
+    };
+
+    const executeAgent = (agentId: string) => {
+        const agent = agents.find(a => a.id === agentId);
+        if (!agent) return;
+
+        const run: ExecutionRun = {
+            id: `run_${Date.now()}`,
+            agentId,
+            status: 'running',
+            startTime: Date.now(),
+            logs: [`Starting agent: ${agent.name}`, `Role: ${agent.role}`, `Capability: ${agent.capability}`]
+        };
+
+        setExecutionHistory([run, ...executionHistory]);
+        setAgents(agents.map(a => a.id === agentId ? { ...a, lastRun: Date.now(), runsCompleted: a.runsCompleted + 1 } : a));
+
+        setTimeout(() => {
+            setExecutionHistory(prev =>
+                prev.map(r =>
+                    r.id === run.id
+                        ? {
+                            ...r,
+                            status: 'completed',
+                            endTime: Date.now(),
+                            logs: [...r.logs, `Agent completed task successfully`, `Tokens used: ~${Math.random() * 1000 | 0}`],
+                            result: 'Agent executed successfully'
+                          }
+                        : r
+                )
+            );
+        }, 3000);
+    };
+
+    const addWorkflow = (name: string, agentSequence: string[]) => {
+        if (!name.trim() || agentSequence.length === 0) return;
+        const newWorkflow: WorkflowTemplate = {
+            id: `wf_${Date.now()}`,
+            name,
+            description: `Custom workflow with ${agentSequence.length} agents`,
+            agentSequence,
+            estimatedTime: agentSequence.length * 5,
+            tags: ['custom'],
+            createdAt: Date.now()
+        };
+        setWorkflows([newWorkflow, ...workflows]);
+    };
+
+    const deleteWorkflow = (id: string) => {
+        setWorkflows(workflows.filter(w => w.id !== id));
+    };
+
     const totalAgents = agents.length;
     const activeAgents = agents.filter(a => a.active).length;
     const totalCost = agents.reduce((sum, a) => sum + a.totalCost, 0);
+    const successfulRuns = useMemo(() => executionHistory.filter(r => r.status === 'completed').length, [executionHistory]);
 
     return (
         <div className="h-full w-full bg-[#09090b] text-slate-300 font-sans flex flex-col">
@@ -203,21 +376,156 @@ export const AgentBuilderApp: React.FC = () => {
                     </div>
                     <div>
                         <h1 className="font-bold text-sm text-slate-200">Agent Builder</h1>
-                        <p className="text-[10px] text-slate-500">{activeAgents}/{totalAgents} active • ${totalCost.toFixed(2)} total cost</p>
+                        <p className="text-[10px] text-slate-500">{activeAgents}/{totalAgents} active • {successfulRuns} runs completed • ${totalCost.toFixed(2)} total cost</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setShowBuilder(!showBuilder)}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-md bg-purple-600 hover:bg-purple-500 text-white transition-colors flex items-center gap-1"
-                >
-                    <Plus size={12} />
-                    New Agent
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setShowWorkflows(!showWorkflows)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 border ${showWorkflows ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300'}`}
+                    >
+                        <Workflow size={12} />
+                        Workflows
+                    </button>
+                    <button
+                        onClick={() => setShowHistory(!showHistory)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 border ${showHistory ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300'}`}
+                    >
+                        <History size={12} />
+                        History
+                    </button>
+                    <button
+                        onClick={() => setShowBuilder(!showBuilder)}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-md bg-purple-600 hover:bg-purple-500 text-white transition-colors flex items-center gap-1"
+                    >
+                        <Plus size={12} />
+                        New Agent
+                    </button>
+                </div>
             </div>
 
             {/* Main Content */}
             <div className="flex-1 overflow-auto">
                 <div className="p-6 space-y-6">
+                    {/* Workflows Section */}
+                    {showWorkflows && (
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
+                            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                                <Workflow size={14} className="text-blue-400" />
+                                Workflow Templates
+                            </h2>
+                            <div className="space-y-2">
+                                {workflows.map(workflow => (
+                                    <div key={workflow.id} className="bg-zinc-800 border border-zinc-700 rounded-lg p-3 space-y-2">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <h3 className="text-xs font-bold text-white">{workflow.name}</h3>
+                                                <p className="text-[9px] text-zinc-400 mt-0.5">{workflow.description}</p>
+                                                <div className="flex gap-1 mt-2 flex-wrap">
+                                                    {workflow.agentSequence.map((cap, idx) => (
+                                                        <span key={idx} className="px-1.5 py-0.5 bg-slate-700 rounded text-[8px] text-slate-200 capitalize">
+                                                            {cap}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => executeWorkflow(workflow.id)}
+                                                    className="p-1.5 hover:bg-blue-900/20 rounded text-blue-400 transition-colors"
+                                                    title="Execute workflow"
+                                                >
+                                                    <Play size={12} />
+                                                </button>
+                                                {workflow.tags.includes('custom') && (
+                                                    <button
+                                                        onClick={() => deleteWorkflow(workflow.id)}
+                                                        className="p-1.5 hover:bg-red-900/20 rounded text-red-400 transition-colors"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="text-[8px] text-zinc-500 flex gap-2">
+                                            <span>⏱️ ~{workflow.estimatedTime}s</span>
+                                            <span>Agents: {workflow.agentSequence.length}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Execution History Section */}
+                    {showHistory && (
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
+                            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                                <History size={14} className="text-green-400" />
+                                Execution History
+                            </h2>
+                            {executionHistory.length === 0 ? (
+                                <div className="text-center py-6 text-zinc-500 text-xs">
+                                    <p>No executions yet</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {executionHistory.slice(0, 10).map(run => (
+                                        <div key={run.id} className="bg-zinc-800 border border-zinc-700 rounded-lg p-3 space-y-2">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <h3 className="text-xs font-bold text-white">
+                                                        {run.workflowId ? `Workflow: ${run.id.slice(0, 8)}` : `Agent: ${run.agentId?.slice(0, 8)}`}
+                                                    </h3>
+                                                    <div className="text-[8px] text-zinc-400 mt-1">
+                                                        {new Date(run.startTime).toLocaleString()}
+                                                    </div>
+                                                </div>
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                                    run.status === 'running' ? 'bg-blue-500/20 text-blue-300' :
+                                                    run.status === 'completed' ? 'bg-green-500/20 text-green-300' :
+                                                    'bg-red-500/20 text-red-300'
+                                                }`}>
+                                                    {run.status}
+                                                </span>
+                                            </div>
+                                            {run.result && (
+                                                <p className="text-[8px] text-zinc-300">{run.result}</p>
+                                            )}
+                                            {run.error && (
+                                                <p className="text-[8px] text-red-300">{run.error}</p>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    setShowDebug(selectedRun === run.id ? false : true);
+                                                    setSelectedRun(selectedRun === run.id ? null : run.id);
+                                                }}
+                                                className="text-[8px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                            >
+                                                <Bug size={10} /> Debug logs
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Debug Panel */}
+                    {showDebug && selectedRun && (
+                        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3 max-h-64 overflow-y-auto font-mono text-[8px]">
+                            <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                                <Bug size={12} className="text-yellow-400" />
+                                Debug Logs
+                            </h3>
+                            {executionHistory.find(r => r.id === selectedRun)?.logs.map((log, idx) => (
+                                <div key={idx} className="text-zinc-400 whitespace-pre-wrap">
+                                    <span className="text-yellow-600">[{new Date().toLocaleTimeString()}]</span> {log}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {/* Agent Builder */}
                     {showBuilder && (
                         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
@@ -379,14 +687,21 @@ export const AgentBuilderApp: React.FC = () => {
                                                 </div>
                                                 <div className="flex gap-1">
                                                     <button
+                                                        onClick={() => executeAgent(agent.id)}
+                                                        className="p-1 hover:bg-green-900/20 rounded text-green-400 transition-colors"
+                                                        title="Execute agent"
+                                                    >
+                                                        <Play size={12} />
+                                                    </button>
+                                                    <button
                                                         onClick={() => duplicateAgent(agent.id)}
-                                                        className="p-1 hover:bg-blue-900/20 rounded text-blue-400"
+                                                        className="p-1 hover:bg-blue-900/20 rounded text-blue-400 transition-colors"
                                                     >
                                                         <Copy size={12} />
                                                     </button>
                                                     <button
                                                         onClick={() => deleteAgent(agent.id)}
-                                                        className="p-1 hover:bg-red-900/20 rounded text-red-400"
+                                                        className="p-1 hover:bg-red-900/20 rounded text-red-400 transition-colors"
                                                     >
                                                         <Trash2 size={12} />
                                                     </button>
