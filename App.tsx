@@ -58,6 +58,7 @@ import { AutomationApp } from './components/apps/AutomationApp';
 import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
 import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
 import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
+import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startNotificationCollector } from './lib/notifications';
@@ -116,6 +117,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
     { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'secrets_vault', name: 'Secrets Vault', type: 'app', icon: Lock, appId: 'secrets_vault', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
     { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
     { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
@@ -993,6 +995,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
                     else if (win.item.appId === 'archiver') content = <ArchiverApp />;
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
+                    else if (win.item.appId === 'secrets_vault') content = <SecretsVaultApp />;
                     else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
