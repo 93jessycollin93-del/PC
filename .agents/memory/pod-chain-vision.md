@@ -15,6 +15,9 @@ At the end of the chain, a central "compiler" pod combines everything into one l
 ## Why
 User wants this to feel deliberate/serious, not decorative — explicitly said "this is all real serious and it needs to be done to the highest extent."
 
+## Priority: correctness over speed (2026-07-10)
+User explicitly does not care about latency right now — even several seconds per pod/chain run is fine. Prioritize real, correct, quality behavior over performance at every step. Optimization is deliberately deferred until the whole system is functionally complete ("a long time from now") — do not trade correctness for speed unless asked.
+
 ## Sizing target (refined 2026-07-10)
 User wants the core set of chain pods to total roughly 250–500MB combined when accounting for compression (idle pods are just a compressed "seed"). Sequential activation mechanic: asking a question opens pod 1, it analyzes and triggers opening pod 2, etc., closing each behind it; only the central compiler pod stays open persistently. Purely conceptual/metaphorical framing from the user (sphere, "beautiful") — the requirement underneath is real functional sequential activation with real compression/decompression, not a visual show.
 
