@@ -5,11 +5,11 @@ export const Footer: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[3000] pointer-events-none">
-      {/* Collapsible Footer */}
+    <div className="relative z-[3000]">
+      {/* Collapsible Footer — expands upward above the bottom bar */}
       <div className="pointer-events-auto">
         {isExpanded ? (
-          <div className="bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 p-4 max-h-64 overflow-y-auto">
+          <div className="absolute bottom-full left-0 mb-2 w-[320px] max-w-[90vw] max-h-[60vh] bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-2xl p-4 overflow-y-auto shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]">
             <button
               onClick={() => setIsExpanded(false)}
               className="absolute top-2 right-2 p-1 hover:bg-zinc-800 rounded transition-colors text-zinc-400 hover:text-zinc-300"
@@ -68,6 +68,13 @@ export const Footer: React.FC = () => {
                   </div>
 
                   <div>
+                    <p className="font-semibold text-zinc-300 text-[10px]">Development & Orchestration</p>
+                    <ul className="text-[9px] text-zinc-400 space-y-1 ml-2">
+                      <li>• <strong>Replit Agent</strong> - In-repl AI build & orchestration partner ({`replit.com`})</li>
+                    </ul>
+                  </div>
+
+                  <div>
                     <p className="font-semibold text-zinc-300 text-[10px]">Legal Notice</p>
                     <p className="text-[9px] text-zinc-400 ml-2">
                       PC OS is built on open-source and commercial technologies. All third-party components are used under their respective licenses (MIT, Apache 2.0, BSD, etc.). Proper attribution and license compliance are maintained throughout this project.
@@ -80,10 +87,10 @@ export const Footer: React.FC = () => {
         ) : (
           <button
             onClick={() => setIsExpanded(true)}
-            className="flex items-center gap-2 text-[10px] text-zinc-500 hover:text-zinc-400 transition-colors ml-4 mb-2 px-3 py-1.5 rounded-full bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700"
+            className="flex items-center gap-1.5 text-[9px] text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1 rounded-full hover:bg-zinc-900/80"
           >
-            <span>Credits & Attribution</span>
-            <ChevronUp size={12} className="rotate-180" />
+            <span>Credits</span>
+            <ChevronUp size={10} className="rotate-180" />
           </button>
         )}
       </div>

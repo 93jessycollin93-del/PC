@@ -390,11 +390,11 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
         <div 
             id="local-ai-index-finder"
             ref={containerRef}
-            className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[4000] font-sans"
+            className="relative z-[4000] font-sans"
         >
-            {/* Expanded State (Dynamic Island opened) */}
+            {/* Expanded State (Dynamic Island opened) — pops up above the bottom bar */}
             {isExpanded ? (
-                <div className="absolute bottom-0 right-0 w-[295px] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 rounded-[1.75rem] p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] text-zinc-100 flex flex-col gap-3 animate-in zoom-in-95 duration-200 select-none">
+                <div className="absolute bottom-full right-0 mb-2 w-[295px] max-w-[85vw] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 rounded-[1.75rem] p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] text-zinc-100 flex flex-col gap-3 animate-in zoom-in-95 duration-200 select-none">
                     {/* Compact Header */}
                     <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
                         <div className="flex items-center gap-1.5">
@@ -690,17 +690,17 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                 /* Collapsed Dynamic Island Capsule Button */
                 <button
                     onClick={() => setIsExpanded(true)}
-                    className="flex items-center gap-2.5 px-3.5 py-1.5 bg-zinc-950/90 hover:bg-zinc-900/95 border border-zinc-800 hover:border-zinc-700 rounded-full text-zinc-300 transition-all hover:scale-105 active:scale-95 shadow-xl select-none"
+                    className="flex items-center gap-1.5 px-2 py-1 hover:bg-zinc-900/80 rounded-full text-zinc-400 hover:text-zinc-200 transition-all active:scale-95 select-none"
                     title="Open On-Device Index Finder AI"
                 >
                     <div className="relative flex items-center justify-center">
-                        <Bot className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                        <Bot className="w-3 h-3 text-emerald-400 animate-pulse" />
+                        <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-emerald-400 rounded-full"></span>
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-200">
-                        Index-01 Local AI
+                    <span className="text-[9px] font-bold uppercase tracking-wider">
+                        Index-01
                     </span>
-                    <Mic className="w-3 h-3 text-zinc-400 hover:text-emerald-400" />
+                    <Mic className="w-2.5 h-2.5 text-zinc-500" />
                 </button>
             )}
         </div>

@@ -52,11 +52,10 @@ import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
 import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
 import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
-import { Footer } from './components/Footer';
+import { BottomBar } from './components/BottomBar';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
-import { LocalAiIndexFinder } from './components/LocalAiIndexFinder';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
 import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
@@ -853,15 +852,6 @@ Body: ${emailToSummarize.body}`,
             className="h-full w-full bg-black text-os-text font-sans overflow-hidden relative" 
             onPointerDownCapture={handleGlobalPointerDown}
         >
-            {/* Float-centered on-device AI Index Finder capsule */}
-            <LocalAiIndexFinder 
-                apps={desktopItems.filter(Boolean) as any[]}
-                onLaunchApp={(id) => {
-                    const item = desktopItems.find(d => d && d.id === id);
-                    if (item) handleLaunch(item);
-                }}
-            />
-
             <MobileStatusBar
                 openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
                 onFocusWindow={focusWindow}
@@ -1052,7 +1042,13 @@ Body: ${emailToSummarize.body}`,
                 )}
             </div>
 
-            <Footer />
+            <BottomBar
+                apps={desktopItems.filter(Boolean) as any[]}
+                onLaunchApp={(id) => {
+                    const item = desktopItems.find(d => d && d.id === id);
+                    if (item) handleLaunch(item);
+                }}
+            />
         </div>
     );
 };
