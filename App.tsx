@@ -98,6 +98,7 @@ import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { Analytics } from '@vercel/analytics/react';
 import { bus } from './lib/bus';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
@@ -1146,7 +1147,6 @@ Body: ${emailToSummarize.body}`,
                     </div>
                 )}
             </div>
-
             <BottomBar
                 apps={desktopItems.filter(Boolean) as any[]}
                 onLaunchApp={(id) => {
@@ -1158,6 +1158,7 @@ Body: ${emailToSummarize.body}`,
             <StickyNotepadWidget />
 
             <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
+            <Analytics />
         </div>
     );
 };
