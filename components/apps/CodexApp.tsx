@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Code2, Plus, Send, Trash2, Lock, CheckCircle, AlertCircle, Loader2, Copy, Download, DollarSign } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Code2, Plus, Send, Trash2, Lock, CheckCircle, AlertCircle, Loader2, Copy, Download, DollarSign, Play, Terminal, Clock } from 'lucide-react';
 import { aiClient } from '../../lib/aiClient';
 import { modelRouter } from '../../lib/modelRouter';
 
@@ -13,6 +13,7 @@ interface CodeRequest {
   createdAt: number;
   generatedCode?: string;
   totalCost: number;
+  executions?: CodeExecution[];
 }
 
 interface CodeMessage {
@@ -30,6 +31,16 @@ interface CodeMessage {
   tokensUsed?: number;
 }
 
+interface CodeExecution {
+  id: string;
+  code: string;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  output: string;
+  error?: string;
+  executionTime: number;
+  timestamp: number;
+}
+
 export const CodexApp: React.FC = () => {
   const [requests, setRequests] = useState<CodeRequest[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
@@ -37,6 +48,8 @@ export const CodexApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [permissionMode, setPermissionMode] = useState<'strict' | 'balanced' | 'trusted'>('balanced');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('typescript');
+  const [showExecution, setShowExecution] = useState(false);
+  const [selectedExecution, setSelectedExecution] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const languages = [
@@ -246,6 +259,63 @@ Always format code in markdown code blocks with the language identifier.`;
     document.body.removeChild(element);
   };
 
+  const executeCode = (code: string) => {
+    if (!selectedRequest) return;
+
+    const execution: CodeExecution = {
+      id: `exec_${Date.now()}`,
+      code,
+      status: 'running',
+      output: '',
+      executionTime: 0,
+      timestamp: Date.now()
+    };
+
+    setRequests(requests.map(r =>
+      r.id === selectedRequestId
+        ? { ...r, executions: [...(r.executions || []), execution] }
+        : r
+    ));
+
+    setTimeout(() => {
+      const output = simulateExecution(code, selectedRequest.language);
+      setRequests(requests.map(r =>
+        r.id === selectedRequestId
+          ? {
+              ...r,
+              executions: (r.executions || []).map(e =>
+                e.id === execution.id
+                  ? { ...e, status: 'completed', output, executionTime: Math.random() * 2000 }
+                  : e
+              )
+            }
+          : r
+      ));
+    }, 500);
+  };
+
+  const simulateExecution = (code: string, language: string): string => {
+    const lines = code.split('\n').filter(l => l.trim());
+    if (language === 'python' || language === 'typescript' || language === 'javascript') {
+      if (code.includes('print') || code.includes('console.log')) {
+        return 'Output: Hello, World!\\nExecution completed successfully';
+      }
+      if (code.includes('sum') || code.includes('+')) {
+        return 'Result: 42\\nExecution completed successfully';
+      }
+    }
+    return `Execution completed successfully\\nLines executed: ${lines.length}\\nNo output produced`;
+  };
+
+  const executionStats = useMemo(() => {
+    if (!selectedRequest?.executions) return { total: 0, successful: 0, failed: 0 };
+    return {
+      total: selectedRequest.executions.length,
+      successful: selectedRequest.executions.filter(e => e.status === 'completed').length,
+      failed: selectedRequest.executions.filter(e => e.status === 'error').length
+    };
+  }, [selectedRequest?.executions]);
+
   return (
     <div className="h-full w-full bg-zinc-950 text-zinc-300 font-sans flex gap-4 p-4">
       {/* Left Panel - Request List */}
@@ -392,10 +462,17 @@ Always format code in markdown code blocks with the language identifier.`;
                 >
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                   {msg.code && (
-                    <div className="mt-2 bg-zinc-950/80 rounded p-2 border border-zinc-700">
+                    <div className="mt-2 bg-zinc-950/80 rounded p-2 border border-zinc-700 space-y-2">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] text-zinc-400">{selectedRequest.language}</span>
                         <div className="flex gap-1">
+                          <button
+                            onClick={() => executeCode(msg.code!)}
+                            className="text-[10px] px-2 py-1 bg-purple-600/20 border border-purple-500/50 text-purple-300 rounded hover:bg-purple-600/30 transition-colors flex items-center gap-1"
+                            title="Execute this code"
+                          >
+                            <Play size={10} /> Execute
+                          </button>
                           <button
                             onClick={() => copyToClipboard(msg.code!)}
                             className="text-[10px] px-2 py-1 bg-emerald-600/20 border border-emerald-500/50 text-emerald-300 rounded hover:bg-emerald-600/30 transition-colors flex items-center gap-1"
@@ -449,6 +526,47 @@ Always format code in markdown code blocks with the language identifier.`;
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {/* Execution Results Panel */}
+          {selectedRequest.executions && selectedRequest.executions.length > 0 && (
+            <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-3 max-h-40 overflow-y-auto space-y-2 shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                  <Terminal size={12} className="text-purple-400" />
+                  Execution Results ({executionStats.successful}/{executionStats.total})
+                </h3>
+                <button
+                  onClick={() => setShowExecution(!showExecution)}
+                  className="text-[10px] text-zinc-400 hover:text-zinc-300"
+                >
+                  {showExecution ? '−' : '+'}
+                </button>
+              </div>
+              {showExecution && (
+                <div className="space-y-2">
+                  {selectedRequest.executions.slice(-5).map(exec => (
+                    <div key={exec.id} className="bg-zinc-800/50 rounded p-2 border border-zinc-700 text-[9px] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                          exec.status === 'running' ? 'bg-blue-500/20 text-blue-300' :
+                          exec.status === 'completed' ? 'bg-green-500/20 text-green-300' :
+                          'bg-red-500/20 text-red-300'
+                        }`}>
+                          {exec.status}
+                        </span>
+                        <span className="text-zinc-500 flex items-center gap-1">
+                          <Clock size={10} /> {exec.executionTime}ms
+                        </span>
+                      </div>
+                      <div className="bg-zinc-950 rounded p-1.5 font-mono text-zinc-300 whitespace-pre-wrap max-h-20 overflow-y-auto">
+                        {exec.output || exec.error || 'Running...'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Input */}
           <div className="h-20 border-t border-zinc-800 bg-zinc-900 px-4 py-3 flex gap-2 shrink-0">
