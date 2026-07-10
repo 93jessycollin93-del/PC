@@ -36,3 +36,7 @@ export type {
 } from './pod-system-design';
 
 export { exampleFatherPod } from './pod-system-design';
+
+export { Conductor } from './conductor';
+export type { ConductorStepResult, ConductorRunResult } from './conductor';
+export { runPodTask } from './pod-system-engine';
