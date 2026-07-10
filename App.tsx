@@ -79,6 +79,7 @@ import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
+import { PodControlPanel } from './components/PodControlPanel';
 import { EruApp } from './components/apps/EruApp';
 import { JackieShell, type PcMode } from './components/JackieShell';
 
@@ -865,6 +866,11 @@ Body: ${emailToSummarize.body}`,
             <MobileStatusBar
                 openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
                 onFocusWindow={focusWindow}
+            />
+
+            {/* Pod Control Panel — always accessible, in Jackie and PC modes alike */}
+            <PodControlPanel
+                openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
             />
 
             {/* The app-library menu lives inside the PC — hidden on Jackie's front page */}

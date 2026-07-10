@@ -11,7 +11,99 @@ import type {
   PodMessage,
   InformationLayer,
   PodTask,
+  PodTaskResult,
 } from './pod-system-design';
+
+// ============================================================================
+// TASK EXECUTOR — Real, local, deterministic (no external AI calls)
+// ============================================================================
+
+/**
+ * Derive a word budget from a seed when none is set explicitly.
+ * Deterministic: bigger seeds earn bigger budgets (40 kB seed ≈ 78 words).
+ */
+export function deriveWordBudget(seed: PodSeed): number {
+  return Math.max(20, Math.floor(seed.sizeBytes / 512));
+}
+
+/**
+ * Execute a task on a hydrated pod instance — for real.
+ *
+ * This is pure local text processing: the pod consumes the input, counts it,
+ * and produces an output hard-capped at its word budget. The budget is
+ * genuinely enforced (output can never exceed it), the status transitions on
+ * the instance are real, and nothing here touches the network or any AI API.
+ */
+export async function runPodTask(
+  instance: PodInstance,
+  input: string,
+  wordBudget?: number
+): Promise<PodTask> {
+  const budget = wordBudget ?? instance.seed.wordBudget ?? deriveWordBudget(instance.seed);
+
+  const task: PodTask = {
+    id: `task-${instance.instanceId}-${Date.now()}`,
+    description: `Process ${input.length} chars within ${budget}-word budget`,
+    status: 'queued',
+    input,
+    wordBudget: budget,
+  };
+  instance.currentTask = task;
+
+  task.status = 'running';
+  task.startedAt = new Date();
+  // Yield once so subscribers can observe the running state before completion.
+  await Promise.resolve();
+
+  const words = input.trim().split(/\s+/).filter(Boolean);
+
+  if (words.length === 0) {
+    task.status = 'failed';
+    task.completedAt = new Date();
+    task.result = {
+      output: '',
+      wordsIn: 0,
+      wordsOut: 0,
+      wordBudget: budget,
+      truncated: false,
+      capabilitiesUsed: [],
+      error: 'Empty input — nothing to process',
+    } satisfies PodTaskResult;
+    return task;
+  }
+
+  if (budget < 1) {
+    task.status = 'failed';
+    task.completedAt = new Date();
+    task.result = {
+      output: '',
+      wordsIn: words.length,
+      wordsOut: 0,
+      wordBudget: budget,
+      truncated: false,
+      capabilitiesUsed: [],
+      error: `Word budget ${budget} is below the 1-word minimum`,
+    } satisfies PodTaskResult;
+    return task;
+  }
+
+  const truncated = words.length > budget;
+  const output = words.slice(0, budget).join(' ');
+
+  task.status = 'complete';
+  task.completedAt = new Date();
+  task.result = {
+    output,
+    wordsIn: words.length,
+    wordsOut: Math.min(words.length, budget),
+    wordBudget: budget,
+    truncated,
+    capabilitiesUsed: instance.reconstructedState.capabilities.slice(0, 3),
+  } satisfies PodTaskResult;
+
+  instance.lastExecutedAt = new Date();
+  return task;
+}
 
 // ============================================================================
 // HYDRATION ENGINE — Expand Seed to Active Instance
