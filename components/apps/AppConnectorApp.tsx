@@ -198,6 +198,20 @@ const REMIX_PRESET_CATALOG: PresetApp[] = [
         suggestedSlug: "coderabbit"
     },
     {
+        name: "Semantic Scholar AI",
+        description: "Instant paper summary engine to search, parse, and review global academic knowledge.",
+        iconName: "Globe",
+        bgColor: "bg-gradient-to-br from-blue-700 via-zinc-900 to-zinc-950 border border-blue-500/30",
+        suggestedSlug: "semantic_scholar"
+    },
+    {
+        name: "Research Rabbit",
+        description: "Academic mapping pipeline to explore connections, authors, and citation webs.",
+        iconName: "Activity",
+        bgColor: "bg-gradient-to-br from-emerald-700 to-zinc-950 border border-emerald-500/30",
+        suggestedSlug: "research_rabbit"
+    },
+    {
         name: "Papers with Code",
         description: "Track state-of-the-art machine learning models with open-source code implementation pipelines.",
         iconName: "Database",
@@ -224,6 +238,13 @@ const REMIX_PRESET_CATALOG: PresetApp[] = [
         iconName: "Box",
         bgColor: "bg-gradient-to-br from-orange-600 via-zinc-900 to-zinc-950 border border-orange-500/30",
         suggestedSlug: "blender"
+    },
+    {
+        name: "Slides App Builder",
+        description: "Elegant visual presentation slides builder with automated formatting options.",
+        iconName: "Laptop",
+        bgColor: "bg-gradient-to-br from-amber-600 via-zinc-900 to-zinc-950 border border-amber-500/30",
+        suggestedSlug: "slides"
     },
     {
         name: "Mail App Client",

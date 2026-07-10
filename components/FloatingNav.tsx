@@ -60,7 +60,7 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
 
     const getCategoryForApp = (app: DesktopItem): string => {
         const id = app.appId || app.id;
-        const aiApps = ['bot_studio', 'jacky', 'knowledge_compressor', 'supersayen', 'ollama', 'papers_with_code', 'langchain', 'agentic-vision', 'data-resolver', 'prompt-to-json'];
+        const aiApps = ['pod_system', 'bot_studio', 'jacky', 'knowledge_compressor', 'supersayen', 'ollama', 'semantic_scholar', 'research_rabbit', 'papers_with_code', 'langchain', 'agentic-vision', 'data-resolver', 'prompt-to-json'];
         const devApps = ['cloud_deploy', 'app_connector', 'flipper', 'termstudio', 'aiterm', 'openclaw', 'coderabbit', 'github_sync', 'cybernetic_export', 'build_vault', 'function-call-kitchen', 'flash-ui', 'data_pods'];
         const gamesApps = ['unreal_engine', 'blender', 'snake', 'chess', 'iron-men-arcade', 'laser-tag'];
         if (aiApps.includes(id)) return 'ai';
@@ -74,7 +74,7 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
         const saved = localStorage.getItem('pinnedApps');
         if (saved) return JSON.parse(saved);
         // Default pinned apps
-        return ['jacky', 'mail'];
+        return ['jacky', 'mail', 'slides'];
     });
 
     useEffect(() => {

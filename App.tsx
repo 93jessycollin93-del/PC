@@ -10,6 +10,7 @@ import { HomeScreen } from './components/apps/HomeScreen';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './lib/authContext';
 import { MailApp } from './components/apps/MailApp';
+import { SlidesApp } from './components/apps/SlidesApp';
 import { IronMenArcadeApp } from './components/apps/IronMenArcadeApp';
 import { ZenithChessApp } from './components/apps/ZenithChessApp';
 import { LaserTagApp } from './components/apps/LaserTagApp';
@@ -25,8 +26,11 @@ import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
 import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
 import { TermStudioApp } from './components/apps/TermStudioApp';
 import { OllamaApp } from './components/apps/OllamaApp';
+import { CloudInfrastructureApp } from './components/apps/CloudInfrastructureApp';
 import { OpenClawApp } from './components/apps/OpenClawApp';
 import { CodeRabbitApp } from './components/apps/CodeRabbitApp';
+import { SemanticScholarApp } from './components/apps/SemanticScholarApp';
+import { ResearchRabbitApp } from './components/apps/ResearchRabbitApp';
 import { PapersWithCodeApp } from './components/apps/PapersWithCodeApp';
 import { LangChainApp } from './components/apps/LangChainApp';
 import { UnrealEngineApp } from './components/apps/UnrealEngineApp';
@@ -36,11 +40,15 @@ import { SuperSayenApp } from './components/apps/SuperSayenApp';
 import { DataPodsApp } from './components/apps/DataPodsApp';
 import { AiTermApp } from './components/apps/AiTermApp';
 import { JackyV3App } from './components/apps/JackyV3App';
+import FleetAtlasApp from './components/apps/FleetAtlasApp';
+import { LlmEnvironmentApp } from './components/apps/LlmEnvironmentApp';
+import { SmallAgentFleetApp } from './components/apps/SmallAgentFleetApp';
 import { ModelRouterApp } from './components/apps/ModelRouterApp';
 import { AgentBuilderApp } from './components/apps/AgentBuilderApp';
 import { ClaudeAssistantApp } from './components/apps/ClaudeAssistantApp';
 import { CodexApp } from './components/apps/CodexApp';
 import { GrokTerminalApp } from './components/apps/GrokTerminalApp';
+import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
 import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
 import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
@@ -59,6 +67,7 @@ import { FunctionCallKitchenApp } from './components/apps/FunctionCallKitchenApp
 import { FlashUiApp } from './components/apps/FlashUiApp';
 import { AgenticVisionApp } from './components/apps/AgenticVisionApp';
 import { UniversalAppSimulator } from './components/apps/UniversalAppSimulator';
+import { PodSystemApp } from './components/apps/PodSystemApp';
 import { CloudDeployApp } from './components/apps/CloudDeployApp';
 import { BotStudioApp } from './components/apps/BotStudioApp';
 import { QpdbApp } from './components/apps/QpdbApp';
@@ -106,6 +115,15 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
     { id: 'mail', name: 'Mail', type: 'app', icon: Mail, appId: 'mail', bgColor: 'bg-gradient-to-br from-blue-400 to-blue-700' },
     { id: 'snake', name: 'Game', type: 'app', icon: Gamepad2, appId: 'snake', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
+    { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
+    { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
+    { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
+    { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
+    { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
+    { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
+    { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
+    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
+    { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     
     // --- Jessy's 33 Custom Applications ---
     { id: 'cyber_rulebook', name: 'Cyber Codex', type: 'app', icon: ShieldAlert, appId: 'cyber_rulebook', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-rose-950 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
@@ -408,6 +426,8 @@ export const App: React.FC = () => {
         if (item.appId === 'knowledge_compressor') initialSize = { width: 1000, height: 680 };
         if (item.appId === 'supersayen') initialSize = { width: 1020, height: 700 };
         if (item.appId === 'jacky') initialSize = { width: 1020, height: 700 };
+        if (item.appId === 'fleet_atlas') initialSize = { width: 900, height: 640 };
+        if (item.appId === 'llm_environment') initialSize = { width: 440, height: 760 };
         if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
         if (item.appId === 'ui_studio') initialSize = { width: 960, height: 620 };
         if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
@@ -907,6 +927,7 @@ Body: ${emailToSummarize.body}`,
                     let content = null;
                     if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
                     else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
+                    else if (win.item.appId === 'slides') content = <SlidesApp />;
                     else if (win.item.appId === 'snake') content = <SnakeGame />;
                     else if (win.item.appId === 'iron-men-arcade') content = <IronMenArcadeApp />;
                     else if (win.item.appId === 'chess') content = <ZenithChessApp />;
@@ -920,6 +941,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'ollama') content = <OllamaApp />;
                     else if (win.item.appId === 'openclaw') content = <OpenClawApp />;
                     else if (win.item.appId === 'coderabbit') content = <CodeRabbitApp />;
+                    else if (win.item.appId === 'semantic_scholar') content = <SemanticScholarApp />;
+                    else if (win.item.appId === 'research_rabbit') content = <ResearchRabbitApp />;
                     else if (win.item.appId === 'papers_with_code') content = <PapersWithCodeApp />;
                     else if (win.item.appId === 'langchain') content = <LangChainApp />;
                     else if (win.item.appId === 'unreal_engine') content = <UnrealEngineApp />;
@@ -937,17 +960,23 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'data-resolver') content = <AiDataResolverApp />;
                     else if (win.item.appId === 'function-call-kitchen') content = <FunctionCallKitchenApp />;
                     else if (win.item.appId === 'agentic-vision') content = <AgenticVisionApp />;
+                    else if (win.item.appId === 'pod_system') content = <PodSystemApp />;
                     else if (win.item.appId === 'qpdb') content = <QpdbApp />;
                     else if (win.item.appId === 'consensus_lab') content = <MultiAgentConsensusLab />;
                     else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
                     else if (win.item.appId === 'bot_studio') content = <BotStudioApp />;
                     else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
+                    else if (win.item.appId === 'fleet_atlas') content = <FleetAtlasApp />;
+                    else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
                     else if (win.item.appId === 'ollama') content = <OllamaApp />;
+                    else if (win.item.appId === 'small_agent_fleet') content = <SmallAgentFleetApp />;
                     else if (win.item.appId === 'model_router') content = <ModelRouterApp />;
+                    else if (win.item.appId === 'cloud_infrastructure') content = <CloudInfrastructureApp />;
                     else if (win.item.appId === 'agent_builder') content = <AgentBuilderApp />;
                     else if (win.item.appId === 'claude_assistant') content = <ClaudeAssistantApp />;
                     else if (win.item.appId === 'codex') content = <CodexApp />;
                     else if (win.item.appId === 'grok_terminal') content = <GrokTerminalApp />;
+                    else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
                     else if (win.item.appId === 'archiver') content = <ArchiverApp />;
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;

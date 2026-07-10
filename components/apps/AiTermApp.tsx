@@ -74,6 +74,8 @@ const PC_APPS: PcApp[] = [
     { cmd: 'compressor', appId: 'knowledge_compressor', name: 'Knowledge Condenser', aliases: ['compress', 'compressor', 'condenser', 'condense'] },
     { cmd: 'cyber', appId: 'cyber_rulebook', name: 'Cyber Codex', aliases: ['cyber', 'codex', 'security', 'rulebook'] },
     { cmd: 'export', appId: 'cybernetic_export', name: 'Export OS', aliases: ['export', 'backup os'] },
+    { cmd: 'llm', appId: 'llm_environment', name: 'LLM Studio', aliases: ['llm', 'llm studio', 'model studio'] },
+    { cmd: 'atlas', appId: 'fleet_atlas', name: 'Fleet Atlas', aliases: ['atlas', 'fleet', 'globe', 'network map'] },
 ];
 
 const fmtBytes = (bytes: number): string => {
