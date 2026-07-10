@@ -15,6 +15,9 @@ At the end of the chain, a central "compiler" pod combines everything into one l
 ## Why
 User wants this to feel deliberate/serious, not decorative — explicitly said "this is all real serious and it needs to be done to the highest extent."
 
+## Sizing target (refined 2026-07-10)
+User wants the core set of chain pods to total roughly 250–500MB combined when accounting for compression (idle pods are just a compressed "seed"). Sequential activation mechanic: asking a question opens pod 1, it analyzes and triggers opening pod 2, etc., closing each behind it; only the central compiler pod stays open persistently. Purely conceptual/metaphorical framing from the user (sphere, "beautiful") — the requirement underneath is real functional sequential activation with real compression/decompression, not a visual show.
+
 ## How to apply
 - This is not yet scoped into a buildable plan (model sizing, which 50 domains, how "condensed reasoning" is serialized between pods, RAM ceiling enforcement mechanism are all open). Do not start implementing without a follow-up scoping conversation — user said "we'll think about it" more than once.
 - Distinct from the existing Jackie per-app mini-AI / pod-registry system already in the codebase; this chain concept is a separate, bigger idea for one unified reasoning pipeline, not per-window helpers.
