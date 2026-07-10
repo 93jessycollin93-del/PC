@@ -56,6 +56,7 @@ import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
 import { MissionControlApp } from './components/apps/MissionControlApp';
 import { AutomationApp } from './components/apps/AutomationApp';
 import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
+import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startNotificationCollector } from './lib/notifications';
@@ -106,6 +107,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
     { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
+    { id: 'ondevice_models', name: 'Model Store', type: 'app', icon: HardDrive, appId: 'ondevice_models', bgColor: 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-black border border-zinc-500/40 shadow-md' },
     { id: 'model_router', name: 'Model Router', type: 'app', icon: Network, appId: 'model_router', bgColor: 'bg-gradient-to-br from-lime-500 via-emerald-600 to-teal-900 border border-lime-400/30 shadow-md' },
     { id: 'agent_builder', name: 'Agent Builder', type: 'app', icon: Bot, appId: 'agent_builder', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-950 border border-purple-400/30 shadow-md' },
     { id: 'claude_assistant', name: 'Claude Assistant', type: 'app', icon: Bot, appId: 'claude_assistant', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 border border-indigo-400/30 shadow-md' },
@@ -993,6 +995,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'automation') content = <AutomationApp />;
                     else if (win.item.appId === 'notification_center') content = <NotificationCenterApp />;
+                    else if (win.item.appId === 'ondevice_models') content = <OnDeviceModelsApp />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;

@@ -29,7 +29,7 @@ async function startServer() {
   // the real Gemini-backed routes this server actually serves — no fake
   // hardcoded model catalog.
   app.get('/api/ollama/tags', async (req, res) => {
-    const endpoint = process.env.OLLAMA_ENDPOINT;
+    const endpoint = (req.query.endpoint as string) || process.env.OLLAMA_ENDPOINT;
     if (endpoint) {
       try {
         const url = endpoint.endsWith('/') ? `${endpoint}api/tags` : `${endpoint}/api/tags`;
@@ -45,6 +45,55 @@ async function startServer() {
     }
     // No real local Ollama configured — say so, don't fabricate a model list.
     res.json({ models: [], error: 'No OLLAMA_ENDPOINT configured — no local models available.' });
+  });
+
+  // Real model download. Proxies Ollama's streaming /api/pull so the frontend
+  // can render true progress (completed/total bytes per layer). NDJSON lines
+  // pass through untouched. No endpoint configured = honest 400, no fake bars.
+  app.post('/api/ollama/pull', async (req, res) => {
+    try {
+      const { model, customEndpoint, customApiKey } = req.body as {
+        model?: string; customEndpoint?: string; customApiKey?: string;
+      };
+      const endpoint = customEndpoint || process.env.OLLAMA_ENDPOINT;
+      const apiKey = customApiKey || process.env.OLLAMA_API_KEY;
+
+      if (!model) return res.status(400).json({ error: 'model is required' });
+      if (!endpoint) {
+        return res.status(400).json({ error: 'OLLAMA_ENDPOINT is not configured — connect a real Ollama instance to download models.' });
+      }
+
+      const url = endpoint.endsWith('/') ? `${endpoint}api/pull` : `${endpoint}/api/pull`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const upstream = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model, stream: true }),
+      });
+
+      if (!upstream.ok || !upstream.body) {
+        return res.status(502).json({ error: `Ollama pull failed with status ${upstream.status}` });
+      }
+
+      res.setHeader('Content-Type', 'application/x-ndjson');
+      res.setHeader('Cache-Control', 'no-cache');
+
+      const reader = upstream.body.getReader();
+      req.on('close', () => reader.cancel().catch(() => {}));
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+      res.end();
+    } catch (err) {
+      console.error('Ollama pull error:', err);
+      if (!res.headersSent) res.status(500).json({ error: String(err) });
+      else res.end();
+    }
   });
 
   app.post('/api/ollama/generate', async (req, res) => {
