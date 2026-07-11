@@ -1113,10 +1113,10 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
-                        <iframe 
-                            src={win.item.url} 
-                            className="w-full h-full border-none bg-zinc-950" 
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups" 
+                        <iframe
+                            src={win.item.url}
+                            className="w-full h-full border-none bg-zinc-950"
+                            sandbox="allow-scripts allow-forms allow-popups"
                             referrerPolicy="no-referrer"
                             title={win.item.name}
                         />
