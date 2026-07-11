@@ -168,4 +168,59 @@ class PermissionBroker {
 }
 
 export const permissions = new PermissionBroker();
+
+// Permission Profiles (Phase B step 17): preset configurations for different security postures
+export type PermissionProfile = 'open' | 'balanced' | 'hardened' | 'paranoid';
+
+export const PERMISSION_PROFILES: Record<PermissionProfile, Record<Capability, boolean>> = {
+  // Default: everything allowed
+  open: {
+    model_access: true,
+    spend: true,
+    network: true,
+    filesystem: true,
+    shell: true,
+    clipboard: true,
+  },
+  // Moderate restrictions: disable paid spend by default
+  balanced: {
+    model_access: true,
+    spend: false,
+    network: true,
+    filesystem: true,
+    shell: true,
+    clipboard: true,
+  },
+  // Strict: disable dangerous capabilities (shell, filesystem)
+  hardened: {
+    model_access: true,
+    spend: false,
+    network: true,
+    filesystem: false,
+    shell: false,
+    clipboard: true,
+  },
+  // Extreme: disable all but model access
+  paranoid: {
+    model_access: true,
+    spend: false,
+    network: false,
+    filesystem: false,
+    shell: false,
+    clipboard: false,
+  },
+};
+
+/**
+ * Apply a permission profile to the global scope.
+ * Sets all capability defaults in one operation.
+ */
+export function applyPermissionProfile(profile: PermissionProfile): void {
+  const caps: Capability[] = ['model_access', 'spend', 'network', 'filesystem', 'shell', 'clipboard'];
+  const settings = PERMISSION_PROFILES[profile];
+  for (const cap of caps) {
+    permissions.set(GLOBAL_SCOPE, cap, settings[cap]);
+  }
+}
+
 export default permissions;
