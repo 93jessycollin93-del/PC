@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { realpathSync, existsSync } from 'fs';
 
 // Simple in-memory rate limiter for sensitive endpoints
 class RateLimiter {
@@ -402,6 +403,19 @@ async function startServer() {
         if (!resolved.startsWith(process.cwd())) {
           return res.status(400).json({ error: 'cwd outside workspace is not permitted' });
         }
+        // Symlink escape audit (Phase B step 11)
+        if (existsSync(resolved)) {
+          try {
+            const real = realpathSync(resolved);
+            if (!real.startsWith(process.cwd())) {
+              console.warn(`[SECURITY] Shell symlink escape attempt: ${resolved} → ${real}`);
+              return res.status(400).json({ error: 'cwd symlink resolves outside workspace' });
+            }
+          } catch (e) {
+            console.error(`[SECURITY] Error resolving cwd symlink: ${String(e)}`);
+            return res.status(400).json({ error: 'Invalid cwd' });
+          }
+        }
         options.cwd = resolved;
       }
       const { stdout, stderr } = await execFileAsync(cmd, safeArgs, options);
@@ -453,6 +467,21 @@ async function startServer() {
     // allow sibling directories that merely share the root's string prefix
     // (e.g. TERM_FS_ROOT + '-evil').
     if (resolved !== TERM_FS_ROOT && !resolved.startsWith(TERM_FS_ROOT + path.sep)) return null;
+
+    // Symlink escape audit (Phase B step 11): if path exists, check that realpath
+    // doesn't escape the TERM_FS_ROOT (symlink traversal defense)
+    if (existsSync(resolved)) {
+      try {
+        const real = realpathSync(resolved);
+        if (real !== TERM_FS_ROOT && !real.startsWith(TERM_FS_ROOT + path.sep)) {
+          console.warn(`[SECURITY] Symlink escape attempt detected: ${resolved} → ${real}`);
+          return null;
+        }
+      } catch (e) {
+        console.error(`[SECURITY] Error resolving symlink: ${String(e)}`);
+        return null;
+      }
+    }
     return resolved;
   }
 
