@@ -7,6 +7,7 @@ import { modelRouter, ModelProvider } from './modelRouter';
 import { permissions } from './permissions';
 import { budgetGuardian } from './budgetGuardian';
 import { fallbackOrchestrator } from './fallbackOrchestrator';
+import { secretsVault } from './secretsVault';
 
 /** Providers that cost money — gated behind the `spend` capability. */
 const PAID_PROVIDERS: ModelProvider[] = ['grok', 'deepseek', 'anthropic'];
@@ -26,6 +27,19 @@ export interface AIResponse {
 }
 
 class AIClient {
+  /**
+   * Retrieve an API key from vault (if initialized and unlocked) with fallback to localStorage
+   */
+  private async getApiKey(keyName: string): Promise<string> {
+    if (secretsVault.isInitialized()) {
+      const vaultKey = await secretsVault.getSecret(keyName, 'aiClient');
+      if (vaultKey) return vaultKey;
+    }
+    const localStorageKey = localStorage.getItem(keyName);
+    if (localStorageKey) return localStorageKey;
+    throw new Error(`API key "${keyName}" not found in vault or localStorage`);
+  }
+
   /**
    * Send a message and get a response
    */
@@ -167,10 +181,7 @@ class AIClient {
     maxTokens: number,
     temperature: number
   ): Promise<AIResponse> {
-    const apiKey = localStorage.getItem('grok_api_key');
-    if (!apiKey) {
-      throw new Error('Grok API key not configured');
-    }
+    const apiKey = await this.getApiKey('grok_api_key');
 
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
@@ -215,10 +226,7 @@ class AIClient {
     temperature: number,
     model: string
   ): Promise<AIResponse> {
-    const apiKey = localStorage.getItem('groq_api_key');
-    if (!apiKey) {
-      throw new Error('Groq API key not configured');
-    }
+    const apiKey = await this.getApiKey('groq_api_key');
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -261,10 +269,7 @@ class AIClient {
     maxTokens: number,
     temperature: number
   ): Promise<AIResponse> {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) {
-      throw new Error('Gemini API key not configured');
-    }
+    const apiKey = await this.getApiKey('gemini_api_key');
 
     // Convert to Gemini format
     const contents = messages
@@ -312,10 +317,7 @@ class AIClient {
     maxTokens: number,
     temperature: number
   ): Promise<AIResponse> {
-    const apiKey = localStorage.getItem('deepseek_api_key');
-    if (!apiKey) {
-      throw new Error('DeepSeek API key not configured');
-    }
+    const apiKey = await this.getApiKey('deepseek_api_key');
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -359,10 +361,7 @@ class AIClient {
     maxTokens: number,
     temperature: number
   ): Promise<AIResponse> {
-    const apiKey = localStorage.getItem('anthropic_api_key');
-    if (!apiKey) {
-      throw new Error('Anthropic API key not configured');
-    }
+    const apiKey = await this.getApiKey('anthropic_api_key');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

@@ -105,6 +105,8 @@ import { MobileStatusBar } from './components/MobileStatusBar';
 import { PodControlPanel } from './components/PodControlPanel';
 import { EruApp } from './components/apps/EruApp';
 import { JackieShell, type PcMode } from './components/JackieShell';
+import { secretsVault } from './lib/secretsVault';
+import { migrateSecretsToVault, scrubPlaintextKeys } from './lib/secretsMigration';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -386,6 +388,7 @@ export const App: React.FC = () => {
     // Jackie front-page shell: 'closed' = Jackie full screen (front page),
     // 'half' = PC on top / Jackie below, 'full' = PC full screen.
     const [pcMode, setPcMode] = useState<PcMode>('closed');
+    const [vaultUnlockModal, setVaultUnlockModal] = useState<{ visible: boolean; password: string; error?: string }>({ visible: false, password: '' });
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
@@ -527,6 +530,21 @@ export const App: React.FC = () => {
         startNotificationCollector();
     }, []);
 
+    // Vault unlock gate: if a vault exists but isn't unlocked, prompt for password
+    useEffect(() => {
+        const checkVault = async () => {
+            // Check if vault exists (was persisted previously)
+            const vaultExists = localStorage.getItem('jackie_secrets_vault_exists') === 'true' ||
+                               (typeof window !== 'undefined' && localStorage.getItem('secrets-vault::vault') !== null);
+
+            if (vaultExists && !secretsVault.isInitialized()) {
+                // Show unlock modal
+                setVaultUnlockModal({ visible: true, password: '' });
+            }
+        };
+        checkVault();
+    }, []);
+
     useEffect(() => {
         return bus.on('refresh-desktop', () => {
             setDesktopItems(getMergedDesktopItems());
@@ -562,6 +580,22 @@ export const App: React.FC = () => {
         window.addEventListener('keydown', handleHotkey);
         return () => window.removeEventListener('keydown', handleHotkey);
     }, []);
+
+    const handleVaultUnlock = async (password: string) => {
+        try {
+            const unlocked = await secretsVault.unlockVault(password);
+            if (unlocked) {
+                // Attempt to migrate plaintext keys to vault
+                await migrateSecretsToVault();
+                setVaultUnlockModal({ visible: false, password: '' });
+            } else {
+                setVaultUnlockModal(prev => ({ ...prev, error: 'Invalid password' }));
+            }
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Unlock failed';
+            setVaultUnlockModal(prev => ({ ...prev, error: msg }));
+        }
+    };
 
     const closeWindow = (id: string) => {
         setOpenWindows(prev => prev.filter(w => w.id !== id));
@@ -1147,6 +1181,41 @@ Body: ${emailToSummarize.body}`,
             />
 
             <StickyNotepadWidget />
+
+            {/* Vault Unlock Modal */}
+            {vaultUnlockModal.visible && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[99999]">
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-8 w-96 shadow-2xl">
+                        <h2 className="text-2xl font-bold text-white mb-2">Unlock Secrets Vault</h2>
+                        <p className="text-zinc-400 text-sm mb-6">Enter your master password to unlock the vault and access encrypted API keys.</p>
+
+                        <input
+                            type="password"
+                            placeholder="Master password"
+                            value={vaultUnlockModal.password}
+                            onChange={(e) => setVaultUnlockModal(prev => ({ ...prev, password: e.target.value, error: undefined }))}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleVaultUnlock(vaultUnlockModal.password);
+                                }
+                            }}
+                            className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 mb-4"
+                            autoFocus
+                        />
+
+                        {vaultUnlockModal.error && (
+                            <p className="text-red-400 text-sm mb-4">{vaultUnlockModal.error}</p>
+                        )}
+
+                        <button
+                            onClick={() => handleVaultUnlock(vaultUnlockModal.password)}
+                            className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                        >
+                            Unlock
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
         </div>

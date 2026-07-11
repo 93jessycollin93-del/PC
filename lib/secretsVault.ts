@@ -37,12 +37,13 @@ class SecretsVault {
    * Initialize vault with a master password (first-time setup)
    */
   public async initializeVault(masterPassword: string): Promise<void> {
-    this.masterKey = await this.deriveKey(masterPassword);
+    const { key, salt } = await this.deriveKey(masterPassword);
+    this.masterKey = key;
     this.vaultData = {
       version: 1,
       encryptedData: '',
       iv: '',
-      salt: '', // Salt is already in the key derivation
+      salt: this.bufferToBase64(salt),
       entries: [],
     };
     this.secrets.clear();
@@ -61,7 +62,12 @@ class SecretsVault {
    */
   public async unlockVault(masterPassword: string): Promise<boolean> {
     try {
-      this.masterKey = await this.deriveKey(masterPassword);
+      if (!this.vaultData || !this.vaultData.salt) {
+        throw new Error('Vault not initialized or salt missing');
+      }
+      const storedSalt = this.base64ToBuffer(this.vaultData.salt);
+      const { key } = await this.deriveKey(masterPassword, storedSalt);
+      this.masterKey = key;
       await this.decryptVault();
       this.initialized = true;
       return true;
@@ -201,19 +207,21 @@ class SecretsVault {
   /**
    * Private: Derive a key from master password using PBKDF2
    */
-  private async deriveKey(password: string): Promise<CryptoKey> {
+  private async deriveKey(password: string, salt?: ArrayBuffer): Promise<{ key: CryptoKey; salt: Uint8Array }> {
     const encoder = new TextEncoder();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const derivedSalt = salt ? new Uint8Array(salt) : crypto.getRandomValues(new Uint8Array(16));
 
     const passwordKey = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
 
-    return crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt, hash: 'SHA-256', iterations: 100000 },
+    const key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: derivedSalt, hash: 'SHA-256', iterations: 100000 },
       passwordKey,
       { name: 'AES-GCM', length: 256 },
       false,
       ['encrypt', 'decrypt']
     );
+
+    return { key, salt: derivedSalt };
   }
 
   /**
