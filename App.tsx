@@ -65,6 +65,8 @@ import { DependencyCVECheckerApp } from './components/apps/DependencyCVECheckerA
 import { SecretsHygieneApp } from './components/apps/SecretsHygieneApp';
 import { SecurityEventLogApp } from './components/apps/SecurityEventLogApp';
 import { DataRedactionApp } from './components/apps/DataRedactionApp';
+import { IntegrityMonitorApp } from './components/apps/IntegrityMonitorApp';
+import { AuditTrailApp } from './components/apps/AuditTrailApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
@@ -85,7 +87,7 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -144,6 +146,8 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'secrets_hygiene', name: 'Secrets Hygiene', type: 'app', icon: Key, appId: 'secrets_hygiene', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
     { id: 'security_event_log', name: 'Security Event Log', type: 'app', icon: AlertTriangle, appId: 'security_event_log', bgColor: 'bg-gradient-to-br from-purple-600 via-red-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'data_redaction', name: 'Data Redaction', type: 'app', icon: Eye, appId: 'data_redaction', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+    { id: 'integrity_monitor', name: 'Integrity Monitor', type: 'app', icon: Shield, appId: 'integrity_monitor', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-zinc-950 border border-purple-500/30 shadow-md' },
+    { id: 'audit_trail', name: 'Audit Trail', type: 'app', icon: BookOpen, appId: 'audit_trail', bgColor: 'bg-gradient-to-br from-blue-600 via-blue-700 to-zinc-950 border border-blue-500/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
     { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
@@ -1107,6 +1111,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'secrets_hygiene') content = <SecretsHygieneApp />;
                     else if (win.item.appId === 'security_event_log') content = <SecurityEventLogApp />;
                     else if (win.item.appId === 'data_redaction') content = <DataRedactionApp />;
+                    else if (win.item.appId === 'integrity_monitor') content = <IntegrityMonitorApp />;
+                    else if (win.item.appId === 'audit_trail') content = <AuditTrailApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
                     else if (win.item.appId === 'automation') content = <AutomationApp />;
