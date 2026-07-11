@@ -320,10 +320,14 @@ async function startServer() {
   // Real, whitelisted shell command execution for AiTermApp. Runs actual
   // child processes in this container — no fabricated output. `args` is an
   // array (never a raw shell string) to avoid injection.
+  // Docker removed by default (can be re-enabled via JACKIE_ALLOW_DOCKER env var).
   const SHELL_WHITELIST: Record<string, true> = {
     ls: true, pwd: true, cat: true, whoami: true, date: true, uname: true,
-    ps: true, df: true, git: true, docker: true, du: true, echo: true,
+    ps: true, df: true, git: true, du: true, echo: true, npm: true, node: true,
   };
+  if (process.env.JACKIE_ALLOW_DOCKER === 'true') {
+    SHELL_WHITELIST.docker = true;
+  }
   app.post('/api/shell/exec', async (req, res) => {
     if (!requireAuth(req, res)) return;
     const clientIp = getClientIp(req);
@@ -335,10 +339,10 @@ async function startServer() {
       if (!cmd || !SHELL_WHITELIST[cmd]) {
         return res.status(400).json({ error: `Command not permitted: ${cmd}` });
       }
-      const safeArgs = Array.isArray(args) ? args.filter(a => typeof a === 'string') : [];
-      // Also block any arg that tries to climb out of the workspace via '..'.
-      if (safeArgs.some(a => a.includes('..'))) {
-        return res.status(400).json({ error: 'Path traversal is not permitted' });
+      const safeArgs = Array.isArray(args) ? args.filter(a => typeof a === 'string' && a.length < 1000) : [];
+      // Block dangerous patterns: path traversal, shell metacharacters
+      if (safeArgs.some(a => a.includes('..') || /[;&|`$()\\]/.test(a))) {
+        return res.status(400).json({ error: 'Unsafe argument pattern detected' });
       }
       const options: any = { timeout: 8000, maxBuffer: 2 * 1024 * 1024, cwd: process.cwd() };
       if (cwd) {
