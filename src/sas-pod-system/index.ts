@@ -12,6 +12,7 @@ export {
   PodLifecycleManager,
   PodCommunicationBroker,
   runPodTask,
+  runPodTaskBudgeted,
   deriveWordBudget,
 } from './pod-system-engine';
 export {
@@ -44,3 +45,6 @@ export type {
 } from './pod-system-design';
 
 export { exampleFatherPod } from './pod-system-design';
+
+export { Conductor } from './conductor';
+export type { ConductorStepResult, ConductorRunResult } from './conductor';

@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { getSyncQueue } from '../lib/idb';
+import { isCloudSyncEnabled, setCloudSyncEnabled, forceCloudSync } from '../lib/persist';
 
 export const SyncStatusIndicator: React.FC = () => {
     const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
     const [syncQueueLength, setSyncQueueLength] = useState<number>(0);
-    const [cloudSyncStatus, setCloudSyncStatus] = useState<'syncing' | 'ready' | 'offline'>('ready');
+    const [cloudSyncStatus, setCloudSyncStatus] = useState<'syncing' | 'ready' | 'offline' | 'disabled'>(
+        isCloudSyncEnabled() ? 'offline' : 'disabled'
+    );
+    const [syncEnabled, setSyncEnabled] = useState<boolean>(isCloudSyncEnabled());
+    const [isForcing, setIsForcing] = useState<boolean>(false);
     const [showTooltip, setShowTooltip] = useState<boolean>(false);
 
     // Initial fetch and setup event listeners
@@ -38,13 +43,20 @@ export const SyncStatusIndicator: React.FC = () => {
 
         // Listen for cloud-sync-status custom event
         const handleCloudSyncStatus = (e: Event) => {
-            const customEvent = e as CustomEvent<'syncing' | 'ready' | 'offline'>;
+            const customEvent = e as CustomEvent<'syncing' | 'ready' | 'offline' | 'disabled'>;
             if (customEvent.detail) {
                 setCloudSyncStatus(customEvent.detail);
             }
         };
 
         window.addEventListener('cloud-sync-status', handleCloudSyncStatus);
+
+        // Listen for the toggle changing (e.g. from another tab/component)
+        const handleCloudSyncEnabledChanged = (e: Event) => {
+            const customEvent = e as CustomEvent<boolean>;
+            setSyncEnabled(!!customEvent.detail);
+        };
+        window.addEventListener('cloud-sync-enabled-changed', handleCloudSyncEnabledChanged);
 
         // Failsafe polling every 4 seconds
         const intervalId = setInterval(fetchSyncQueue, 4000);
@@ -54,17 +66,37 @@ export const SyncStatusIndicator: React.FC = () => {
             window.removeEventListener('offline', updateOnlineStatus);
             window.removeEventListener('sync-queue-updated', handleSyncQueueUpdated);
             window.removeEventListener('cloud-sync-status', handleCloudSyncStatus);
+            window.removeEventListener('cloud-sync-enabled-changed', handleCloudSyncEnabledChanged);
             clearInterval(intervalId);
         };
     }, []);
 
-    // Determine aggregate state
-    // We display 'Offline Cache Syncing' if we are offline, if there are pending items in IndexedDB SyncQueue, 
-    // or if the cloud save is currently actively uploading ('syncing') or failed ('offline').
-    // Otherwise, we display 'Cloud Sync Ready'.
-    const isOfflineMode = !isOnline || syncQueueLength > 0 || cloudSyncStatus === 'offline' || cloudSyncStatus === 'syncing';
+    const handleToggleSync = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const next = !syncEnabled;
+        setSyncEnabled(next);
+        setCloudSyncEnabled(next);
+    };
 
-    const statusLabel = isOfflineMode ? 'Offline Cache Syncing' : 'Cloud Sync Ready';
+    const handleForceSync = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!syncEnabled || isForcing) return;
+        setIsForcing(true);
+        try {
+            await forceCloudSync();
+        } finally {
+            setIsForcing(false);
+        }
+    };
+
+    // Determine aggregate state
+    // Cloud sync turned off entirely: never treat this as "offline trouble", it's intentional.
+    // Otherwise 'Offline Cache Syncing' covers no network, a pending local queue, or a
+    // cloud save that's actively uploading ('syncing') or currently unreachable ('offline').
+    const isDisabledMode = !syncEnabled;
+    const isOfflineMode = !isDisabledMode && (!isOnline || syncQueueLength > 0 || cloudSyncStatus === 'offline' || cloudSyncStatus === 'syncing');
+
+    const statusLabel = isDisabledMode ? 'Local Only' : isOfflineMode ? 'Offline Cache Syncing' : 'Cloud Sync Ready';
 
     return (
         <div 
@@ -75,14 +107,18 @@ export const SyncStatusIndicator: React.FC = () => {
             <div 
                 id="sync-status-badge"
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-semibold shadow-md transition-all duration-300 ${
-                    isOfflineMode 
+                    isDisabledMode
+                        ? 'bg-zinc-900/60 text-zinc-400 border-zinc-700/40 hover:bg-zinc-900/80'
+                        : isOfflineMode 
                         ? 'bg-amber-950/45 text-amber-300 border-amber-800/40 shadow-[0_0_12px_rgba(245,158,11,0.15)] hover:bg-amber-950/60' 
                         : 'bg-zinc-900/60 text-emerald-400 border-emerald-800/30 hover:bg-zinc-900/80 shadow-[0_0_12px_rgba(16,185,129,0.08)]'
                 }`}
             >
                 {/* Status Dot / Icon */}
                 <div className="relative flex h-2 w-2">
-                    {isOfflineMode ? (
+                    {isDisabledMode ? (
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-zinc-500"></span>
+                    ) : isOfflineMode ? (
                         <>
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -95,7 +131,9 @@ export const SyncStatusIndicator: React.FC = () => {
                 </div>
 
                 {/* Animated Icon */}
-                {isOfflineMode ? (
+                {isDisabledMode ? (
+                    <CloudOff className="w-3.5 h-3.5 text-zinc-500" />
+                ) : isOfflineMode ? (
                     cloudSyncStatus === 'syncing' ? (
                         <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
                     ) : !isOnline ? (
@@ -138,19 +176,51 @@ export const SyncStatusIndicator: React.FC = () => {
                         <div className="flex justify-between items-center">
                             <span className="text-zinc-500">Cloud Sync:</span>
                             <span className={`font-semibold ${
-                                cloudSyncStatus === 'syncing' 
+                                isDisabledMode
+                                    ? 'text-zinc-500'
+                                    : cloudSyncStatus === 'syncing' 
                                     ? 'text-amber-400 animate-pulse' 
                                     : cloudSyncStatus === 'offline' || !isOnline
                                         ? 'text-zinc-400' 
                                         : 'text-emerald-400'
                              }`}>
-                                {cloudSyncStatus === 'syncing' 
+                                {isDisabledMode
+                                    ? 'Off'
+                                    : cloudSyncStatus === 'syncing' 
                                     ? 'Saving...' 
                                     : cloudSyncStatus === 'offline' || !isOnline
-                                        ? 'Paused' 
-                                        : 'Up to date'}
+                                        ? 'Reconnecting (30s)' 
+                                        : 'Up to date (5m)'}
                             </span>
                         </div>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-zinc-800 flex flex-col gap-2">
+                        <button
+                            id="sync-toggle-button"
+                            onClick={handleToggleSync}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                syncEnabled
+                                    ? 'bg-emerald-950/50 text-emerald-300 hover:bg-emerald-950/70 border border-emerald-800/40'
+                                    : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800 border border-zinc-700/40'
+                            }`}
+                        >
+                            <span>Cloud Sync</span>
+                            <span className={`px-2 py-0.5 rounded-full ${syncEnabled ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-600 text-zinc-200'}`}>
+                                {syncEnabled ? 'ON' : 'OFF'}
+                            </span>
+                        </button>
+                        {syncEnabled && (
+                            <button
+                                id="sync-force-button"
+                                onClick={handleForceSync}
+                                disabled={isForcing}
+                                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800/60 text-zinc-300 hover:bg-zinc-800 border border-zinc-700/40 disabled:opacity-50"
+                            >
+                                <RefreshCw className={`w-3 h-3 ${isForcing ? 'animate-spin' : ''}`} />
+                                {isForcing ? 'Syncing...' : 'Force Sync Now'}
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

@@ -17,6 +17,8 @@ interface Agent {
     lastRun?: number;
     runsCompleted: number;
     totalCost: number;
+    lastOutput?: string;
+    running?: boolean;
 }
 
 interface WorkflowTemplate {
@@ -268,6 +270,37 @@ export const AgentBuilderApp: React.FC = () => {
 
     const toggleAgent = (id: string) => {
         setAgents(agents.map(a => a.id === id ? { ...a, active: !a.active } : a));
+    };
+
+    // Real execution: actually calls the backend's Gemini proxy with the
+    // agent's real system prompt and records real token usage as cost.
+    const runAgent = async (id: string) => {
+        const agent = agents.find(a => a.id === id);
+        if (!agent) return;
+        setAgents(prev => prev.map(a => a.id === id ? { ...a, running: true } : a));
+        try {
+            const resp = await fetch('/api/gemini/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: `${agent.systemPrompt}\n\nTask: ${agent.tasksDefinition[0] || agent.role}`,
+                }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Request failed');
+            const tokens = (data.usageMetadata?.totalTokenCount as number) || 0;
+            const cost = tokens * COST_PER_TOKEN[agent.modelTier];
+            setAgents(prev => prev.map(a => a.id === id ? {
+                ...a,
+                running: false,
+                lastRun: Date.now(),
+                runsCompleted: a.runsCompleted + 1,
+                totalCost: a.totalCost + cost,
+                lastOutput: data.response || '(no output)',
+            } : a));
+        } catch (err: any) {
+            setAgents(prev => prev.map(a => a.id === id ? { ...a, running: false, lastOutput: `Error: ${err.message}` } : a));
+        }
     };
 
     const applyTemplate = (templateKey: string) => {
@@ -725,9 +758,17 @@ export const AgentBuilderApp: React.FC = () => {
                                                 </div>
                                                 <div className="bg-zinc-950 rounded px-1.5 py-1">
                                                     <span className="text-zinc-400">Cost:</span>
-                                                    <span className="text-white ml-0.5 font-bold">${agent.totalCost.toFixed(2)}</span>
+                                                    <span className="text-white ml-0.5 font-bold">${agent.totalCost.toFixed(4)}</span>
                                                 </div>
                                             </div>
+                                            {agent.running && (
+                                                <div className="text-[9px] text-emerald-400 animate-pulse">Running real call…</div>
+                                            )}
+                                            {agent.lastOutput && !agent.running && (
+                                                <div className="bg-zinc-950 border border-zinc-800 rounded p-2 text-[9px] text-zinc-300 whitespace-pre-wrap max-h-24 overflow-y-auto">
+                                                    {agent.lastOutput}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}

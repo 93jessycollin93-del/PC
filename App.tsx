@@ -52,13 +52,45 @@ import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
 import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
 import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
-import { Footer } from './components/Footer';
+import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
+import { MissionControlApp } from './components/apps/MissionControlApp';
+import { AutomationApp } from './components/apps/AutomationApp';
+import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
+import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
+import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
+import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
+import { SecurityCenterApp } from './components/apps/SecurityCenterApp';
+import { SelfAuditScannerApp } from './components/apps/SelfAuditScannerApp';
+import { DependencyCVECheckerApp } from './components/apps/DependencyCVECheckerApp';
+import { SecretsHygieneApp } from './components/apps/SecretsHygieneApp';
+import { SecurityEventLogApp } from './components/apps/SecurityEventLogApp';
+import { DataRedactionApp } from './components/apps/DataRedactionApp';
+import { IntegrityMonitorApp } from './components/apps/IntegrityMonitorApp';
+import { AuditTrailApp } from './components/apps/AuditTrailApp';
+import { DataVaultApp } from './components/apps/DataVaultApp';
+import { AnomalyAlertApp } from './components/apps/AnomalyAlertApp';
+import { SessionRecorderApp } from './components/apps/SessionRecorderApp';
+import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
+import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
+import { StorageStatsApp } from './components/apps/StorageStatsApp';
+import { PromptLibraryApp } from './components/apps/PromptLibraryApp';
+import { AppHealthMonitorApp } from './components/apps/AppHealthMonitorApp';
+import { ActivityCenterApp } from './components/apps/ActivityCenterApp';
+import { VoiceCommandsApp } from './components/apps/VoiceCommandsApp';
+import { ClipboardManagerApp } from './components/apps/ClipboardManagerApp';
+import { TimeMachineApp } from './components/apps/TimeMachineApp';
+import { AgentTeamConsoleApp } from './components/apps/AgentTeamConsoleApp';
+import { MemoryFabricApp } from './components/apps/MemoryFabricApp';
+import { automationEngine } from './lib/automation';
+import { schedulerEngine } from './lib/scheduler';
+import { startNotificationCollector } from './lib/notifications';
+import { BottomBar } from './components/BottomBar';
+import { StickyNotepadWidget } from './components/StickyNotepadWidget';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
-import { LocalAiIndexFinder } from './components/LocalAiIndexFinder';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -77,6 +109,8 @@ import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { bus } from './lib/bus';
+import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
 import { PodControlPanel } from './components/PodControlPanel';
@@ -90,7 +124,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
     { id: 'consensus_lab', name: 'Consensus Lab', type: 'app', icon: Network, appId: 'consensus_lab', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
     { id: 'cloud_deploy', name: 'Global Deploy', type: 'app', icon: Cloud, appId: 'cloud_deploy', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-800 to-zinc-950 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
-    { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
     { id: 'app_connector', name: 'App Connector', type: 'app', icon: Layers, appId: 'app_connector', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-850 to-zinc-950 border border-indigo-500/30' },
     { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
     { id: 'termstudio', name: 'TermStudio', type: 'app', icon: Terminal, appId: 'termstudio', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
@@ -101,14 +134,12 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
     { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
-    { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
+    { id: 'ondevice_models', name: 'Model Store', type: 'app', icon: HardDrive, appId: 'ondevice_models', bgColor: 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-black border border-zinc-500/40 shadow-md' },
     { id: 'model_router', name: 'Model Router', type: 'app', icon: Network, appId: 'model_router', bgColor: 'bg-gradient-to-br from-lime-500 via-emerald-600 to-teal-900 border border-lime-400/30 shadow-md' },
-    { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
     { id: 'agent_builder', name: 'Agent Builder', type: 'app', icon: Bot, appId: 'agent_builder', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-950 border border-purple-400/30 shadow-md' },
     { id: 'claude_assistant', name: 'Claude Assistant', type: 'app', icon: Bot, appId: 'claude_assistant', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 border border-indigo-400/30 shadow-md' },
     { id: 'codex', name: 'Codex', type: 'app', icon: Code2, appId: 'codex', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-950 border border-emerald-400/30 shadow-md' },
     { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
-    { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
     { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
     { id: 'cost_analytics', name: 'Cost Analytics', type: 'app', icon: DollarSign, appId: 'cost_analytics', bgColor: 'bg-gradient-to-br from-yellow-500 via-orange-600 to-red-600 border border-yellow-400/30 shadow-[0_0_15px_rgba(234,179,8,0.3)]' },
@@ -117,8 +148,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
-    { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
-    { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
     { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
     { id: 'langchain', name: 'LangChain AI', type: 'app', icon: Network, appId: 'langchain', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
     { id: 'unreal_engine', name: 'Unreal Engine AI', type: 'app', icon: Box, appId: 'unreal_engine', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
@@ -126,8 +155,16 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'github_sync', name: 'GitHub Sync', type: 'app', icon: Github, appId: 'github_sync', bgColor: 'bg-gradient-to-br from-zinc-700 to-zinc-900' },
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
     { id: 'mail', name: 'Mail', type: 'app', icon: Mail, appId: 'mail', bgColor: 'bg-gradient-to-br from-blue-400 to-blue-700' },
-    { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
     { id: 'snake', name: 'Game', type: 'app', icon: Gamepad2, appId: 'snake', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
+    { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
+    { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
+    { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
+    { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
+    { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
+    { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
+    { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
+    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
+    { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     
     // --- Jessy's 33 Custom Applications ---
     { id: 'cyber_rulebook', name: 'Cyber Codex', type: 'app', icon: ShieldAlert, appId: 'cyber_rulebook', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-rose-950 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
@@ -142,8 +179,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'zenith_chess', name: 'Zenith Chess AI', type: 'app', icon: Trophy, appId: 'chess', bgColor: 'bg-gradient-to-br from-yellow-500 via-amber-600 to-yellow-950 border border-yellow-400/20' },
     { id: 'iron_men_arcade', name: 'Iron Men Arcade', type: 'app', icon: Gamepad2, appId: 'iron-men-arcade', bgColor: 'bg-gradient-to-br from-rose-600 via-red-600 to-yellow-600 border border-rose-500/20' },
     { id: 'laser_tag', name: 'Laser Tag Arcade', type: 'app', icon: Target, appId: 'laser-tag', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-zinc-950 border border-red-500/20' },
-    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
-    { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     { id: 'cross_ai_lab', name: 'Cross-AI Lab', type: 'app', icon: Bot, appId: 'cross_ai_lab', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-700 to-pink-700 border border-violet-400/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
     { id: 'terminal', name: 'Opus Terminal', type: 'app', icon: Terminal, appId: 'terminal', bgColor: 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-900 border border-slate-600/50 shadow-[0_0_20px_rgba(51,65,85,0.4)]' },
     { id: 'ui_studio', name: 'UI Studio', type: 'app', icon: Palette, appId: 'ui_studio', bgColor: 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.35)]' },
@@ -352,6 +387,7 @@ export const App: React.FC = () => {
     // Jackie front-page shell: 'closed' = Jackie full screen (front page),
     // 'half' = PC on top / Jackie below, 'full' = PC full screen.
     const [pcMode, setPcMode] = useState<PcMode>('closed');
+    const [vaultUnlockModal, setVaultUnlockModal] = useState<{ visible: boolean; password: string; error?: string }>({ visible: false, password: '' });
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
@@ -378,6 +414,43 @@ export const App: React.FC = () => {
     useEffect(() => {
         localStorage.setItem('desktop_visibility_v1', JSON.stringify(desktopVisibility));
     }, [desktopVisibility]);
+
+    useEffect(() => {
+        const handleRestoreProfile = (detail: { profile: WorkspaceProfile }) => {
+            const profile = detail.profile;
+            const allItemsMap = new Map<string, DesktopItem>();
+            const populateMap = (items: (DesktopItem | null)[]) => {
+                for (const item of items) {
+                    if (item) {
+                        allItemsMap.set(item.id, item);
+                        if (item.type === 'folder' && item.contents) {
+                            populateMap(item.contents);
+                        }
+                    }
+                }
+            };
+            populateMap(desktopItems);
+
+            const restoredWindows = profile.windows
+                .map(sw => {
+                    let item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
+                    if (!item) return null;
+                    return { ...sw, id: sw.id, item };
+                })
+                .filter((w): w is OpenWindow => w !== null);
+
+            setOpenWindows(restoredWindows);
+            if (profile.focusedId) {
+                setFocusedId(profile.focusedId);
+            }
+            if (profile.nextZIndex) {
+                setNextZIndex(profile.nextZIndex);
+            }
+        };
+
+        bus.on('restore-workspace-profile', handleRestoreProfile);
+        return () => bus.off('restore-workspace-profile', handleRestoreProfile);
+    }, [desktopItems]);
 
     useEffect(() => {
         const desktopItemIds = desktopItems.map(item => item ? item.id : null);
@@ -425,8 +498,6 @@ export const App: React.FC = () => {
         if (item.appId === 'ollama') initialSize = { width: 750, height: 550 };
         if (item.appId === 'openclaw') initialSize = { width: 850, height: 600 };
         if (item.appId === 'coderabbit') initialSize = { width: 900, height: 620 };
-        if (item.appId === 'semantic_scholar') initialSize = { width: 900, height: 620 };
-        if (item.appId === 'research_rabbit') initialSize = { width: 800, height: 500 };
         if (item.appId === 'papers_with_code') initialSize = { width: 800, height: 500 };
         if (item.appId === 'langchain') initialSize = { width: 800, height: 500 };
         if (item.appId === 'unreal_engine') initialSize = { width: 800, height: 500 };
@@ -451,30 +522,42 @@ export const App: React.FC = () => {
         setFocusedId(item.id);
     };
 
+    // Boot the always-on platform engines (idempotent — each guards itself).
     useEffect(() => {
-        const handleRefresh = () => {
-            setDesktopItems(getMergedDesktopItems());
+        automationEngine.start();
+        schedulerEngine.start();
+        startNotificationCollector();
+    }, []);
+
+    // Vault unlock gate: if a vault exists but isn't unlocked, prompt for password
+    useEffect(() => {
+        const checkVault = async () => {
+            // Check if vault exists (was persisted previously)
+            const vaultExists = localStorage.getItem('jackie_secrets_vault_exists') === 'true' ||
+                               (typeof window !== 'undefined' && localStorage.getItem('secrets-vault::vault') !== null);
+
+            if (vaultExists && !secretsVault.isInitialized()) {
+                // Show unlock modal
+                setVaultUnlockModal({ visible: true, password: '' });
+            }
         };
-        window.addEventListener('refresh-desktop', handleRefresh);
-        return () => {
-            window.removeEventListener('refresh-desktop', handleRefresh);
-        };
+        checkVault();
     }, []);
 
     useEffect(() => {
-        const handleLaunchAppEvent = (e: Event) => {
-            const customEvent = e as CustomEvent<{ appId: AppId | string }>;
-            if (customEvent.detail && customEvent.detail.appId) {
-                const item = desktopItems.find(d => d && d.appId === customEvent.detail.appId);
-                if (item) {
-                    handleLaunch(item);
-                }
+        return bus.on('refresh-desktop', () => {
+            setDesktopItems(getMergedDesktopItems());
+        });
+    }, []);
+
+    useEffect(() => {
+        return bus.on('launch-app', ({ appId }) => {
+            if (!appId) return;
+            const item = desktopItems.find(d => d && d.appId === appId);
+            if (item) {
+                handleLaunch(item);
             }
-        };
-        window.addEventListener('launch-app', handleLaunchAppEvent);
-        return () => {
-            window.removeEventListener('launch-app', handleLaunchAppEvent);
-        };
+        });
     }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
 
     // Global shell hotkey: backtick (`) opens the ai-term terminal from
@@ -496,6 +579,22 @@ export const App: React.FC = () => {
         window.addEventListener('keydown', handleHotkey);
         return () => window.removeEventListener('keydown', handleHotkey);
     }, []);
+
+    const handleVaultUnlock = async (password: string) => {
+        try {
+            const unlocked = await secretsVault.unlockVault(password);
+            if (unlocked) {
+                // Attempt to migrate plaintext keys to vault
+                await migrateSecretsToVault();
+                setVaultUnlockModal({ visible: false, password: '' });
+            } else {
+                setVaultUnlockModal(prev => ({ ...prev, error: 'Invalid password' }));
+            }
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Unlock failed';
+            setVaultUnlockModal(prev => ({ ...prev, error: msg }));
+        }
+    };
 
     const closeWindow = (id: string) => {
         setOpenWindows(prev => prev.filter(w => w.id !== id));
@@ -860,15 +959,6 @@ Body: ${emailToSummarize.body}`,
             className="h-full w-full bg-black text-os-text font-sans overflow-hidden relative" 
             onPointerDownCapture={handleGlobalPointerDown}
         >
-            {/* Float-centered on-device AI Index Finder capsule */}
-            <LocalAiIndexFinder 
-                apps={desktopItems.filter(Boolean) as any[]}
-                onLaunchApp={(id) => {
-                    const item = desktopItems.find(d => d && d.id === id);
-                    if (item) handleLaunch(item);
-                }}
-            />
-
             <MobileStatusBar
                 openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
                 onFocusWindow={focusWindow}
@@ -1000,15 +1090,25 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'tool_registry') content = <ToolRegistryApp />;
                     else if (win.item.appId === 'agent_orchestration') content = <AgentOrchestrationDashboard />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
+                    else if (win.item.appId === 'workspace_manager') content = <WorkspaceManagerApp />;
+                    else if (win.item.appId === 'storage_stats') content = <StorageStatsApp />;
+                    else if (win.item.appId === 'prompt_library') content = <PromptLibraryApp />;
+                    else if (win.item.appId === 'app_health_monitor') content = <AppHealthMonitorApp />;
+                    else if (win.item.appId === 'activity_center') content = <ActivityCenterApp />;
+                    else if (win.item.appId === 'voice_commands') content = <VoiceCommandsApp />;
+                    else if (win.item.appId === 'clipboard_manager') content = <ClipboardManagerApp />;
+                    else if (win.item.appId === 'time_machine') content = <TimeMachineApp />;
+                    else if (win.item.appId === 'agent_team_console') content = <AgentTeamConsoleApp />;
+                    else if (win.item.appId === 'memory_fabric') content = <MemoryFabricApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
-                        <iframe 
-                            src={win.item.url} 
-                            className="w-full h-full border-none bg-zinc-950" 
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups" 
+                        <iframe
+                            src={win.item.url}
+                            className="w-full h-full border-none bg-zinc-950"
+                            sandbox="allow-scripts allow-forms allow-popups"
                             referrerPolicy="no-referrer"
                             title={win.item.name}
                         />
@@ -1067,7 +1167,52 @@ Body: ${emailToSummarize.body}`,
                 )}
             </div>
 
-            <Footer />
+            <BottomBar
+                apps={desktopItems.filter(Boolean) as any[]}
+                onLaunchApp={(id) => {
+                    const item = desktopItems.find(d => d && d.id === id);
+                    if (item) handleLaunch(item);
+                }}
+            />
+
+            <StickyNotepadWidget />
+
+            {/* Vault Unlock Modal */}
+            {vaultUnlockModal.visible && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[99999]">
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-8 w-96 shadow-2xl">
+                        <h2 className="text-2xl font-bold text-white mb-2">Unlock Secrets Vault</h2>
+                        <p className="text-zinc-400 text-sm mb-6">Enter your master password to unlock the vault and access encrypted API keys.</p>
+
+                        <input
+                            type="password"
+                            placeholder="Master password"
+                            value={vaultUnlockModal.password}
+                            onChange={(e) => setVaultUnlockModal(prev => ({ ...prev, password: e.target.value, error: undefined }))}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleVaultUnlock(vaultUnlockModal.password);
+                                }
+                            }}
+                            className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 mb-4"
+                            autoFocus
+                        />
+
+                        {vaultUnlockModal.error && (
+                            <p className="text-red-400 text-sm mb-4">{vaultUnlockModal.error}</p>
+                        )}
+
+                        <button
+                            onClick={() => handleVaultUnlock(vaultUnlockModal.password)}
+                            className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                        >
+                            Unlock
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
         </div>
     );
 };

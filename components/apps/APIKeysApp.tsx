@@ -81,20 +81,18 @@ export const APIKeysApp: React.FC = () => {
   };
 
   const handleSave = () => {
-    setSaveStatus('saving');
-    setTimeout(() => {
-      keys.forEach((value, key) => {
-        localStorage.setItem(key, value);
-      });
-      // Clear any deleted keys
-      API_KEYS_CONFIG.forEach(config => {
-        if (!keys.has(config.storageKey)) {
-          localStorage.removeItem(config.storageKey);
-        }
-      });
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    }, 300);
+    // Real, synchronous write — no artificial delay pretending to do work.
+    keys.forEach((value, key) => {
+      localStorage.setItem(key, value);
+    });
+    // Clear any deleted keys
+    API_KEYS_CONFIG.forEach(config => {
+      if (!keys.has(config.storageKey)) {
+        localStorage.removeItem(config.storageKey);
+      }
+    });
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
   const toggleShowKey = (storageKey: string) => {

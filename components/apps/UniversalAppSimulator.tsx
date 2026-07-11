@@ -215,10 +215,10 @@ export const UniversalAppSimulator: React.FC<SimulatorProps> = ({ appId, appName
             <div className="flex-1 min-h-0 relative">
                 {mode === 'iframe' ? (
                     activeUrl ? (
-                        <iframe 
+                        <iframe
                             src={activeUrl}
-                            className="w-full h-full border-none bg-zinc-950" 
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups" 
+                            className="w-full h-full border-none bg-zinc-950"
+                            sandbox="allow-scripts allow-forms allow-popups"
                             referrerPolicy="no-referrer"
                             title={appName}
                         />

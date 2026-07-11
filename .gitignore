@@ -1,3 +1,7 @@
+# Real AiTerm sandboxed filesystem (user's real files + access-toggle state)
+data/aiterm-fs
+data/aiterm-fs-state.json
+
 # Logs
 logs
 *.log

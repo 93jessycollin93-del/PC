@@ -9,13 +9,17 @@ import type {
   ReconstructedState,
   MotherShell,
   PodMessage,
-  InformationLayer,
   PodTask,
   PodTaskResult,
 } from './pod-system-design';
 
 // ============================================================================
-// TASK EXECUTOR — Real, local, deterministic (no external AI calls)
+// TASK EXECUTOR (Fable/Claude variant) — Real, local, deterministic
+// Kept alongside the conductor's `runPodTask` below as a second, comparable
+// implementation rather than deleted — this one hard-caps raw word count
+// (truncation) instead of doing keyword/summary analysis. Wired into
+// PodControlPanel/pod-control.ts. See pod-task-executors.md in agent memory
+// for why both exist and how to decide between them later.
 // ============================================================================
 
 /**
@@ -34,7 +38,7 @@ export function deriveWordBudget(seed: PodSeed): number {
  * genuinely enforced (output can never exceed it), the status transitions on
  * the instance are real, and nothing here touches the network or any AI API.
  */
-export async function runPodTask(
+export async function runPodTaskBudgeted(
   instance: PodInstance,
   input: string,
   wordBudget?: number
@@ -306,6 +310,65 @@ export class SpawnEngine {
 }
 
 // ============================================================================
+// TASK PROCESSOR — Real work a hydrated pod performs
+// A pod's task.description is the input text. This does genuine analysis
+// (word/char counts, keyword frequency) using only what the pod's
+// reconstructed capabilities allow — no fake numbers, no setTimeout stand-in.
+// If GEMINI_API_KEY is configured server-side, swap in a real model call by
+// POSTing to /api/gemini/generate with the same input; until then this runs
+// fully deterministic, real computation.
+// ============================================================================
+
+export async function runPodTask(
+  instance: PodInstance,
+  task: PodTask
+): Promise<{
+  wordCount: number;
+  charCount: number;
+  topKeywords: { word: string; count: number }[];
+  summary: string;
+  usedCapabilities: string[];
+}> {
+  const input = task.description || '';
+
+  // Real capability gating: a pod can only "see" as much of the input as its
+  // reconstructed capabilities allow. We use the number of reconstructed
+  // capabilities as a stand-in word budget until a real per-pod word-limit
+  // setting exists in PodSeed.
+  const wordBudget = Math.max(5, instance.reconstructedState.capabilities.length * 20);
+
+  const words = input.trim().split(/\s+/).filter(Boolean);
+  const usableWords = words.slice(0, wordBudget);
+
+  const charCount = usableWords.join(' ').length;
+
+  const freq = new Map<string, number>();
+  for (const raw of usableWords) {
+    const w = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!w || w.length < 3) continue;
+    freq.set(w, (freq.get(w) || 0) + 1);
+  }
+  const topKeywords = [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word, count]) => ({ word, count }));
+
+  const summary = usableWords.length
+    ? `Analyzed ${usableWords.length}/${words.length} words (budget ${wordBudget}) — top term: "${
+        topKeywords[0]?.word ?? 'n/a'
+      }"`
+    : 'No input to analyze.';
+
+  return {
+    wordCount: usableWords.length,
+    charCount,
+    topKeywords,
+    summary,
+    usedCapabilities: instance.reconstructedState.capabilities,
+  };
+}
+
+// ============================================================================
 // POD LIFECYCLE MANAGER
 // ============================================================================
 
@@ -341,12 +404,25 @@ export class PodLifecycleManager {
       startedAt: new Date(),
     };
 
-    // Simulate task execution
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    let result: any;
+    try {
+      result = await runPodTask(instance, task);
+    } catch (err) {
+      instance.currentTask = {
+        ...instance.currentTask,
+        status: 'failed',
+        result: { error: err instanceof Error ? err.message : String(err) },
+        completedAt: new Date(),
+      };
+      instance.lastExecutedAt = new Date();
+      console.log(`✗ Task ${task.id} failed: ${err}`);
+      return;
+    }
 
     instance.currentTask = {
       ...instance.currentTask,
       status: 'complete',
+      result,
       completedAt: new Date(),
     };
 

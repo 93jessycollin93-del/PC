@@ -276,7 +276,25 @@ export const ModelRouterApp: React.FC = () => {
                         <p className="text-[10px] text-slate-500">{activeProviders} providers • {totalFreeModels} free models</p>
                     </div>
                 </div>
+                <button
+                    onClick={checkProviderHealth}
+                    disabled={checkingHealth}
+                    className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition-colors"
+                    title="Actually ping each provider's API"
+                >
+                    {checkingHealth ? 'Checking…' : 'Check Real Status'}
+                </button>
             </div>
+            {lastHealthCheck && (
+                <div className="px-4 py-1 text-[9px] text-zinc-500 border-b border-zinc-800/80 bg-[#0f1115]">
+                    Last real check: {new Date(lastHealthCheck).toLocaleTimeString()}
+                </div>
+            )}
+            {healthError && (
+                <div className="px-4 py-1 text-[9px] text-red-400 border-b border-zinc-800/80 bg-[#0f1115]">
+                    Health check failed: {healthError}
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="h-10 border-b border-zinc-800/80 bg-[#0f1115] flex items-center px-4 shrink-0 gap-4">

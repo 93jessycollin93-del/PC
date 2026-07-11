@@ -102,7 +102,7 @@ class ModelRouter {
   }
 
   private loadAPIKeys(): void {
-    // Load from localStorage (settings)
+    // Load from localStorage (settings); actual key retrieval is handled by aiClient with vault fallback
     const savedKeys = localStorage.getItem('model_router_keys');
     if (savedKeys) {
       try {
