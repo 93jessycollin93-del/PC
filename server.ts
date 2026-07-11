@@ -146,9 +146,46 @@ async function startServer() {
   });
 
   // Security endpoints
+  // CVE/audit cache (Phase B step 22): npm audit results cached for 1 hour
+  let auditCache: { timestamp: number; result: any } | null = null;
+  const AUDIT_CACHE_TTL = 3600000; // 1 hour
+
   // GET lockdown status
   app.get('/api/security/lockdown', (req, res) => {
     res.json({ isLockedDown, reason: lockdownReason.value });
+  });
+
+  // POST run npm audit (CVE/dependency checker, Phase B step 22)
+  app.post('/api/security/audit', async (req, res) => {
+    if (!requireAuth(req, res)) return;
+
+    // Return cached result if fresh
+    if (auditCache && Date.now() - auditCache.timestamp < AUDIT_CACHE_TTL) {
+      return res.json({ cached: true, ...auditCache.result });
+    }
+
+    try {
+      const { stdout } = await execFileAsync('npm', ['audit', '--json'], {
+        timeout: 30000,
+        maxBuffer: 10 * 1024 * 1024, // 10MB for large audit outputs
+      });
+
+      const result = JSON.parse(stdout);
+      auditCache = { timestamp: Date.now(), result };
+
+      return res.json({ cached: false, ...result });
+    } catch (err: any) {
+      // npm audit returns non-zero exit if vulnerabilities found, but still gives JSON
+      try {
+        const result = JSON.parse(err.stdout || '{}');
+        auditCache = { timestamp: Date.now(), result };
+        return res.json({ cached: false, ...result, error: false });
+      } catch {
+        const clientIp = getClientIp(req);
+        logSecurityEvent('audit-error', { error: String(err.message) }, clientIp);
+        return res.status(500).json({ error: 'npm audit failed', detail: String(err.message) });
+      }
+    }
   });
 
   // POST to toggle lockdown (Phase B step 9)
