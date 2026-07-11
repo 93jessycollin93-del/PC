@@ -30,6 +30,53 @@ export interface ActionResult {
   detail?: string;
 }
 
+/**
+ * Validate and sanitize an action to prevent injection attacks (Phase B step 19).
+ * Returns a sanitized action or null if validation fails.
+ */
+export function validateAction(action: any): JackieAction | null {
+  if (!action || typeof action !== 'object') return null;
+
+  const type = action.type;
+  if (!type || typeof type !== 'string') return null;
+
+  // Cap all string fields at 5000 chars
+  const maxLen = 5000;
+
+  switch (type) {
+    case 'launch_app': {
+      const appId = String(action.appId || '').slice(0, 200);
+      // Allow only alphanumeric, dash, underscore in app IDs
+      if (!appId.match(/^[a-zA-Z0-9_-]+$/)) return null;
+      return { type: 'launch_app', appId };
+    }
+
+    case 'notify': {
+      const level = action.level;
+      if (!['info', 'success', 'warning', 'error'].includes(level)) return null;
+      const title = String(action.title || '').slice(0, 200);
+      const message = action.message ? String(action.message).slice(0, maxLen) : undefined;
+      if (!title) return null;
+      return { type: 'notify', level, title, message };
+    }
+
+    case 'ai_prompt': {
+      const prompt = String(action.prompt || '').slice(0, maxLen);
+      if (!prompt) return null;
+      return { type: 'ai_prompt', prompt, notifyResult: Boolean(action.notifyResult) };
+    }
+
+    case 'telegram': {
+      const text = String(action.text || '').slice(0, maxLen);
+      if (!text) return null;
+      return { type: 'telegram', text };
+    }
+
+    default:
+      return null;
+  }
+}
+
 /** One-line human description of an action, for list UIs and run logs. */
 export function describeAction(action: JackieAction): string {
   switch (action.type) {
