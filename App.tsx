@@ -68,6 +68,7 @@ import { DataRedactionApp } from './components/apps/DataRedactionApp';
 import { IntegrityMonitorApp } from './components/apps/IntegrityMonitorApp';
 import { AuditTrailApp } from './components/apps/AuditTrailApp';
 import { DataVaultApp } from './components/apps/DataVaultApp';
+import { AnomalyAlertApp } from './components/apps/AnomalyAlertApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
@@ -150,6 +151,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'integrity_monitor', name: 'Integrity Monitor', type: 'app', icon: Shield, appId: 'integrity_monitor', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'audit_trail', name: 'Audit Trail', type: 'app', icon: BookOpen, appId: 'audit_trail', bgColor: 'bg-gradient-to-br from-blue-600 via-blue-700 to-zinc-950 border border-blue-500/30 shadow-md' },
     { id: 'data_vault', name: 'Data Vault', type: 'app', icon: Database, appId: 'data_vault', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-zinc-950 border border-indigo-500/30 shadow-md' },
+    { id: 'anomaly_alert', name: 'Anomaly & Alerts', type: 'app', icon: AlertTriangle, appId: 'anomaly_alert', bgColor: 'bg-gradient-to-br from-red-600 via-red-700 to-zinc-950 border border-red-500/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
     { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
@@ -1116,6 +1118,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'integrity_monitor') content = <IntegrityMonitorApp />;
                     else if (win.item.appId === 'audit_trail') content = <AuditTrailApp />;
                     else if (win.item.appId === 'data_vault') content = <DataVaultApp />;
+                    else if (win.item.appId === 'anomaly_alert') content = <AnomalyAlertApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
                     else if (win.item.appId === 'automation') content = <AutomationApp />;
