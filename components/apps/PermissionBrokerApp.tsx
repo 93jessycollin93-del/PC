@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Globe, RotateCcw, Plus, Lock, Unlock } from 'lucide-react';
-import { permissions, CAPABILITIES, GLOBAL_SCOPE, type Capability } from '../../lib/permissions';
+import { ShieldCheck, Globe, RotateCcw, Plus, Lock, Unlock, Zap } from 'lucide-react';
+import { permissions, CAPABILITIES, GLOBAL_SCOPE, type Capability, applyPermissionProfile } from '../../lib/permissions';
 
 /**
  * Permission / Capability Broker control panel.
@@ -36,10 +36,34 @@ const SCOPE_LABELS: Record<string, string> = {
   eru: 'Eru',
 };
 
+const PROFILES = [
+  {
+    name: 'Open',
+    description: 'All capabilities enabled (development)',
+    value: 'open',
+  },
+  {
+    name: 'Balanced',
+    description: 'Safe for general use (no spend)',
+    value: 'balanced',
+  },
+  {
+    name: 'Hardened',
+    description: 'Restricted (model_access only)',
+    value: 'hardened',
+  },
+  {
+    name: 'Paranoid',
+    description: 'Maximum security (model_access minimal)',
+    value: 'paranoid',
+  },
+];
+
 export const PermissionBrokerApp: React.FC = () => {
   const [, forceRender] = useState(0);
   const [customScope, setCustomScope] = useState('');
   const [extraScopes, setExtraScopes] = useState<string[]>([]);
+  const [showProfiles, setShowProfiles] = useState(false);
 
   // Re-render whenever a grant changes (from here or anywhere else).
   useEffect(() => permissions.subscribe(() => forceRender(n => n + 1)), []);
@@ -59,6 +83,12 @@ export const PermissionBrokerApp: React.FC = () => {
   const labelFor = (scope: string) =>
     scope === GLOBAL_SCOPE ? 'All apps & agents' : SCOPE_LABELS[scope] || scope;
 
+  const applyProfile = (profile: string) => {
+    applyPermissionProfile(profile as any);
+    forceRender(n => n + 1);
+    setShowProfiles(false);
+  };
+
   return (
     <div className="h-full w-full bg-zinc-950 text-zinc-300 font-sans flex flex-col overflow-hidden">
       {/* Header */}
@@ -68,6 +98,12 @@ export const PermissionBrokerApp: React.FC = () => {
           Permission Broker
         </h2>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowProfiles(!showProfiles)}
+            className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1"
+          >
+            <Zap size={12} /> Profiles
+          </button>
           <input
             value={customScope}
             onChange={e => setCustomScope(e.target.value)}
@@ -83,6 +119,25 @@ export const PermissionBrokerApp: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Profiles section (Phase C step 27) */}
+      {showProfiles && (
+        <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/30 space-y-2">
+          <p className="text-xs font-semibold text-zinc-300 mb-2">Apply Permission Profile</p>
+          <div className="grid grid-cols-2 gap-2">
+            {PROFILES.map(profile => (
+              <button
+                key={profile.value}
+                onClick={() => applyProfile(profile.value)}
+                className="text-left p-2 rounded border border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 hover:border-sky-500 transition-all"
+              >
+                <p className="text-xs font-semibold text-zinc-200">{profile.name}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{profile.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Info */}
       <div className="px-4 py-2 border-b border-zinc-800 bg-zinc-900/50 text-[11px] text-zinc-400">
