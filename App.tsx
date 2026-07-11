@@ -61,6 +61,9 @@ import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
 import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
 import { SecurityCenterApp } from './components/apps/SecurityCenterApp';
 import { SelfAuditScannerApp } from './components/apps/SelfAuditScannerApp';
+import { DependencyCVECheckerApp } from './components/apps/DependencyCVECheckerApp';
+import { SecretsHygieneApp } from './components/apps/SecretsHygieneApp';
+import { SecurityEventLogApp } from './components/apps/SecurityEventLogApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
@@ -136,6 +139,9 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
     { id: 'security_center', name: 'Security Center', type: 'app', icon: ShieldAlert, appId: 'security_center', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
     { id: 'self_audit_scanner', name: 'Self-Audit Scanner', type: 'app', icon: AlertTriangle, appId: 'self_audit_scanner', bgColor: 'bg-gradient-to-br from-orange-600 via-amber-700 to-zinc-950 border border-orange-500/30 shadow-md' },
+    { id: 'dependency_cve_checker', name: 'Dependency Checker', type: 'app', icon: Package, appId: 'dependency_cve_checker', bgColor: 'bg-gradient-to-br from-red-600 via-orange-700 to-zinc-950 border border-red-500/30 shadow-md' },
+    { id: 'secrets_hygiene', name: 'Secrets Hygiene', type: 'app', icon: Key, appId: 'secrets_hygiene', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+    { id: 'security_event_log', name: 'Security Event Log', type: 'app', icon: AlertTriangle, appId: 'security_event_log', bgColor: 'bg-gradient-to-br from-purple-600 via-red-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
     { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
@@ -1095,6 +1101,9 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
                     else if (win.item.appId === 'security_center') content = <SecurityCenterApp />;
                     else if (win.item.appId === 'self_audit_scanner') content = <SelfAuditScannerApp />;
+                    else if (win.item.appId === 'dependency_cve_checker') content = <DependencyCVECheckerApp />;
+                    else if (win.item.appId === 'secrets_hygiene') content = <SecretsHygieneApp />;
+                    else if (win.item.appId === 'security_event_log') content = <SecurityEventLogApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
                     else if (win.item.appId === 'automation') content = <AutomationApp />;
