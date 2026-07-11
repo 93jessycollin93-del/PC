@@ -12,8 +12,44 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 5000;
 
-  app.use(cors());
+  // CORS allowlist: default to localhost + tunnel host if configured
+  const allowedOrigins = (process.env.JACKIE_ALLOWED_ORIGINS || 'http://localhost:5000,http://localhost:5173,http://127.0.0.1:5000,http://127.0.0.1:5173')
+    .split(',')
+    .map(o => o.trim());
+
+  if (!process.env.JACKIE_ALLOWED_ORIGINS && process.env.NODE_ENV === 'production') {
+    console.warn('\n⚠️ JACKIE_ALLOWED_ORIGINS not set. Using localhost defaults.\nSet JACKIE_ALLOWED_ORIGINS in production to restrict origins.\n');
+  }
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, postman)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  }));
   app.use(express.json({ limit: '50mb' }));
+
+  // Auth middleware: check for JACKIE_API_TOKEN in header or query
+  const authToken = process.env.JACKIE_API_TOKEN;
+  if (!authToken) {
+    console.warn('\n⚠️ JACKIE_API_TOKEN is not set. Shell, build, and filesystem endpoints are UNPROTECTED.\nSet JACKIE_API_TOKEN env var in production.\n');
+  }
+
+  function requireAuth(req: express.Request, res: express.Response): boolean {
+    if (!authToken) return true; // Allow if not configured (dev mode)
+    const token = req.headers['x-jackie-token'] || req.query.token;
+    if (token !== authToken) {
+      res.status(403).json({ error: 'Unauthorized: invalid or missing JACKIE_API_TOKEN' });
+      return false;
+    }
+    return true;
+  }
 
   const ai = new GoogleGenAI({ 
     apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY,
@@ -201,6 +237,7 @@ async function startServer() {
 
   // Telegram Integration
   app.post('/api/telegram/send', async (req, res) => {
+    if (!requireAuth(req, res)) return;
     try {
       const { text, chat_id } = req.body;
       const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -250,6 +287,7 @@ async function startServer() {
     ps: true, df: true, git: true, docker: true, du: true, echo: true,
   };
   app.post('/api/shell/exec', async (req, res) => {
+    if (!requireAuth(req, res)) return;
     try {
       const { cmd, args, cwd } = req.body as { cmd: string; args?: string[]; cwd?: string };
       if (!cmd || !SHELL_WHITELIST[cmd]) {
@@ -278,12 +316,9 @@ async function startServer() {
   // Real, sandboxed home-directory filesystem for AiTermApp. Files live for
   // real on this container's disk under TERM_FS_ROOT — nothing fabricated.
   // Access is gated by a persisted on/off switch (only the terminal owner
-  // toggles it) and a shared client token so only AiTermApp and Jackie's
-  // mini-PC integration (when Jackie's global mode is on) can reach it —
-  // no other entity in this app has the token.
+  // toggles it) and the JACKIE_API_TOKEN for authentication.
   const TERM_FS_ROOT = path.resolve(process.cwd(), 'data', 'aiterm-fs');
   const TERM_FS_STATE_FILE = path.resolve(process.cwd(), 'data', 'aiterm-fs-state.json');
-  const TERM_FS_CLIENT_TOKEN = 'jackie-term-fs-v1';
   const fsPromises = await import('fs/promises');
 
   async function readTermFsState(): Promise<{ enabled: boolean }> {
@@ -323,27 +358,24 @@ async function startServer() {
     return resolved;
   }
 
+  // Terminal FS access control (token-based auth is now handled by requireAuth)
   function requireTermFsAccess(req: express.Request, res: express.Response): boolean {
-    if (req.headers['x-term-fs-token'] !== TERM_FS_CLIENT_TOKEN) {
-      res.status(403).json({ error: 'Not authorized to access the real terminal filesystem.' });
-      return false;
-    }
-    return true;
+    return true; // API-level auth is now enforced by requireAuth(); on/off state checked per-endpoint
   }
 
   app.get('/api/term-fs/access', async (req, res) => {
-    if (!requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
     res.json(await readTermFsState());
   });
   app.post('/api/term-fs/access', async (req, res) => {
-    if (!requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
     const { enabled } = req.body as { enabled: boolean };
     await writeTermFsState({ enabled: !!enabled });
     res.json({ enabled: !!enabled });
   });
 
   app.get('/api/term-fs/list', async (req, res) => {
-    if (!requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const relPath = String(req.query.path || '');
@@ -364,7 +396,7 @@ async function startServer() {
   });
 
   app.get('/api/term-fs/read', async (req, res) => {
-    if (!requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const relPath = String(req.query.path || '');
@@ -381,7 +413,7 @@ async function startServer() {
   });
 
   app.post('/api/term-fs/write', async (req, res) => {
-    if (!requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const { path: relPath, content, mkdir } = req.body as { path: string; content?: string; mkdir?: boolean };
@@ -401,7 +433,7 @@ async function startServer() {
   });
 
   app.post('/api/term-fs/rm', async (req, res) => {
-    if (!requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const { path: relPath } = req.body as { path: string };
@@ -418,6 +450,7 @@ async function startServer() {
   // Real build runner for BuildVaultApp — actually runs `npm run build` in
   // this container and returns the real stdout/stderr and exit status.
   app.post('/api/build/run', async (req, res) => {
+    if (!requireAuth(req, res)) return;
     const start = Date.now();
     try {
       const { stdout, stderr } = await execFileAsync('npm', ['run', 'build'], {
