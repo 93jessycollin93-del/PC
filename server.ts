@@ -57,6 +57,18 @@ async function startServer() {
     },
     credentials: true,
   }));
+
+  // Security headers (Phase B step 13)
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://generativelanguage.googleapis.com https://api.groq.com https://api.deepseek.com https://api.anthropic.com");
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
+    next();
+  });
+
   app.use(express.json({ limit: '50mb' }));
 
   // Auth middleware: check for JACKIE_API_TOKEN in header or query
