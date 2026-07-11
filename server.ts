@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { realpathSync, existsSync } from 'fs';
+import { realpathSync, existsSync, appendFileSync, mkdirSync } from 'fs';
 
 // Simple in-memory rate limiter for sensitive endpoints
 class RateLimiter {
@@ -82,6 +82,8 @@ async function startServer() {
     if (!authToken) return true; // Allow if not configured (dev mode)
     const token = req.headers['x-jackie-token'] || req.query.token;
     if (token !== authToken) {
+      const clientIp = getClientIp(req);
+      logSecurityEvent('auth-failure', { reason: 'invalid_token', endpoint: req.path }, clientIp);
       res.status(403).json({ error: 'Unauthorized: invalid or missing JACKIE_API_TOKEN' });
       return false;
     }
@@ -100,6 +102,29 @@ async function startServer() {
 
   function getClientIp(req: express.Request): string {
     return (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+  }
+
+  // Security event logging (Phase B step 12): append-only JSONL log
+  const SECURITY_LOG_DIR = path.resolve(process.cwd(), 'data');
+  const SECURITY_LOG_FILE = path.resolve(SECURITY_LOG_DIR, 'security-events.jsonl');
+  try {
+    mkdirSync(SECURITY_LOG_DIR, { recursive: true });
+  } catch (e) {
+    console.warn(`[SECURITY] Could not create data directory: ${String(e)}`);
+  }
+
+  function logSecurityEvent(type: string, detail: Record<string, any>, clientIp?: string): void {
+    try {
+      const event = {
+        timestamp: new Date().toISOString(),
+        type,
+        clientIp: clientIp || 'unknown',
+        ...detail
+      };
+      appendFileSync(SECURITY_LOG_FILE, JSON.stringify(event) + '\n', 'utf-8');
+    } catch (e) {
+      console.error(`[SECURITY] Failed to log event: ${String(e)}`);
+    }
   }
 
   // Lockdown check middleware
@@ -130,15 +155,18 @@ async function startServer() {
   app.post('/api/security/lockdown', (req, res) => {
     if (!requireAuth(req, res)) return;
     const { action, reason } = req.body;
+    const clientIp = getClientIp(req);
     if (action === 'enable') {
       isLockedDown = true;
       lockdownReason.value = reason || 'Security lockdown enabled';
       console.warn(`[SECURITY] Lockdown enabled: ${lockdownReason.value}`);
+      logSecurityEvent('lockdown-enabled', { reason: lockdownReason.value }, clientIp);
       res.json({ isLockedDown, reason: lockdownReason.value });
     } else if (action === 'disable') {
       isLockedDown = false;
       lockdownReason.value = '';
       console.log('[SECURITY] Lockdown disabled');
+      logSecurityEvent('lockdown-disabled', {}, clientIp);
       res.json({ isLockedDown, reason: '' });
     } else {
       res.status(400).json({ error: 'action must be "enable" or "disable"' });
@@ -408,7 +436,9 @@ async function startServer() {
           try {
             const real = realpathSync(resolved);
             if (!real.startsWith(process.cwd())) {
+              const clientIp = getClientIp(req);
               console.warn(`[SECURITY] Shell symlink escape attempt: ${resolved} → ${real}`);
+              logSecurityEvent('symlink-escape-shell-cwd', { resolved, real, cmd }, clientIp);
               return res.status(400).json({ error: 'cwd symlink resolves outside workspace' });
             }
           } catch (e) {
@@ -419,8 +449,12 @@ async function startServer() {
         options.cwd = resolved;
       }
       const { stdout, stderr } = await execFileAsync(cmd, safeArgs, options);
+      const clientIp = getClientIp(req);
+      logSecurityEvent('shell-exec-success', { cmd, argsCount: safeArgs.length, outputBytes: stdout.length }, clientIp);
       res.json({ stdout, stderr });
     } catch (err: any) {
+      const clientIp = getClientIp(req);
+      logSecurityEvent('shell-exec-error', { cmd, error: String(err.message || err).slice(0, 200) }, clientIp);
       res.status(200).json({ stdout: err.stdout || '', stderr: err.stderr || String(err.message || err), error: true });
     }
   });
@@ -511,7 +545,11 @@ async function startServer() {
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const relPath = String(req.query.path || '');
     const abs = resolveTermFsPath(relPath);
-    if (!abs) return res.status(400).json({ error: 'Invalid path' });
+    if (!abs) {
+      const clientIp = getClientIp(req);
+      logSecurityEvent('invalid-termfs-path', { relPath, reason: 'path_escape_or_containment' }, clientIp);
+      return res.status(400).json({ error: 'Invalid path' });
+    }
     try {
       const stat = await fsPromises.stat(abs);
       if (!stat.isDirectory()) return res.status(400).json({ error: 'Not a directory' });
@@ -532,7 +570,11 @@ async function startServer() {
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const relPath = String(req.query.path || '');
     const abs = resolveTermFsPath(relPath);
-    if (!abs) return res.status(400).json({ error: 'Invalid path' });
+    if (!abs) {
+      const clientIp = getClientIp(req);
+      logSecurityEvent('invalid-termfs-path', { relPath, reason: 'path_escape_or_containment' }, clientIp);
+      return res.status(400).json({ error: 'Invalid path' });
+    }
     try {
       const stat = await fsPromises.stat(abs);
       if (stat.isDirectory()) return res.status(400).json({ error: 'Is a directory' });
@@ -569,7 +611,11 @@ async function startServer() {
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const { path: relPath } = req.body as { path: string };
     const abs = resolveTermFsPath(relPath);
-    if (!abs || abs === TERM_FS_ROOT) return res.status(400).json({ error: 'Invalid path' });
+    if (!abs || abs === TERM_FS_ROOT) {
+      const clientIp = getClientIp(req);
+      logSecurityEvent('invalid-termfs-path', { relPath, reason: 'path_escape_or_containment_or_root' }, clientIp);
+      return res.status(400).json({ error: 'Invalid path' });
+    }
     try {
       await fsPromises.rm(abs, { recursive: true, force: true });
       res.json({ ok: true });
