@@ -59,6 +59,7 @@ import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
 import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
 import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
 import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
+import { SecurityCenterApp } from './components/apps/SecurityCenterApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
@@ -79,7 +80,7 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge, Bell, Brain } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -132,6 +133,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
     { id: 'secrets_vault', name: 'Secrets Vault', type: 'app', icon: Lock, appId: 'secrets_vault', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
     { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
+    { id: 'security_center', name: 'Security Center', type: 'app', icon: ShieldAlert, appId: 'security_center', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
     { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
@@ -1089,6 +1091,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
                     else if (win.item.appId === 'secrets_vault') content = <SecretsVaultApp />;
                     else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
+                    else if (win.item.appId === 'security_center') content = <SecurityCenterApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
                     else if (win.item.appId === 'automation') content = <AutomationApp />;
