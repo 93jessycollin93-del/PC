@@ -87,6 +87,10 @@ async function startServer() {
     return true;
   }
 
+  // Global lockdown flag (Phase B step 9)
+  let isLockedDown = false;
+  const lockdownReason = { value: '' };
+
   // Rate limiters for sensitive endpoints
   const shellExecLimiter = new RateLimiter(60000, 30); // 30 calls per minute per IP
   const buildRunLimiter = new RateLimiter(300000, 5); // 5 calls per 5 minutes per IP
@@ -97,12 +101,46 @@ async function startServer() {
     return (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
   }
 
+  // Lockdown check middleware
+  function checkLockdown(req: express.Request, res: express.Response): boolean {
+    if (isLockedDown) {
+      res.status(503).json({ error: 'Server in lockdown mode', reason: lockdownReason.value });
+      return false;
+    }
+    return true;
+  }
+
   const ai = new GoogleGenAI({ 
     apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY,
     httpOptions: {
       headers: {
         'User-Agent': 'aistudio-build',
       }
+    }
+  });
+
+  // Security endpoints
+  // GET lockdown status
+  app.get('/api/security/lockdown', (req, res) => {
+    res.json({ isLockedDown, reason: lockdownReason.value });
+  });
+
+  // POST to toggle lockdown (Phase B step 9)
+  app.post('/api/security/lockdown', (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const { action, reason } = req.body;
+    if (action === 'enable') {
+      isLockedDown = true;
+      lockdownReason.value = reason || 'Security lockdown enabled';
+      console.warn(`[SECURITY] Lockdown enabled: ${lockdownReason.value}`);
+      res.json({ isLockedDown, reason: lockdownReason.value });
+    } else if (action === 'disable') {
+      isLockedDown = false;
+      lockdownReason.value = '';
+      console.log('[SECURITY] Lockdown disabled');
+      res.json({ isLockedDown, reason: '' });
+    } else {
+      res.status(400).json({ error: 'action must be "enable" or "disable"' });
     }
   });
 
@@ -284,6 +322,7 @@ async function startServer() {
   // Telegram Integration
   app.post('/api/telegram/send', async (req, res) => {
     if (!requireAuth(req, res)) return;
+    if (!checkLockdown(req, res)) return;
     const clientIp = getClientIp(req);
     if (!telegramLimiter.check(clientIp)) {
       return res.status(429).json({ error: 'Rate limit exceeded for Telegram' });
@@ -342,6 +381,7 @@ async function startServer() {
   }
   app.post('/api/shell/exec', async (req, res) => {
     if (!requireAuth(req, res)) return;
+    if (!checkLockdown(req, res)) return;
     const clientIp = getClientIp(req);
     if (!shellExecLimiter.check(clientIp)) {
       return res.status(429).json({ error: 'Rate limit exceeded for shell execution' });
@@ -426,7 +466,7 @@ async function startServer() {
     res.json(await readTermFsState());
   });
   app.post('/api/term-fs/access', async (req, res) => {
-    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res) || !checkLockdown(req, res)) return;
     const { enabled } = req.body as { enabled: boolean };
     await writeTermFsState({ enabled: !!enabled });
     res.json({ enabled: !!enabled });
@@ -475,7 +515,7 @@ async function startServer() {
   });
 
   app.post('/api/term-fs/write', async (req, res) => {
-    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res) || !checkLockdown(req, res)) return;
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const { path: relPath, content, mkdir } = req.body as { path: string; content?: string; mkdir?: boolean };
@@ -495,7 +535,7 @@ async function startServer() {
   });
 
   app.post('/api/term-fs/rm', async (req, res) => {
-    if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
+    if (!requireAuth(req, res) || !requireTermFsAccess(req, res) || !checkLockdown(req, res)) return;
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const { path: relPath } = req.body as { path: string };
@@ -513,6 +553,7 @@ async function startServer() {
   // this container and returns the real stdout/stderr and exit status.
   app.post('/api/build/run', async (req, res) => {
     if (!requireAuth(req, res)) return;
+    if (!checkLockdown(req, res)) return;
     const clientIp = getClientIp(req);
     if (!buildRunLimiter.check(clientIp)) {
       return res.status(429).json({ error: 'Rate limit exceeded for build execution' });
