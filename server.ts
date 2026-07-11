@@ -6,6 +6,30 @@ import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
+// Simple in-memory rate limiter for sensitive endpoints
+class RateLimiter {
+  private requests: Map<string, { count: number; resetTime: number }> = new Map();
+
+  constructor(private windowMs: number = 60000, private maxRequests: number = 20) {}
+
+  check(key: string): boolean {
+    const now = Date.now();
+    const record = this.requests.get(key);
+
+    if (!record || now > record.resetTime) {
+      this.requests.set(key, { count: 1, resetTime: now + this.windowMs });
+      return true;
+    }
+
+    if (record.count < this.maxRequests) {
+      record.count++;
+      return true;
+    }
+
+    return false;
+  }
+}
+
 const execFileAsync = promisify(execFile);
 
 async function startServer() {
@@ -49,6 +73,16 @@ async function startServer() {
       return false;
     }
     return true;
+  }
+
+  // Rate limiters for sensitive endpoints
+  const shellExecLimiter = new RateLimiter(60000, 30); // 30 calls per minute per IP
+  const buildRunLimiter = new RateLimiter(300000, 5); // 5 calls per 5 minutes per IP
+  const termFsLimiter = new RateLimiter(60000, 50); // 50 calls per minute per IP
+  const telegramLimiter = new RateLimiter(60000, 20); // 20 calls per minute per IP
+
+  function getClientIp(req: express.Request): string {
+    return (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
   }
 
   const ai = new GoogleGenAI({ 
@@ -238,6 +272,10 @@ async function startServer() {
   // Telegram Integration
   app.post('/api/telegram/send', async (req, res) => {
     if (!requireAuth(req, res)) return;
+    const clientIp = getClientIp(req);
+    if (!telegramLimiter.check(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded for Telegram' });
+    }
     try {
       const { text, chat_id } = req.body;
       const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -288,6 +326,10 @@ async function startServer() {
   };
   app.post('/api/shell/exec', async (req, res) => {
     if (!requireAuth(req, res)) return;
+    const clientIp = getClientIp(req);
+    if (!shellExecLimiter.check(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded for shell execution' });
+    }
     try {
       const { cmd, args, cwd } = req.body as { cmd: string; args?: string[]; cwd?: string };
       if (!cmd || !SHELL_WHITELIST[cmd]) {
@@ -376,6 +418,10 @@ async function startServer() {
 
   app.get('/api/term-fs/list', async (req, res) => {
     if (!requireAuth(req, res) || !requireTermFsAccess(req, res)) return;
+    const clientIp = getClientIp(req);
+    if (!termFsLimiter.check(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded for terminal filesystem' });
+    }
     const state = await readTermFsState();
     if (!state.enabled) return res.status(423).json({ error: 'Real filesystem access is turned off.' });
     const relPath = String(req.query.path || '');
@@ -451,6 +497,10 @@ async function startServer() {
   // this container and returns the real stdout/stderr and exit status.
   app.post('/api/build/run', async (req, res) => {
     if (!requireAuth(req, res)) return;
+    const clientIp = getClientIp(req);
+    if (!buildRunLimiter.check(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded for build execution' });
+    }
     const start = Date.now();
     try {
       const { stdout, stderr } = await execFileAsync('npm', ['run', 'build'], {
