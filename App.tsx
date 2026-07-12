@@ -120,6 +120,7 @@ import GlobalKeyboard from './src/components/GlobalKeyboard';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
 import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
+import { useAppStore } from './src/core/appStore';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },

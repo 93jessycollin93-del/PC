@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
+import { useAppStore } from '../core/appStore';
 
 type KeyAction = 'character' | 'backspace' | 'delete' | 'enter' | 'tab' | 'space' | 'shift' | 'ctrl' | 'alt' | 'cmd' | 'arrow_up' | 'arrow_down' | 'arrow_left' | 'arrow_right';
 
@@ -49,19 +50,26 @@ const KEYBOARD_LAYOUTS = {
 type LayoutKey = keyof typeof KEYBOARD_LAYOUTS;
 
 export const GlobalKeyboard: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState<'top-left' | 'top-right'>('top-left');
-  const [currentLayout, setCurrentLayout] = useState<LayoutKey>('default');
-  const [shiftActive, setShiftActive] = useState(false);
+  const {
+    keyboardOpen,
+    keyboardLayout,
+    keyboardPosition,
+    shiftActive,
+    setKeyboardOpen,
+    setKeyboardLayout,
+    setKeyboardPosition,
+    setShiftActive,
+  } = useAppStore();
+
   const dotRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isOpen || !dotRef.current) return;
+    if (!keyboardOpen || !dotRef.current) return;
     const rect = dotRef.current.getBoundingClientRect();
     const wouldObstruct = rect.left < 200 && rect.top < 100;
-    setPosition(wouldObstruct ? 'top-right' : 'top-left');
-  }, [isOpen]);
+    setKeyboardPosition(wouldObstruct ? 'top-right' : 'top-left');
+  }, [keyboardOpen, setKeyboardPosition]);
 
   const handleKeyPress = (key: string, action: KeyAction) => {
     const input = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
@@ -127,15 +135,15 @@ export const GlobalKeyboard: React.FC = () => {
       {/* Tiny launcher dot */}
       <button
         ref={dotRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed ${position === 'top-left' ? 'top-2 left-2' : 'top-2 right-2'} w-2 h-2 rounded-full z-[5000] transition-all ${
-          isOpen ? 'bg-indigo-500 shadow-lg shadow-indigo-500/50' : 'bg-zinc-600 hover:bg-zinc-500'
+        onClick={() => setKeyboardOpen(!keyboardOpen)}
+        className={`fixed ${keyboardPosition === 'top-left' ? 'top-2 left-2' : 'top-2 right-2'} w-2 h-2 rounded-full z-[5000] transition-all ${
+          keyboardOpen ? 'bg-indigo-500 shadow-lg shadow-indigo-500/50' : 'bg-zinc-600 hover:bg-zinc-500'
         }`}
         title="Mobile Keyboard"
       />
 
       {/* Keyboard panel */}
-      {isOpen && (
+      {keyboardOpen && (
         <div
           ref={containerRef}
           className="fixed bottom-0 left-0 right-0 z-[4999] bg-zinc-900 border-t border-white/10 shadow-2xl transition-all duration-300 ease-out"
@@ -144,12 +152,12 @@ export const GlobalKeyboard: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-zinc-950">
             <div className="flex items-center gap-2 text-[10px] text-zinc-400 uppercase tracking-wider font-mono">
-              <span className="text-indigo-400">{currentLayout}</span>
+              <span className="text-indigo-400">{keyboardLayout}</span>
               <span>{shiftActive ? '⇧' : ''}</span>
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => setKeyboardOpen(false)}
                 className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
               >
                 <X size={14} />
@@ -162,9 +170,9 @@ export const GlobalKeyboard: React.FC = () => {
             {(['default', 'terminal', 'coding', 'special'] as LayoutKey[]).map((layout) => (
               <button
                 key={layout}
-                onClick={() => setCurrentLayout(layout)}
+                onClick={() => setKeyboardLayout(layout)}
                 className={`px-2 py-1 rounded text-[9px] font-mono uppercase tracking-wider whitespace-nowrap transition-colors flex-shrink-0 ${
-                  currentLayout === layout
+                  keyboardLayout === layout
                     ? 'bg-indigo-600/40 text-indigo-200 border border-indigo-500/50'
                     : 'bg-white/5 text-zinc-400 hover:bg-white/10 border border-transparent'
                 }`}
