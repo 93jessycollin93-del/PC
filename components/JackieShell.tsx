@@ -316,7 +316,26 @@ export const JackieShell: React.FC<JackieShellProps> = ({
             </div>
 
             {/* Conversation */}
-            <div ref={scrollRef} className="relative flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="relative flex-1 flex flex-col">
+              {/* Jump buttons */}
+              <div className="absolute right-4 top-2 z-10 flex gap-1">
+                <button
+                  onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 hover:bg-indigo-600/50 flex items-center justify-center text-sm font-bold transition-colors"
+                  title="Jump to top"
+                >
+                  ↑
+                </button>
+                <button
+                  onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}
+                  className="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 hover:bg-indigo-600/50 flex items-center justify-center text-sm font-bold transition-colors"
+                  title="Jump to bottom"
+                >
+                  ↓
+                </button>
+              </div>
+
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
               {turns.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center gap-4 px-6">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-[0_0_40px_rgba(139,92,246,0.5)] animate-pulse">
@@ -359,6 +378,7 @@ export const JackieShell: React.FC<JackieShellProps> = ({
                   </div>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Composer — enhanced spacing to prevent collision */}
