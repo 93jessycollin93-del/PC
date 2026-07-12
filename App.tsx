@@ -116,6 +116,7 @@ import { MobileStatusBar } from './components/MobileStatusBar';
 import { PodControlPanel } from './components/PodControlPanel';
 import { EruApp } from './components/apps/EruApp';
 import { JackieShell, type PcMode } from './components/JackieShell';
+import GlobalKeyboard from './src/components/GlobalKeyboard';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
 import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
@@ -1213,6 +1214,8 @@ Body: ${emailToSummarize.body}`,
             )}
 
             <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
+
+            <GlobalKeyboard />
         </div>
     );
 };

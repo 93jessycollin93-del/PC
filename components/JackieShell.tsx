@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Monitor, Sparkles, Settings as SettingsIcon, Send, Loader2,
   Maximize2, SquareSplitVertical, X, Brain, ChevronDown, Lock, Unlock,
+  Palette,
 } from 'lucide-react';
 import { DesktopItem } from '../types';
 import { getAiClient, MODEL_NAME } from '../lib/gemini';
@@ -12,6 +13,9 @@ import {
   getActivePersonalityId, setActivePersonalityId,
   getBrain,
 } from '../src/jackie-core/jackie-brains';
+import AnimatedCanvas from '../src/components/backgrounds/AnimatedCanvas';
+import type { BackgroundTheme } from '../src/components/backgrounds/AnimatedBackgrounds';
+import { BACKGROUND_THEMES } from '../src/components/backgrounds/AnimatedBackgrounds';
 
 /** Screen split for the PC surface behind Jackie. */
 export type PcMode = 'closed' | 'full' | 'half';
@@ -47,53 +51,17 @@ function codeChangesUnlocked(): boolean {
   }
 }
 
-/** Lightweight cosmic starfield behind Jackie. */
-const Starfield: React.FC = () => {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    let raf = 0;
-    const stars: { x: number; y: number; z: number; r: number }[] = [];
-    const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
-    resize();
-    for (let i = 0; i < 140; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        z: Math.random(),
-        r: Math.random() * 1.4 + 0.2,
-      });
-    }
-    let t = 0;
-    const draw = () => {
-      t += 0.005;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const s of stars) {
-        const tw = 0.5 + 0.5 * Math.sin(t * 6 + s.x);
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${140 + s.z * 80}, ${180 + s.z * 60}, 255, ${0.15 + tw * 0.55 * s.z})`;
-        ctx.fill();
-        s.y += 0.03 + s.z * 0.08;
-        if (s.y > canvas.height) s.y = 0;
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    window.addEventListener('resize', resize);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-  return <canvas ref={ref} className="absolute inset-0 w-full h-full" />;
-};
+
+const STORAGE_KEY_THEME = 'jackie:shell-theme';
+
+function loadTheme(): BackgroundTheme {
+  if (typeof window === 'undefined') return 'neutron_star';
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_THEME);
+    if (stored && BACKGROUND_THEMES.some(t => t.id === stored)) return stored as BackgroundTheme;
+  } catch { }
+  return 'neutron_star';
+}
 
 export const JackieShell: React.FC<JackieShellProps> = ({
   apps, onLaunchApp, pcMode, setPcMode, onOpenEru, onOpenSettings,
@@ -104,6 +72,8 @@ export const JackieShell: React.FC<JackieShellProps> = ({
   const [brainId, setBrainId] = useState(getActiveBrainId());
   const [personalityId, setPersonalityId] = useState(getActivePersonalityId());
   const [brainOpen, setBrainOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [theme, setTheme] = useState<BackgroundTheme>(loadTheme());
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const brain = getBrain(brainId);
@@ -211,6 +181,11 @@ export const JackieShell: React.FC<JackieShellProps> = ({
 
   const locked = !codeChangesUnlocked();
 
+  // Save theme preference
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY_THEME, theme); } catch { }
+  }, [theme]);
+
   // Height of Jackie's surface depends on the PC split.
   const shellHeightClass =
     pcMode === 'closed' ? 'h-full' : pcMode === 'half' ? 'h-1/2' : 'h-0 pointer-events-none';
@@ -224,7 +199,7 @@ export const JackieShell: React.FC<JackieShellProps> = ({
       >
         {pcMode !== 'full' && (
           <div className="relative h-full w-full bg-[#04030a] flex flex-col">
-            <Starfield />
+            <AnimatedCanvas theme={theme} opacity={0.4} />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(99,102,241,0.18),transparent_60%),radial-gradient(circle_at_80%_90%,rgba(236,72,153,0.12),transparent_50%)] pointer-events-none" />
 
             {/* Top bar: identity + brain/personality + split controls */}
@@ -241,7 +216,17 @@ export const JackieShell: React.FC<JackieShellProps> = ({
 
               <div className="flex-1" />
 
-              {/* Brain / personality selector */}
+              {/* Theme / Brain / personality selector */}
+              <button
+                onClick={() => setThemeOpen((v) => !v)}
+                className="flex items-center gap-1.5 text-[11px] text-violet-200 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-2.5 py-1 transition-colors"
+                title="Switch background theme"
+              >
+                <Palette className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Theme</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setBrainOpen((v) => !v)}
@@ -252,6 +237,29 @@ export const JackieShell: React.FC<JackieShellProps> = ({
                   <span className="hidden sm:inline">Brain</span>
                   <ChevronDown className="w-3 h-3" />
                 </button>
+                {themeOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-3 z-50 shadow-2xl max-h-96 overflow-y-auto">
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Background Theme</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BACKGROUND_THEMES.filter(t => t.id !== 'none').map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => { setTheme(t.id); setThemeOpen(false); }}
+                          className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[9px] font-medium transition-all ${
+                            theme === t.id
+                              ? 'bg-violet-600/40 text-violet-100 border border-violet-500/60'
+                              : 'text-zinc-300 hover:bg-white/10 border border-white/5 hover:border-white/20'
+                          }`}
+                          title={t.label}
+                        >
+                          <span className="text-lg">{t.icon}</span>
+                          <span className="truncate">{t.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {brainOpen && (
                   <div className="absolute right-0 top-full mt-2 w-64 bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-3 z-50 shadow-2xl">
                     <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">Brain (free-first)</div>
@@ -308,7 +316,26 @@ export const JackieShell: React.FC<JackieShellProps> = ({
             </div>
 
             {/* Conversation */}
-            <div ref={scrollRef} className="relative flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="relative flex-1 flex flex-col">
+              {/* Jump buttons */}
+              <div className="absolute right-4 top-2 z-10 flex gap-1">
+                <button
+                  onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 hover:bg-indigo-600/50 flex items-center justify-center text-sm font-bold transition-colors"
+                  title="Jump to top"
+                >
+                  ↑
+                </button>
+                <button
+                  onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}
+                  className="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 hover:bg-indigo-600/50 flex items-center justify-center text-sm font-bold transition-colors"
+                  title="Jump to bottom"
+                >
+                  ↓
+                </button>
+              </div>
+
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
               {turns.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center gap-4 px-6">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-[0_0_40px_rgba(139,92,246,0.5)] animate-pulse">
@@ -351,10 +378,11 @@ export const JackieShell: React.FC<JackieShellProps> = ({
                   </div>
                 </div>
               )}
+              </div>
             </div>
 
-            {/* Composer — bottom padding clears the fixed status bar below it */}
-            <div className="relative p-3 pb-[calc(0.75rem+2rem)] border-t border-white/5">
+            {/* Composer — enhanced spacing to prevent collision */}
+            <div className="relative p-4 pb-6 border-t border-white/5 bg-gradient-to-t from-black/40 to-transparent">
               <div className="flex items-end gap-2">
                 <textarea
                   value={input}
@@ -364,12 +392,12 @@ export const JackieShell: React.FC<JackieShellProps> = ({
                   }}
                   rows={1}
                   placeholder="Tell Jackie what to do…"
-                  className="flex-1 resize-none bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-indigo-200/40 focus:outline-none focus:ring-1 focus:ring-indigo-400/60 max-h-32 backdrop-blur-sm"
+                  className="flex-1 resize-none bg-white/8 border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder-indigo-200/50 focus:outline-none focus:ring-2 focus:ring-indigo-400/80 max-h-32 backdrop-blur-md transition-all"
                 />
                 <button
                   onClick={() => handleSend(input)}
                   disabled={busy || !input.trim()}
-                  className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 hover:brightness-110 disabled:opacity-40 text-white flex items-center justify-center transition-all"
+                  className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 hover:brightness-110 disabled:opacity-40 text-white flex items-center justify-center transition-all shadow-lg hover:shadow-indigo-500/50"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
