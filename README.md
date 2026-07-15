@@ -5,6 +5,8 @@ PC_X_ULTRA is the additive ultimate build of this PC OS application. It keeps th
 
 ## Build principle
 
+Associated GitHub accounts for this build: `93jessycollin93-del`, `vyb34ycgt6-oss`, and `danylenkodanylofu-creator`.
+
 - Keep everything real: no fake integrations, mock claims, or removed capabilities.
 - Preserve the current PC app and original app history.
 - Add only features or identity changes that strengthen the whole vision.
