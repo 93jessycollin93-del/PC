@@ -1,0 +1,82 @@
+import type { PCThemeDefinition } from '../types';
+import { CLOUDS_SKY } from './shared';
+
+/**
+ * Windows 98 — same "Windows Standard" scheme as 95 with the one visual
+ * change everyone remembers: titlebars became a HORIZONTAL GRADIENT
+ * (ActiveTitle #000080 → GradientActiveTitle #1084D0; inactive
+ * #808080 → #B5B5B5). Desktop stayed teal #008080.
+ */
+export const win98: PCThemeDefinition = {
+  id: 'win98',
+  label: 'Windows 98',
+  era: '1998',
+  description: 'The 95 look, now with gradient titlebars and the web era.',
+  family: 'win9x',
+  iconPack: 'classic',
+  preview: { a: '#008080', b: '#c0c0c0', c: '#1084d0' },
+  tokens: {
+    '--pc-font': `'MS Sans Serif', 'Microsoft Sans Serif', Tahoma, Arial, sans-serif`,
+    '--pc-titlebar-font': `'MS Sans Serif', 'Microsoft Sans Serif', Tahoma, Arial, sans-serif`,
+    '--pc-desktop-bg': '#008080',
+    '--pc-surface': '#c0c0c0',
+    '--pc-surface-text': '#000000',
+    '--pc-window-bg': '#c0c0c0',
+    '--pc-window-radius': '0px',
+    '--pc-window-border': '#c0c0c0',
+    '--pc-window-shadow': '2px 2px 0 rgba(0,0,0,0.35)',
+    '--pc-content-bg': '#c0c0c0',
+    '--pc-titlebar-bg': 'linear-gradient(90deg, #000080 0%, #1084d0 100%)',
+    '--pc-titlebar-bg-inactive': 'linear-gradient(90deg, #808080 0%, #b5b5b5 100%)',
+    '--pc-titlebar-text': '#ffffff',
+    '--pc-titlebar-text-inactive': '#d8d8d8',
+    '--pc-titlebar-height': '22px',
+    '--pc-bevel-light': '#ffffff',
+    '--pc-bevel-dark': '#808080',
+    '--pc-bevel-darker': '#000000',
+    '--pc-accent': '#000080',
+    '--pc-accent-text': '#ffffff',
+    '--pc-taskbar-bg': '#c0c0c0',
+    '--pc-taskbar-text': '#000000',
+    '--pc-taskbar-height': '36px',
+    '--pc-taskbar-border': '#ffffff',
+    '--pc-taskbar-blur': '0px',
+    '--pc-start-bg': '#c0c0c0',
+    '--pc-start-text': '#000000',
+    '--pc-menu-bg': '#c0c0c0',
+    '--pc-menu-text': '#000000',
+    '--pc-menu-hover-bg': '#000080',
+    '--pc-menu-hover-text': '#ffffff',
+    '--pc-menu-radius': '0px',
+    '--pc-menu-blur': '0px',
+    '--pc-icon-label': '#ffffff',
+    '--pc-icon-label-shadow': '1px 1px 0 rgba(0,0,0,0.9)',
+    '--pc-icon-select-bg': '#000080',
+    '--pc-btn-bg': '#c0c0c0',
+    '--pc-btn-text': '#000000',
+    '--pc-field-bg': '#ffffff',
+    '--pc-field-text': '#000000',
+    '--pc-banner-from': '#00007b',
+    '--pc-banner-to': '#1084d0',
+  },
+  wallpapers: [
+    { id: 'teal', label: 'Teal (default)', css: '#008080' },
+    { id: 'clouds', label: 'Clouds', css: CLOUDS_SKY },
+    {
+      id: 'win98-blue',
+      label: 'Windows 98 Blue',
+      css: 'radial-gradient(120% 120% at 50% 40%, #3a6ea5 0%, #17385e 70%, #0a1f38 100%)',
+    },
+    { id: 'black', label: 'None (Black)', css: '#000000' },
+  ],
+  defaultWallpaperId: 'teal',
+  window: { controls: 'win9x', showTitleIcon: true },
+  taskbar: {
+    startLabel: 'Start',
+    startLogo: 'flag95',
+    centered: false,
+    showThemeTrayButton: true,
+    showClock: true,
+  },
+  startMenu: 'classic',
+};
