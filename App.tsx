@@ -183,6 +183,20 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'cross_ai_lab', name: 'Cross-AI Lab', type: 'app', icon: Bot, appId: 'cross_ai_lab', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-700 to-pink-700 border border-violet-400/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
     { id: 'terminal', name: 'Opus Terminal', type: 'app', icon: Terminal, appId: 'terminal', bgColor: 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-900 border border-slate-600/50 shadow-[0_0_20px_rgba(51,65,85,0.4)]' },
     { id: 'ui_studio', name: 'UI Studio', type: 'app', icon: Palette, appId: 'ui_studio', bgColor: 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.35)]' },
+
+    // --- Security Hardening Apps (Phase C & D) ---
+    { id: 'security_center', name: 'Security Center', type: 'app', icon: ShieldAlert, appId: 'security_center', bgColor: 'bg-gradient-to-br from-red-600 via-orange-700 to-zinc-950 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
+    { id: 'self_audit_scanner', name: 'Self-Audit Scanner', type: 'app', icon: AlertTriangle, appId: 'self_audit_scanner', bgColor: 'bg-gradient-to-br from-yellow-600 via-orange-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'dependency_cve_checker', name: 'CVE Checker', type: 'app', icon: Package, appId: 'dependency_cve_checker', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-700 to-zinc-950 border border-blue-500/30 shadow-md' },
+    { id: 'secrets_hygiene', name: 'Secrets Hygiene', type: 'app', icon: Key, appId: 'secrets_hygiene', bgColor: 'bg-gradient-to-br from-cyan-600 via-teal-700 to-zinc-950 border border-cyan-500/30 shadow-md' },
+    { id: 'security_event_log', name: 'Security Log', type: 'app', icon: AlertTriangle, appId: 'security_event_log', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
+    { id: 'integrity_monitor', name: 'Integrity Monitor', type: 'app', icon: Shield, appId: 'integrity_monitor', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-500/30 shadow-md' },
+    { id: 'audit_trail', name: 'Audit Trail', type: 'app', icon: BookOpen, appId: 'audit_trail', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/30 shadow-md' },
+    { id: 'anomaly_alert', name: 'Anomaly Detector', type: 'app', icon: AlertTriangle, appId: 'anomaly_alert', bgColor: 'bg-gradient-to-br from-red-600 via-pink-700 to-zinc-950 border border-red-500/30 shadow-md' },
+    { id: 'data_vault', name: 'Data Vault', type: 'app', icon: Database, appId: 'data_vault', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-500/30 shadow-md' },
+    { id: 'data_redaction', name: 'Data Redaction', type: 'app', icon: Eye, appId: 'data_redaction', bgColor: 'bg-gradient-to-br from-slate-600 via-zinc-700 to-zinc-950 border border-slate-500/30 shadow-md' },
+    { id: 'session_recorder', name: 'Session Recorder', type: 'app', icon: Clock, appId: 'session_recorder', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+
     {
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
@@ -1104,6 +1118,18 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
+                    // Security hardening apps
+                    else if (win.item.appId === 'security_center') content = <SecurityCenterApp />;
+                    else if (win.item.appId === 'self_audit_scanner') content = <SelfAuditScannerApp />;
+                    else if (win.item.appId === 'dependency_cve_checker') content = <DependencyCVECheckerApp />;
+                    else if (win.item.appId === 'secrets_hygiene') content = <SecretsHygieneApp />;
+                    else if (win.item.appId === 'security_event_log') content = <SecurityEventLogApp />;
+                    else if (win.item.appId === 'integrity_monitor') content = <IntegrityMonitorApp />;
+                    else if (win.item.appId === 'audit_trail') content = <AuditTrailApp />;
+                    else if (win.item.appId === 'anomaly_alert') content = <AnomalyAlertApp />;
+                    else if (win.item.appId === 'data_vault') content = <DataVaultApp />;
+                    else if (win.item.appId === 'data_redaction') content = <DataRedactionApp />;
+                    else if (win.item.appId === 'session_recorder') content = <SessionRecorderApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe
