@@ -125,7 +125,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
                 </div>
               </div>
               <h2 className="text-2xl font-bold text-white">Welcome Back!</h2>
-              <p className="text-sm text-zinc-400">You're signed in to PC OS</p>
+              <p className="text-sm text-zinc-400">You're signed in to PC_X_ULTRA</p>
             </div>
 
             {/* User Info */}
@@ -171,7 +171,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
               onClick={() => {}} // This will be handled by parent component
               className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-lg transition-all"
             >
-              Enter PC OS
+              Enter PC_X_ULTRA
             </button>
           </div>
         </div>
@@ -188,13 +188,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
           <div className="text-center space-y-2">
             <div className="flex justify-center mb-3">
               <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl">
-                PC
+                PC_X
               </div>
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              PC OS
+              PC_X_ULTRA
             </h1>
-            <p className="text-sm text-zinc-400">Intelligent Virtual Desktop Experience</p>
+            <p className="text-sm text-zinc-400">Real additive ultimate build of the PC OS vision</p>
           </div>
 
           {/* Mode Tabs */}
@@ -317,7 +317,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
 
           {/* Footer */}
           <p className="text-center text-xs text-zinc-500">
-            By signing in, you agree to the PC OS Terms of Service
+            By signing in, you agree to the PC_X_ULTRA Terms of Service
           </p>
         </div>
       </div>
