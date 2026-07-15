@@ -294,15 +294,15 @@ export const SystemSettingsApp: React.FC = () => {
         {activeTab === 'info' && (
           <div className="space-y-4">
             <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-              <h3 className="text-sm font-bold text-white mb-3">PC OS Information</h3>
+              <h3 className="text-sm font-bold text-white mb-3">PC_X_ULTRA Information</h3>
               <div className="space-y-2 text-[10px]">
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Version</span>
-                  <span className="text-zinc-300 font-bold">2.0.0</span>
+                  <span className="text-zinc-300 font-bold">2.0.0-ultra</span>
                 </div>
                 <div className="flex justify-between border-t border-zinc-700 pt-2 mt-2">
                   <span className="text-zinc-400">Build</span>
-                  <span className="text-zinc-300 font-bold">claude/pc-security-apps-impl-7w5rab</span>
+                  <span className="text-zinc-300 font-bold">PC_X_ULTRA/additive-real-build</span>
                 </div>
                 <div className="flex justify-between border-t border-zinc-700 pt-2 mt-2">
                   <span className="text-zinc-400">Platform</span>
