@@ -202,7 +202,7 @@ class ModelRouter {
    * Get usage statistics
    */
   public getStats(): Record<ModelProvider, { calls: number; totalTokens: number; totalCost: number }> {
-    const result: Record<ModelProvider, any> = {};
+    const result = {} as Record<ModelProvider, { calls: number; totalTokens: number; totalCost: number }>;
     this.usageStats.forEach((v, k) => {
       result[k] = v;
     });

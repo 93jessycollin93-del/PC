@@ -452,8 +452,8 @@ async function startServer() {
     if (!shellExecLimiter.check(clientIp)) {
       return res.status(429).json({ error: 'Rate limit exceeded for shell execution' });
     }
+    const { cmd, args, cwd } = (req.body ?? {}) as { cmd?: string; args?: string[]; cwd?: string };
     try {
-      const { cmd, args, cwd } = req.body as { cmd: string; args?: string[]; cwd?: string };
       if (!cmd || !SHELL_WHITELIST[cmd]) {
         return res.status(400).json({ error: `Command not permitted: ${cmd}` });
       }

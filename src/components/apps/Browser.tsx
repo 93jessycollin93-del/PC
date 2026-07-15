@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Search, RotateCw, ArrowLeft, ArrowRight } from 'lucide-react';
-import { useToast } from '../../lib/toastContext';
+import { useToast } from '../../../lib/toastContext';
 
 interface BrowserProps {
   onClose: () => void;
