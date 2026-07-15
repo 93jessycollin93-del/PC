@@ -401,7 +401,7 @@ export const App: React.FC = () => {
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
     // Jackie front-page shell: 'closed' = Jackie full screen (front page),
     // 'half' = PC on top / Jackie below, 'full' = PC full screen.
-    const [pcMode, setPcMode] = useState<PcMode>('closed');
+    const [pcMode, setPcMode] = useState<PcMode>('full');
     const [vaultUnlockModal, setVaultUnlockModal] = useState<{ visible: boolean; password: string; error?: string }>({ visible: false, password: '' });
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1025,14 +1025,15 @@ Body: ${emailToSummarize.body}`,
             />
 
             {/* Desktop Area with Dynamic Background */}
-            <div 
-                className="h-full w-full relative overflow-hidden bg-zinc-900 transition-all duration-1000 ease-in-out"
+            <div
+                className="h-full w-full relative overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-950 to-black transition-all duration-1000 ease-in-out"
                 style={{
-                    backgroundImage: wallpaperUrl 
-                       ? `url(${wallpaperUrl})` 
-                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.25) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.2) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.2) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 20%)',
+                    backgroundImage: wallpaperUrl
+                       ? `url(${wallpaperUrl})`
+                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.25) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.25) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.15) 0%, transparent 20%)',
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center'
+                    backgroundPosition: 'center',
+                    backgroundAttachment: 'fixed'
                 }}
             >
                 
