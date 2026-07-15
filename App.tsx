@@ -120,6 +120,9 @@ import GlobalKeyboard from './src/components/GlobalKeyboard';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
 import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
+import { AnsibleAutomationApp } from './components/apps/AnsibleAutomationApp';
+import { JackieCouncilApp } from './components/apps/JackieCouncilApp';
+import { useAppStore } from './src/core/appStore';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -147,6 +150,8 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
     { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
+    { id: 'ansible_automation', name: 'Ansible Automation', type: 'app', icon: Sliders, appId: 'ansible_automation', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-red-800 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
+    { id: 'jackie_council', name: 'Jackie Council', type: 'app', icon: Brain, appId: 'jackie_council', bgColor: 'bg-gradient-to-br from-indigo-600 via-violet-700 to-zinc-950 border border-indigo-400/40 shadow-[0_0_15px_rgba(129,140,248,0.35)]' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
     { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
@@ -1104,6 +1109,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cost_analytics') content = <CostAnalyticsApp />;
                     else if (win.item.appId === 'tool_registry') content = <ToolRegistryApp />;
                     else if (win.item.appId === 'agent_orchestration') content = <AgentOrchestrationDashboard />;
+                    else if (win.item.appId === 'ansible_automation') content = <AnsibleAutomationApp />;
+                    else if (win.item.appId === 'jackie_council') content = <JackieCouncilApp />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
                     else if (win.item.appId === 'workspace_manager') content = <WorkspaceManagerApp />;
                     else if (win.item.appId === 'storage_stats') content = <StorageStatsApp />;
