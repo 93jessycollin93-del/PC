@@ -4,6 +4,8 @@
 */
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Minus, Square, Grip, ExternalLink } from 'lucide-react';
+import { usePCThemeOptional } from '../src/pc-themes/PCThemeContext';
+import { PCWindowControls } from '../src/pc-themes/components/PCWindowChrome';
 
 interface DraggableWindowProps {
     id: string;
@@ -60,6 +62,14 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
     const dragStartPos = useRef({ x: 0, y: 0 });
     const resizeStart = useRef({ x: 0, y: 0, width: 0, height: 0 });
     const windowRef = useRef<HTMLDivElement>(null);
+
+    // PC theme system: purely visual. `themed` is false for the default
+    // cosmic-jackie theme (or if the provider is absent), in which case the
+    // original chrome below renders unchanged. Drag/resize/maximize/close
+    // logic is shared by both paths — themes cannot alter behavior.
+    const pcTheme = usePCThemeOptional();
+    const themed = !!pcTheme && !pcTheme.isDefault;
+    const pcControls = pcTheme?.theme.window.controls ?? 'fluent';
 
     const handleHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         // Ignore if clicking window control buttons
@@ -162,10 +172,35 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
             } : {
                 zIndex: zIndex
             }}
-            className={`absolute flex flex-col bg-zinc-900 rounded-lg shadow-2xl border ${isActive ? 'border-zinc-600 ring-1 ring-zinc-700' : 'border-zinc-800'} overflow-hidden ${effectiveMaximized ? 'inset-0 rounded-none m-0 h-full w-full' : ''} transition-all duration-75 ease-out touch-none`}
+            className={
+                themed
+                    ? `pc-window ${isActive ? 'pc-window-active' : ''} absolute flex flex-col overflow-hidden ${effectiveMaximized ? 'inset-0 !rounded-none m-0 h-full w-full' : ''} transition-all duration-75 ease-out touch-none`
+                    : `absolute flex flex-col bg-zinc-900 rounded-lg shadow-2xl border ${isActive ? 'border-zinc-600 ring-1 ring-zinc-700' : 'border-zinc-800'} overflow-hidden ${effectiveMaximized ? 'inset-0 rounded-none m-0 h-full w-full' : ''} transition-all duration-75 ease-out touch-none`
+            }
             onPointerDown={() => { if (onFocus) onFocus(); }}
         >
             {/* Window Header */}
+            {themed ? (
+                /* Era window chrome — same handlers, same state machine;
+                   only paint + control glyphs change per theme family. */
+                <div
+                    onDoubleClick={toggleMaximize}
+                    onPointerDown={handleHeaderPointerDown}
+                    className={`pc-titlebar ${isActive ? 'pc-titlebar-active' : 'pc-titlebar-inactive'} flex items-center justify-between select-none touch-none shrink-0 ${!effectiveMaximized ? 'cursor-grab active:cursor-grabbing' : ''} ${effectiveMaximized && isMobile ? 'pt-4' : ''}`}
+                >
+                    <div className="flex items-center gap-1.5 font-medium pointer-events-none min-w-0">
+                        {pcTheme!.theme.window.showTitleIcon && Icon && <Icon size={13} className="opacity-90 shrink-0" />}
+                        <span className="truncate">{title}</span>
+                    </div>
+                    <PCWindowControls
+                        controls={pcControls}
+                        url={url}
+                        hideMaximize={isMobile}
+                        onToggleMaximize={toggleMaximize}
+                        onClose={onClose}
+                    />
+                </div>
+            ) : (
             <div
                 onDoubleClick={toggleMaximize}
                 onPointerDown={handleHeaderPointerDown}
@@ -178,7 +213,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                 <div className="flex items-center gap-1.5">
                      {/* Window Controls */}
                      {url && (
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }}
                             onPointerDown={(e) => e.stopPropagation()}
                             className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors mr-1"
@@ -202,9 +237,10 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                     </button>
                 </div>
             </div>
+            )}
 
             {/* Window Content */}
-            <div className={`flex-1 overflow-hidden relative bg-os-bg ${effectiveMaximized && isMobile ? 'pb-20' : ''}`}>
+            <div className={`flex-1 overflow-hidden relative ${themed ? 'pc-window-content' : 'bg-os-bg'} ${effectiveMaximized && isMobile ? 'pb-20' : ''}`}>
                 {children}
                  {/* Overlay to catch events when not active */}
                 {!isActive && <div className="absolute inset-0 bg-transparent" />}

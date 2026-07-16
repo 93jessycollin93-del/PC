@@ -1,0 +1,658 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   PC THEME SYSTEM — scoped shell chrome
+   ─────────────────────────────────────────────────────────────────────────
+   SCOPING CONTRACT (isolation by construction):
+   • Every selector below is anchored to `[data-pc-family="…"]`, which only
+     exists on the PC desktop-surface container. Nothing here can style
+     Jackie's cosmic chat, the Eru vault, or global UI.
+   • The `cosmic` family (default theme) matches NO selector in this file —
+     with cosmic-jackie active the stylesheet is inert and the PC renders
+     its original look, bit-for-bit.
+   • Colors/fonts/sizes come from `--pc-*` custom properties set inline by
+     PCThemeProvider from each theme's tokens. Structure (bevels, glass,
+     flatness) lives here per family. New themes in an existing family need
+     ZERO new CSS.
+
+   FAMILIES: win9x (95/98/ME) · win2k (2000) · winxp (XP Luna)
+             aero (Vista/7) · metro (8/8.1) · fluent (10/11)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Convenience alias: "any themed family" (everything except cosmic). */
+[data-pc-family='win9x'], [data-pc-family='win2k'], [data-pc-family='winxp'],
+[data-pc-family='aero'], [data-pc-family='metro'], [data-pc-family='fluent'] {
+  font-family: var(--pc-font);
+}
+
+/* ── 3D bevel utilities (authentic Win9x border recipe) ─────────────────
+   Raised:  highlight top/left, shadow + dark-shadow bottom/right.
+   Sunken:  the exact inverse (pressed buttons, fields, trays).           */
+[data-pc-family] .pc-bevel-out {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface);
+}
+[data-pc-family] .pc-bevel-in {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-darker),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-dark);
+}
+[data-pc-family] .pc-bevel-field {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-dark),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-darker);
+  background: var(--pc-field-bg);
+  color: var(--pc-field-text);
+}
+
+/* ═══ WINDOW CHROME ══════════════════════════════════════════════════ */
+
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-window {
+  background: var(--pc-window-bg);
+  border-radius: var(--pc-window-radius);
+  box-shadow: var(--pc-window-shadow);
+  color: var(--pc-surface-text);
+  font-family: var(--pc-font);
+}
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-window-content {
+  background: var(--pc-content-bg);
+}
+
+/* — Win9x / Win2k: silver slab with raised bevel, 3px frame — */
+[data-pc-family='win9x'] .pc-window,
+[data-pc-family='win2k'] .pc-window {
+  padding: 3px;
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface),
+    var(--pc-window-shadow);
+}
+[data-pc-family='win9x'] .pc-titlebar,
+[data-pc-family='win2k'] .pc-titlebar {
+  height: var(--pc-titlebar-height);
+  padding: 0 2px 0 4px;
+  font-family: var(--pc-titlebar-font);
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+/* — XP Luna: blue gradient frame wrapping the whole window — */
+[data-pc-family='winxp'] .pc-window {
+  padding: 0 3px 3px;
+  background: linear-gradient(180deg, #0997ff 0%, #0855dd 12%, #045be5 100%);
+  border-radius: 8px 8px 4px 4px;
+}
+[data-pc-family='winxp'] .pc-window:not(.pc-window-active) {
+  background: linear-gradient(180deg, #9db9eb 0%, #7c9fe0 100%);
+}
+[data-pc-family='winxp'] .pc-titlebar {
+  height: var(--pc-titlebar-height);
+  padding: 0 4px 0 8px;
+  background: transparent !important; /* frame gradient shows through */
+  font-family: var(--pc-titlebar-font);
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 1px 1px 1px rgba(10, 24, 131, 0.7);
+}
+
+/* — Aero: translucent glass frame with blur — */
+[data-pc-family='aero'] .pc-window {
+  padding: 0 5px 5px;
+  border: 1px solid var(--pc-window-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+[data-pc-family='aero'] .pc-titlebar {
+  height: var(--pc-titlebar-height);
+  padding: 0 2px 0 8px;
+  background: transparent !important;
+  font-family: var(--pc-titlebar-font);
+  font-size: 12px;
+}
+[data-pc-family='aero'] .pc-window-content {
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+/* — Metro: dead flat, hard corners, accent border — */
+[data-pc-family='metro'] .pc-window {
+  border: 1px solid var(--pc-window-border);
+}
+[data-pc-family='metro'] .pc-titlebar {
+  height: var(--pc-titlebar-height);
+  padding: 0 0 0 10px;
+  font-family: var(--pc-titlebar-font);
+  font-size: 12px;
+}
+
+/* — Fluent: subtle border, per-theme rounding — */
+[data-pc-family='fluent'] .pc-window {
+  border: 1px solid var(--pc-window-border);
+}
+[data-pc-family='fluent'] .pc-titlebar {
+  height: var(--pc-titlebar-height);
+  padding: 0 0 0 12px;
+  font-family: var(--pc-titlebar-font);
+  font-size: 12px;
+}
+
+/* Titlebar active/inactive paint (all themed families). */
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-titlebar-active {
+  background: var(--pc-titlebar-bg);
+  color: var(--pc-titlebar-text);
+}
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-titlebar-inactive {
+  background: var(--pc-titlebar-bg-inactive);
+  color: var(--pc-titlebar-text-inactive);
+}
+
+/* ── Caption control buttons ── */
+
+/* Win9x/2k: 16×14 raised gray squares that press in. */
+[data-pc-family='win9x'] .pc-title-btn,
+[data-pc-family='win2k'] .pc-title-btn {
+  width: 16px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pc-surface);
+  color: #000;
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface);
+}
+[data-pc-family='win9x'] .pc-title-btn:active,
+[data-pc-family='win2k'] .pc-title-btn:active {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-darker),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-dark);
+}
+
+/* XP: round glossy pills; red close. */
+[data-pc-family='winxp'] .pc-title-btn {
+  width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: linear-gradient(180deg, #7ba7e8 0%, #2c66d9 45%, #1846b0 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+[data-pc-family='winxp'] .pc-title-btn:hover { filter: brightness(1.15); }
+[data-pc-family='winxp'] .pc-title-btn:active { filter: brightness(0.85); }
+[data-pc-family='winxp'] .pc-title-btn-close {
+  background: linear-gradient(180deg, #eda28d 0%, #d8502c 45%, #b03214 100%);
+}
+
+/* Aero: joined glass rectangles hugging the top edge; red glow close. */
+[data-pc-family='aero'] .pc-title-btn {
+  width: 28px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(0, 0, 0, 0.12) 51%, rgba(255, 255, 255, 0.12) 100%);
+  border-radius: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+[data-pc-family='aero'] .pc-title-btn:first-child { border-radius: 0 0 0 4px; }
+[data-pc-family='aero'] .pc-title-btn:last-child { border-radius: 0 0 4px 0; }
+[data-pc-family='aero'] .pc-title-btn:hover {
+  background: linear-gradient(180deg, rgba(160, 210, 255, 0.6) 0%, rgba(90, 160, 230, 0.4) 100%);
+  box-shadow: 0 0 8px rgba(120, 190, 255, 0.8);
+}
+[data-pc-family='aero'] .pc-title-btn-close:hover {
+  background: linear-gradient(180deg, #f5a08c 0%, #e2543a 48%, #c22c0e 52%, #e86e50 100%);
+  box-shadow: 0 0 8px rgba(240, 90, 50, 0.9);
+}
+
+/* Metro/Fluent: flat wide targets; authentic crimson close hover. */
+[data-pc-family='metro'] .pc-title-btn,
+[data-pc-family='fluent'] .pc-title-btn {
+  width: 44px;
+  height: var(--pc-titlebar-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  background: transparent;
+}
+[data-pc-family='metro'] .pc-title-btn:hover,
+[data-pc-family='fluent'] .pc-title-btn:hover {
+  background: rgba(0, 0, 0, 0.09);
+}
+[data-pc-family='metro'] .pc-title-btn-close:hover,
+[data-pc-family='fluent'] .pc-title-btn-close:hover {
+  background: var(--pc-close-hover, #e81123);
+  color: #fff;
+}
+[data-pc-theme='win11'] .pc-title-btn-close:hover { background: #c42b1c; }
+[data-pc-theme='win11'] .pc-title-btn:first-child { border-radius: 0 8px 0 0; }
+
+/* ═══ TASKBAR ════════════════════════════════════════════════════════ */
+
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-taskbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2rem; /* clears the global BottomBar strip (h-8) */
+  height: var(--pc-taskbar-height);
+  z-index: 2800; /* above windows, below Jackie's overlay (z-3000) */
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  background: var(--pc-taskbar-bg);
+  color: var(--pc-taskbar-text);
+  border-top: 1px solid var(--pc-taskbar-border);
+  backdrop-filter: blur(var(--pc-taskbar-blur));
+  -webkit-backdrop-filter: blur(var(--pc-taskbar-blur));
+  font-family: var(--pc-font);
+}
+[data-pc-family='win9x'] .pc-taskbar,
+[data-pc-family='win2k'] .pc-taskbar {
+  box-shadow: inset 0 1px 0 var(--pc-bevel-light);
+}
+[data-pc-theme='win11'] .pc-taskbar { justify-content: center; }
+
+/* Start button. */
+[data-pc-family] .pc-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: calc(var(--pc-taskbar-height) - 8px);
+  padding: 0 8px;
+  font-weight: 700;
+  background: var(--pc-start-bg);
+  color: var(--pc-start-text);
+  flex-shrink: 0;
+}
+[data-pc-family='win9x'] .pc-start-btn,
+[data-pc-family='win2k'] .pc-start-btn {
+  font-size: 12px;
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface);
+}
+[data-pc-family='win9x'] .pc-start-btn.pc-start-open,
+[data-pc-family='win2k'] .pc-start-btn.pc-start-open,
+[data-pc-family='win9x'] .pc-start-btn:active,
+[data-pc-family='win2k'] .pc-start-btn:active {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-darker),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-dark);
+}
+[data-pc-family='winxp'] .pc-start-btn {
+  height: 100%;
+  margin: -2px 6px -2px -4px;
+  padding: 0 18px 0 10px;
+  font-size: 16px;
+  font-style: italic;
+  border-radius: 0 12px 12px 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -3px 5px rgba(0, 0, 0, 0.3), 2px 0 4px rgba(0, 0, 0, 0.35);
+}
+[data-pc-family='aero'] .pc-start-btn {
+  width: calc(var(--pc-taskbar-height) - 4px);
+  height: calc(var(--pc-taskbar-height) - 4px);
+  padding: 0;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.5), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+[data-pc-family='aero'] .pc-start-btn:hover { filter: brightness(1.2); }
+[data-pc-family='metro'] .pc-start-btn,
+[data-pc-family='fluent'] .pc-start-btn {
+  height: calc(var(--pc-taskbar-height) - 6px);
+  padding: 0 10px;
+  background: transparent;
+  border-radius: 4px;
+}
+[data-pc-family='metro'] .pc-start-btn:hover,
+[data-pc-family='fluent'] .pc-start-btn:hover {
+  background: var(--pc-menu-hover-bg);
+}
+
+/* Running-app buttons. */
+[data-pc-family] .pc-task-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: calc(var(--pc-taskbar-height) - 8px);
+  padding: 0 8px;
+  max-width: 160px;
+  min-width: 0;
+  font-size: 11px;
+  color: inherit;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+[data-pc-family='win9x'] .pc-task-btn,
+[data-pc-family='win2k'] .pc-task-btn {
+  background: var(--pc-surface);
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface);
+}
+[data-pc-family='win9x'] .pc-task-btn.pc-task-active,
+[data-pc-family='win2k'] .pc-task-btn.pc-task-active {
+  font-weight: 700;
+  background:
+    repeating-conic-gradient(var(--pc-bevel-light) 0% 25%, var(--pc-surface) 0% 50%) 0 0 / 4px 4px; /* classic pressed dither */
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-darker),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-dark);
+}
+[data-pc-family='winxp'] .pc-task-btn {
+  border-radius: 4px;
+  background: linear-gradient(180deg, #5c94f2 0%, #3567cf 50%, #2c5bc5 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+[data-pc-family='winxp'] .pc-task-btn.pc-task-active {
+  background: linear-gradient(180deg, #1d4dbb 0%, #16389a 100%);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.45);
+}
+[data-pc-family='aero'] .pc-task-btn {
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 100%);
+}
+[data-pc-family='aero'] .pc-task-btn.pc-task-active {
+  background: linear-gradient(180deg, rgba(150, 200, 250, 0.45) 0%, rgba(70, 130, 200, 0.35) 100%);
+  box-shadow: 0 0 8px rgba(140, 200, 255, 0.6);
+}
+[data-pc-family='metro'] .pc-task-btn,
+[data-pc-family='fluent'] .pc-task-btn {
+  border-radius: 4px;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+}
+[data-pc-family='metro'] .pc-task-btn:hover,
+[data-pc-family='fluent'] .pc-task-btn:hover {
+  background: var(--pc-menu-hover-bg);
+}
+[data-pc-family='metro'] .pc-task-btn.pc-task-active,
+[data-pc-family='fluent'] .pc-task-btn.pc-task-active {
+  border-bottom-color: var(--pc-accent);
+  background: var(--pc-menu-hover-bg);
+}
+
+/* Tray (clock + theme quick-switch). */
+[data-pc-family] .pc-tray {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: calc(var(--pc-taskbar-height) - 8px);
+  padding: 0 8px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+[data-pc-family='win9x'] .pc-tray,
+[data-pc-family='win2k'] .pc-tray {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-dark);
+}
+[data-pc-theme='win11'] .pc-tray { position: absolute; right: 6px; }
+
+/* ═══ START MENU ═════════════════════════════════════════════════════ */
+
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-startmenu {
+  position: absolute;
+  bottom: calc(var(--pc-taskbar-height) + 2.25rem);
+  left: 4px;
+  z-index: 2900;
+  display: flex;
+  background: var(--pc-menu-bg);
+  color: var(--pc-menu-text);
+  border-radius: var(--pc-menu-radius);
+  backdrop-filter: blur(var(--pc-menu-blur));
+  -webkit-backdrop-filter: blur(var(--pc-menu-blur));
+  box-shadow: 4px 4px 14px rgba(0, 0, 0, 0.45);
+  font-family: var(--pc-font);
+  overflow: hidden;
+}
+[data-pc-family='win9x'] .pc-startmenu,
+[data-pc-family='win2k'] .pc-startmenu {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface),
+    4px 4px 10px rgba(0, 0, 0, 0.4);
+  padding: 3px;
+}
+[data-pc-theme='win11'] .pc-startmenu {
+  left: 50%;
+  transform: translateX(-50%);
+}
+[data-pc-family='metro'] .pc-startmenu {
+  inset: 0;
+  bottom: calc(var(--pc-taskbar-height) + 2rem);
+  border-radius: 0;
+}
+
+/* Classic vertical side banner ("Windows 95"). */
+[data-pc-family] .pc-startmenu-banner {
+  width: 26px;
+  background: linear-gradient(0deg, var(--pc-banner-from) 0%, var(--pc-banner-to) 100%);
+  color: #fff;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+[data-pc-family] .pc-startmenu-banner span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* Menu rows. */
+[data-pc-family] .pc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+  text-align: left;
+  color: inherit;
+  border-radius: calc(var(--pc-menu-radius) / 2);
+}
+[data-pc-family] .pc-menu-item:hover,
+[data-pc-family] .pc-menu-item.pc-menu-item-hot {
+  background: var(--pc-menu-hover-bg);
+  color: var(--pc-menu-hover-text);
+}
+[data-pc-family='win9x'] .pc-menu-item,
+[data-pc-family='win2k'] .pc-menu-item { border-radius: 0; }
+
+/* Metro live-tile grid + fluent pinned grid. */
+[data-pc-family] .pc-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 8px;
+  color: #fff;
+  background: var(--pc-accent);
+  overflow: hidden;
+}
+[data-pc-family] .pc-tile:hover { filter: brightness(1.12); }
+
+/* ═══ DESKTOP ICONS ══════════════════════════════════════════════════ */
+
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-desktop-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 84px;
+  padding: 6px 2px;
+  border: 1px dotted transparent;
+}
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-desktop-icon:hover .pc-desktop-icon-label,
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-desktop-icon:focus .pc-desktop-icon-label {
+  background: var(--pc-icon-select-bg);
+}
+[data-pc-family='win9x'] .pc-desktop-icon:focus,
+[data-pc-family='win2k'] .pc-desktop-icon:focus {
+  border-color: rgba(255, 255, 255, 0.8); /* classic marching-ants focus */
+}
+[data-pc-family] .pc-desktop-icon-label {
+  max-width: 84px;
+  padding: 1px 3px;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--pc-icon-label);
+  text-shadow: var(--pc-icon-label-shadow);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ═══ THEMED DIALOG / APP SURFACES (Theme Manager, Settings tab) ═════ */
+
+[data-pc-family]:not([data-pc-family='cosmic']) .pc-dialog {
+  background: var(--pc-surface);
+  color: var(--pc-surface-text);
+  font-family: var(--pc-font);
+}
+
+[data-pc-family] .pc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 74px;
+  padding: 5px 14px;
+  font-size: 12px;
+  background: var(--pc-btn-bg);
+  color: var(--pc-btn-text);
+}
+[data-pc-family='win9x'] .pc-btn, [data-pc-family='win2k'] .pc-btn {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface);
+}
+[data-pc-family='win9x'] .pc-btn:active, [data-pc-family='win2k'] .pc-btn:active {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-darker),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-dark);
+}
+[data-pc-family='winxp'] .pc-btn {
+  border: 1px solid #003c74;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 3px rgba(0, 60, 116, 0.2);
+}
+[data-pc-family='aero'] .pc-btn,
+[data-pc-family='metro'] .pc-btn,
+[data-pc-family='fluent'] .pc-btn {
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+[data-pc-family] .pc-btn:hover { filter: brightness(1.06); }
+[data-pc-family] .pc-btn-primary {
+  background: var(--pc-accent);
+  color: var(--pc-accent-text);
+}
+
+[data-pc-family] .pc-field {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--pc-font);
+  background: var(--pc-field-bg);
+  color: var(--pc-field-text);
+  border: 1px solid var(--pc-bevel-dark);
+  outline: none;
+}
+[data-pc-family='win9x'] .pc-field, [data-pc-family='win2k'] .pc-field {
+  border: none;
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-dark),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-darker);
+}
+
+/* Classic segmented progress bar (Update Center installs). */
+[data-pc-family] .pc-progress {
+  height: 16px;
+  background: var(--pc-field-bg);
+  overflow: hidden;
+}
+[data-pc-family='win9x'] .pc-progress, [data-pc-family='win2k'] .pc-progress {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-dark);
+  padding: 2px;
+}
+[data-pc-family] .pc-progress-fill {
+  height: 100%;
+  background: var(--pc-accent);
+  transition: width 180ms linear;
+}
+[data-pc-family='win9x'] .pc-progress-fill, [data-pc-family='win2k'] .pc-progress-fill {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pc-accent) 0 8px,
+    transparent 8px 10px
+  ); /* chunky Win9x blocks */
+}
+
+/* ═══ MOBILE FALLBACK (inside the PC container only) ═════════════════ */
+@media (max-width: 768px) {
+  [data-pc-family]:not([data-pc-family='cosmic']) .pc-taskbar {
+    height: 46px; /* finger-friendly regardless of theme metrics */
+  }
+  [data-pc-family]:not([data-pc-family='cosmic']) .pc-startmenu {
+    left: 0 !important;
+    right: 0;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100%;
+    bottom: calc(46px + 2.25rem);
+    max-height: 62vh;
+  }
+  [data-pc-family] .pc-menu-item { padding: 10px 12px; font-size: 14px; }
+  [data-pc-family] .pc-task-btn { max-width: 110px; }
+}

@@ -1,0 +1,90 @@
+import type { PCThemeDefinition } from '../types';
+import { BLOOM_11, HERO_10 } from './shared';
+
+/**
+ * Windows 11 — stock light theme over the blue "Bloom":
+ *   • Mica-style light chrome (#F3F3F3) with 8px rounded corners,
+ *   • the CENTERED taskbar with the four-square Fluent logo,
+ *   • accent #0067C0, close-hover #C42B1C (Win11's softened crimson),
+ *   • Segoe UI Variable, acrylic-blurred centered Start with pinned grid.
+ */
+export const win11: PCThemeDefinition = {
+  id: 'win11',
+  label: 'Windows 11',
+  era: '2021',
+  description: 'Mica, rounded corners, centered taskbar — modern Fluent.',
+  family: 'fluent',
+  iconPack: 'fluent',
+  preview: { a: '#3f74e0', b: '#f3f3f3', c: '#0067c0' },
+  tokens: {
+    '--pc-font': `'Segoe UI Variable', 'Segoe UI', Tahoma, Arial, sans-serif`,
+    '--pc-titlebar-font': `'Segoe UI Variable', 'Segoe UI', Tahoma, Arial, sans-serif`,
+    '--pc-desktop-bg': '#2456c4',
+    '--pc-surface': '#f3f3f3',
+    '--pc-surface-text': '#1a1a1a',
+    '--pc-window-bg': '#f3f3f3',
+    '--pc-window-radius': '8px',
+    '--pc-window-border': 'rgba(0,0,0,0.28)',
+    '--pc-window-shadow': '0 10px 34px rgba(0,0,0,0.5)',
+    '--pc-content-bg': '#f9f9f9',
+    '--pc-titlebar-bg': '#f3f3f3',
+    '--pc-titlebar-bg-inactive': '#f3f3f3',
+    '--pc-titlebar-text': '#1a1a1a',
+    '--pc-titlebar-text-inactive': '#9a9a9a',
+    '--pc-titlebar-height': '34px',
+    '--pc-bevel-light': 'transparent',
+    '--pc-bevel-dark': 'transparent',
+    '--pc-bevel-darker': 'transparent',
+    '--pc-accent': '#0067c0',
+    '--pc-accent-text': '#ffffff',
+    '--pc-taskbar-bg': 'rgba(243, 243, 243, 0.88)',
+    '--pc-taskbar-text': '#1a1a1a',
+    '--pc-taskbar-height': '44px',
+    '--pc-taskbar-border': 'rgba(0,0,0,0.08)',
+    '--pc-taskbar-blur': '20px',
+    '--pc-start-bg': 'transparent',
+    '--pc-start-text': '#1a1a1a',
+    '--pc-menu-bg': 'rgba(243, 243, 243, 0.92)',
+    '--pc-menu-text': '#1a1a1a',
+    '--pc-menu-hover-bg': 'rgba(0,0,0,0.06)',
+    '--pc-menu-hover-text': '#000000',
+    '--pc-menu-radius': '12px',
+    '--pc-menu-blur': '30px',
+    '--pc-icon-label': '#ffffff',
+    '--pc-icon-label-shadow': '0 1px 2px rgba(0,0,0,0.85)',
+    '--pc-icon-select-bg': 'rgba(255,255,255,0.28)',
+    '--pc-btn-bg': '#fbfbfb',
+    '--pc-btn-text': '#1a1a1a',
+    '--pc-field-bg': '#ffffff',
+    '--pc-field-text': '#1a1a1a',
+    '--pc-banner-from': '#0f4faf',
+    '--pc-banner-to': '#4cc2ff',
+  },
+  wallpapers: [
+    { id: 'bloom', label: 'Bloom (default)', css: BLOOM_11 },
+    {
+      id: 'bloom-dark',
+      label: 'Bloom Dark',
+      css:
+        'radial-gradient(60% 80% at 30% 40%, rgba(70,110,200,0.6) 0%, transparent 60%),' +
+        'radial-gradient(55% 70% at 68% 55%, rgba(30,50,120,0.7) 0%, transparent 65%),' +
+        'linear-gradient(160deg, #0c1430 0%, #17245c 45%, #080d20 100%)',
+    },
+    { id: 'hero', label: 'Hero', css: HERO_10 },
+    {
+      id: 'glow',
+      label: 'Glow',
+      css: 'radial-gradient(80% 100% at 50% 100%, #f2a03d 0%, #c04848 40%, #2b1c4e 80%, #120a26 100%)',
+    },
+  ],
+  defaultWallpaperId: 'bloom',
+  window: { controls: 'fluent', showTitleIcon: false },
+  taskbar: {
+    startLabel: '',
+    startLogo: 'fluent',
+    centered: true,
+    showThemeTrayButton: true,
+    showClock: true,
+  },
+  startMenu: 'centered11',
+};

@@ -5,6 +5,8 @@
 import React from 'react';
 import { DesktopItem } from '../../types';
 import { Monitor } from 'lucide-react';
+import { usePCThemeOptional } from '../../src/pc-themes/PCThemeContext';
+import { PCDesktopIcon } from '../../src/pc-themes/components/PCDesktopIcon';
 
 interface HomeScreenProps {
     items: (DesktopItem | null)[];
@@ -12,6 +14,11 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ items, onLaunch }) => {
+    // PC theme system: when a Windows theme is active, desktop icons render
+    // as era-correct classic icons (pixel SVGs / tiles). Launch behavior is
+    // identical — only the visual wrapper changes. Default theme: untouched.
+    const pcTheme = usePCThemeOptional();
+    const themed = !!pcTheme && !pcTheme.isDefault;
     return (
         <div className="h-full w-full p-10 grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-8 content-start justify-items-center overflow-y-auto overflow-x-hidden overscroll-y-contain scroll-smooth"
             style={{
@@ -33,6 +40,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ items, onLaunch }) => {
                 if (!item) {
                     // Render an invisible placeholder to maintain grid gap
                     return <div key={`gap-${index}`} className="w-28 h-[7rem]" />;
+                }
+                if (themed) {
+                    return (
+                        <PCDesktopIcon
+                            key={item.id}
+                            item={item}
+                            pack={pcTheme!.theme.iconPack}
+                            onLaunch={onLaunch}
+                        />
+                    );
                 }
                 return (
                     <button

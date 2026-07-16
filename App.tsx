@@ -90,7 +90,7 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle, Star, Package } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -120,6 +120,10 @@ import GlobalKeyboard from './src/components/GlobalKeyboard';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
 import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
+// PC theme system — scoped to the PC desktop surface only (see src/pc-themes/README.md).
+import { usePCTheme } from './src/pc-themes/PCThemeContext';
+import { PCTaskbar } from './src/pc-themes/components/PCTaskbar';
+import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -145,6 +149,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
     { id: 'cost_analytics', name: 'Cost Analytics', type: 'app', icon: DollarSign, appId: 'cost_analytics', bgColor: 'bg-gradient-to-br from-yellow-500 via-orange-600 to-red-600 border border-yellow-400/30 shadow-[0_0_15px_rgba(234,179,8,0.3)]' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
+    { id: 'pc_themes', name: 'Themes', type: 'app', icon: Palette, appId: 'pc_themes', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-blue-900 border border-teal-400/30 shadow-md' },
     { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
     { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
@@ -402,6 +407,10 @@ export const App: React.FC = () => {
     // Jackie front-page shell: 'closed' = Jackie full screen (front page),
     // 'half' = PC on top / Jackie below, 'full' = PC full screen.
     const [pcMode, setPcMode] = useState<PcMode>('full');
+    // PC theme context (provider lives in index.tsx). While the default
+    // cosmic-jackie theme is active this is a pure passthrough: the desktop
+    // renders exactly as before and no themed chrome mounts anywhere.
+    const { isDefault: pcThemeIsDefault, wallpaper: pcWallpaper, scopeProps: pcScopeProps } = usePCTheme();
     const [vaultUnlockModal, setVaultUnlockModal] = useState<{ visible: boolean; password: string; error?: string }>({ visible: false, password: '' });
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -525,6 +534,7 @@ export const App: React.FC = () => {
         if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
         if (item.appId === 'ui_studio') initialSize = { width: 960, height: 620 };
         if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
+        if (item.appId === 'pc_themes') initialSize = { width: 780, height: 560 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -1024,16 +1034,25 @@ Body: ${emailToSummarize.body}`,
                 }}
             />
 
-            {/* Desktop Area with Dynamic Background */}
+            {/* Desktop Area with Dynamic Background — this div is the PC THEME
+                SCOPE: the data-pc-* attributes activate the scoped stylesheet
+                and carry the theme's CSS variables. Cosmic default keeps the
+                original gradient / AI-generated wallpaper pipeline untouched;
+                a Windows theme paints its era wallpaper instead. */}
             <div
-                className="h-full w-full relative overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-950 to-black transition-all duration-1000 ease-in-out"
-                style={{
+                data-pc-theme={pcScopeProps['data-pc-theme']}
+                data-pc-family={pcScopeProps['data-pc-family']}
+                className={`h-full w-full relative overflow-hidden transition-all duration-1000 ease-in-out ${pcThemeIsDefault ? 'bg-gradient-to-br from-zinc-900 via-zinc-950 to-black' : ''}`}
+                style={pcThemeIsDefault ? {
                     backgroundImage: wallpaperUrl
                        ? `url(${wallpaperUrl})`
                        : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.25) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.25) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.15) 0%, transparent 20%)',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     backgroundAttachment: 'fixed'
+                } : {
+                    ...pcScopeProps.style,
+                    background: pcWallpaper.css || 'var(--pc-desktop-bg, #008080)',
                 }}
             >
                 
@@ -1131,6 +1150,8 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'data_vault') content = <DataVaultApp />;
                     else if (win.item.appId === 'data_redaction') content = <DataRedactionApp />;
                     else if (win.item.appId === 'session_recorder') content = <SessionRecorderApp />;
+                    // PC shell: theme manager (Display Properties + Update Center)
+                    else if (win.item.appId === 'pc_themes') content = <PCThemeManagerApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe
@@ -1165,6 +1186,22 @@ Body: ${emailToSummarize.body}`,
                 })}
 
                 <InkLayer active={inkMode} strokes={strokes} setStrokes={setStrokes} isProcessing={isProcessing} />
+
+                {/* Era taskbar + Start menu — only with a Windows theme active
+                    and the PC full-screen (in half mode Jackie owns the lower
+                    half). Lives inside the theme scope; launches/focuses via
+                    the exact same callbacks the desktop already uses. */}
+                {!pcThemeIsDefault && pcMode === 'full' && (
+                    <PCTaskbar
+                        apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                        openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name, item: w.item }))}
+                        focusedId={focusedId}
+                        onFocusWindow={focusWindow}
+                        onLaunchApp={handleLaunch}
+                        onLaunchAppId={(appId) => bus.emit('launch-app', { appId })}
+                        onShutDown={() => setPcMode('closed')}
+                    />
+                )}
 
                 {toast && (
                     // Notification Card

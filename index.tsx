@@ -8,6 +8,7 @@ import { App } from './App';
 import { initializeGlobalState } from './lib/persist';
 import { AuthProvider } from './lib/authContext';
 import { ToastProvider } from './lib/toastContext';
+import { PCThemeProvider } from './src/pc-themes/PCThemeContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Failed to find the root element');
@@ -53,7 +54,11 @@ const RootApp = () => {
         <React.StrictMode>
             <AuthProvider>
                 <ToastProvider>
-                    <App />
+                    {/* PC-shell theme context — state only; visuals stay scoped
+                        to the PC desktop container inside App. */}
+                    <PCThemeProvider>
+                        <App />
+                    </PCThemeProvider>
                 </ToastProvider>
             </AuthProvider>
         </React.StrictMode>
