@@ -36,6 +36,21 @@ export type PCThemeId =
   | 'win8'
   | 'win10'
   | 'win11'
+  | 'macos9'
+  | 'macosx-aqua'
+  | 'macos-sonoma'
+  | 'ubuntu-unity'
+  | 'gnome'
+  | 'kde-plasma'
+  | 'elementary'
+  | 'android-material'
+  | 'android-holo'
+  | 'ios6'
+  | 'ios17'
+  | 'chromeos'
+  | 'amiga'
+  | 'nextstep'
+  | 'beos'
   | (string & {});
 
 /**
@@ -50,16 +65,25 @@ export type PCThemeFamily =
   | 'winxp'  // XP Luna — rounded blue chrome, green Start
   | 'aero'   // Vista / 7 — translucent glass, glow buttons
   | 'metro'  // 8 / 8.1 — flat, sharp corners, solid accent
-  | 'fluent'; // 10 / 11 — acrylic, subtle rounding
+  | 'fluent' // 10 / 11 — acrylic, subtle rounding
+  | 'macclassic' // Mac OS 9 Platinum — striped titlebars, box gadgets
+  | 'mac'    // OS X Aqua → Sonoma — traffic lights, dock + menubar
+  | 'linux'  // GNOME / KDE / Unity / Pantheon — headerbars + panels
+  | 'mobile' // Android / iOS / ChromeOS — rounded, floating shelves
+  | 'retro'; // Amiga / NeXTSTEP / BeOS — chunky beveled workstations
 
 /** Which desktop/start-menu icon pack a theme uses. */
 export type PCIconPack =
   | 'cosmic'   // untouched original glossy tiles (default theme)
-  | 'classic'  // hand-drawn 16×16 pixel SVGs (Win 95/98/ME/2000)
+  | 'classic'  // hand-drawn 16×16 pixel SVGs (Win 95/98/ME/2000, retro OSes)
   | 'luna'     // pixel SVGs on soft XP-blue plates
   | 'aero'     // lucide glyph on glassy plate
   | 'tile'     // Metro: lucide glyph on flat solid tile (Win 8)
-  | 'fluent';  // lucide glyph on rounded acrylic plate (Win 10/11)
+  | 'fluent'   // lucide glyph on rounded acrylic plate (Win 10/11)
+  | 'squircle'       // macOS/iOS 17: flat superellipse, per-app hue
+  | 'squircle-gloss' // iOS 6: same shape + skeuomorphic gloss shine
+  | 'round'          // Android Holo / ChromeOS: circle plate, white glyph
+  | 'material';      // Material You: pastel monochrome circle, dark glyph
 
 /** One wallpaper option. `css` is any valid CSS `background` value —
  *  gradients and SVG data-URIs ship with zero network cost. Real image
@@ -84,9 +108,37 @@ export interface PCSoundPack {
 /** Window-chrome behavioral hints consumed by DraggableWindow. */
 export interface PCWindowStyle {
   /** Which control-button glyph set to draw. */
-  controls: 'win9x' | 'winxp' | 'aero' | 'metro' | 'fluent';
+  controls:
+    | 'win9x' | 'winxp' | 'aero' | 'metro' | 'fluent'
+    | 'traffic'   // macOS/Ubuntu round lights (colors via --pc-tl-* tokens)
+    | 'platinum'  // Mac OS 9 square boxes
+    | 'gnome'     // flat circular buttons (GNOME, iOS sheets)
+    | 'amiga'     // Workbench gadgets
+    | 'next';     // NeXTSTEP dark bevel squares
+  /**
+   * Which side of the titlebar the control cluster sits on.
+   * 'left' (macOS/Unity/elementary) also centers the window title.
+   * Default: 'right'.
+   */
+  controlsSide?: 'left' | 'right';
   /** Show the small app icon in the titlebar (Win9x/2k/XP tradition). */
   showTitleIcon: boolean;
+}
+
+/**
+ * Which shell bars a theme mounts inside the PC container.
+ * Omitted → ['taskbar'] (the Windows-style default). Combinations are
+ * allowed: macOS uses ['menubar','dock'], GNOME ['menubar','dock'],
+ * NeXT ['dock'] with dockPosition 'right', Amiga ['menubar'].
+ */
+export interface PCShellConfig {
+  bars: Array<'taskbar' | 'menubar' | 'dock'>;
+  /** Dock edge; docks forced to 'bottom' on mobile via CSS. */
+  dockPosition?: 'bottom' | 'left' | 'right';
+  /** Logo mark on the menubar's system button. */
+  menuLogo?: 'apple' | 'ubuntu' | 'gnome' | 'pantheon' | 'workbench' | 'beos';
+  /** Text next to/instead of the menubar logo (e.g. "Workbench"). */
+  menuLabel?: string;
 }
 
 /** Taskbar behavioral hints consumed by PCTaskbar. */
@@ -94,7 +146,7 @@ export interface PCTaskbarStyle {
   /** Text on the Start button ('' hides the label — orb/logo only). */
   startLabel: string;
   /** Which Start logo mark to draw next to/instead of the label. */
-  startLogo: 'flag95' | 'flagxp' | 'orb' | 'metro' | 'fluent';
+  startLogo: 'flag95' | 'flagxp' | 'orb' | 'metro' | 'fluent' | 'plasma' | 'drawer' | 'chrome';
   /** Center the app buttons + Start (Windows 11 style). */
   centered: boolean;
   /** Show a quick "Themes" tray button that opens the Theme Manager. */
@@ -137,6 +189,8 @@ export interface PCThemeDefinition {
   window: PCWindowStyle;
   taskbar: PCTaskbarStyle;
   startMenu: PCStartMenuLayout;
+  /** Shell bar layout; omitted → classic ['taskbar']. */
+  shell?: PCShellConfig;
   sounds?: PCSoundPack;
 }
 

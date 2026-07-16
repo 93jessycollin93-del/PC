@@ -170,7 +170,7 @@ const FlatPanes: React.FC<{ size: number; gap?: number; skew?: boolean }> = ({ s
 );
 
 export const StartLogo: React.FC<{
-  kind: 'flag95' | 'flagxp' | 'orb' | 'metro' | 'fluent';
+  kind: 'flag95' | 'flagxp' | 'orb' | 'metro' | 'fluent' | 'plasma' | 'drawer' | 'chrome';
   size?: number;
 }> = ({ kind, size = 18 }) => {
   switch (kind) {
@@ -185,6 +185,89 @@ export const StartLogo: React.FC<{
       return <FlatPanes size={size} skew />;
     case 'fluent':
       return <FlatPanes size={size} />;
+    case 'plasma':
+      // KDE Plasma launcher mark: white gear-ish K on the accent disc.
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.25" />
+          <text x="8" y="11.6" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor" fontFamily="sans-serif">K</text>
+        </svg>
+      );
+    case 'drawer':
+      // Android app-drawer: 3×2 dot grid.
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+          {[3, 8, 13].map(x => [5, 11].map(y => (
+            <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" fill="currentColor" />
+          )))}
+        </svg>
+      );
+    case 'chrome':
+      // ChromeOS launcher: ring + center dot.
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="8" cy="8" r="2.6" fill="currentColor" />
+        </svg>
+      );
+  }
+};
+
+/** Menubar system-button logos for dock/menubar shells. */
+export const MenuLogo: React.FC<{
+  kind: 'apple' | 'ubuntu' | 'gnome' | 'pantheon' | 'workbench' | 'beos';
+  size?: number;
+}> = ({ kind, size = 15 }) => {
+  switch (kind) {
+    case 'apple':
+      // Minimal apple silhouette: body + bite + leaf, in currentColor.
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+          <path d="M8 4.6c1.1-1.6 3.4-1.8 4.6-.6-1 .7-1.5 1.7-1.4 2.9.1 1.3.8 2.2 1.9 2.7-.5 1.5-1.2 2.9-2.3 4-.6.6-1.3.6-2 .3-.6-.3-1.2-.3-1.8 0-.7.3-1.4.3-2-.3C3.6 12.2 2.6 9.7 3 7.5c.3-1.8 1.7-3 3.3-3 .6 0 1.2.4 1.7.1z" />
+          <path d="M8.1 4.2c-.1-1.2.8-2.4 2-2.6.2 1.3-.8 2.5-2 2.6z" />
+        </svg>
+      );
+    case 'ubuntu':
+      // Circle-of-friends: ring with three nodes at 120°.
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+          <circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <circle cx="8" cy="2.6" r="1.7" />
+          <circle cx="3.4" cy="10.8" r="1.7" />
+          <circle cx="12.6" cy="10.8" r="1.7" />
+        </svg>
+      );
+    case 'gnome':
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+          <ellipse cx="9.5" cy="8.5" rx="3.4" ry="5" />
+          <ellipse cx="4.2" cy="4.6" rx="1.3" ry="2.1" transform="rotate(-24 4.2 4.6)" />
+          <ellipse cx="7" cy="2.9" rx="1.1" ry="1.9" />
+          <ellipse cx="13" cy="3.6" rx="1" ry="1.7" transform="rotate(18 13 3.6)" />
+        </svg>
+      );
+    case 'pantheon':
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M5 10c1-3 5-3 6 0" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        </svg>
+      );
+    case 'workbench':
+      // Amiga checkmark.
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 8l4 5L14 3" fill="none" stroke="#ff8800" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2 8l4 5L14 3" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'beos':
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" fill="#4c5c96" />
+          <text x="8" y="11.5" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="sans-serif">Be</text>
+        </svg>
+      );
   }
 };
 
@@ -226,6 +309,16 @@ interface PCAppIconProps {
 }
 
 /**
+ * Stable per-app hue so modern packs (macOS/iOS/Android) get varied but
+ * deterministic icon colors from the app id alone — pure presentation.
+ */
+function hashHue(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+/**
  * Renders the right icon for an app under the active pack.
  * `cosmic` is never rendered here — the default theme keeps the original
  * glossy tiles untouched (HomeScreen bypasses this component entirely).
@@ -236,6 +329,49 @@ export const PCAppIcon: React.FC<PCAppIconProps> = ({ item, pack, size = 40 }) =
   }
 
   const Lucide = item.icon;
+  const hue = hashHue(String(item.appId || item.name));
+
+  if (pack === 'squircle' || pack === 'squircle-gloss') {
+    // macOS / iOS superellipse plate; iOS-6 variant adds the glossy shine.
+    return (
+      <span
+        style={{
+          width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', overflow: 'hidden', borderRadius: size * 0.24,
+          background: `linear-gradient(180deg, hsl(${hue},72%,58%) 0%, hsl(${hue},78%,42%) 100%)`,
+          boxShadow: pack === 'squircle-gloss'
+            ? 'inset 0 1px 1px rgba(255,255,255,0.7), 0 2px 4px rgba(0,0,0,0.45)'
+            : '0 1px 4px rgba(0,0,0,0.3)',
+        }}
+      >
+        {Lucide && <Lucide style={{ width: size * 0.54, height: size * 0.54 }} color="#fff" />}
+        {pack === 'squircle-gloss' && (
+          <span style={{
+            position: 'absolute', left: 0, right: 0, top: 0, height: '48%',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.08) 100%)',
+            borderRadius: `${size * 0.24}px ${size * 0.24}px 40% 40%`, pointerEvents: 'none',
+          }} />
+        )}
+      </span>
+    );
+  }
+  if (pack === 'round' || pack === 'material') {
+    // Android/ChromeOS circle; Material You uses pastel plate + dark glyph.
+    const mat = pack === 'material';
+    return (
+      <span
+        style={{
+          width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: '50%',
+          background: mat ? `hsl(${hue},42%,85%)` : `hsl(${hue},55%,45%)`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+        }}
+      >
+        {Lucide && <Lucide style={{ width: size * 0.52, height: size * 0.52 }} color={mat ? `hsl(${hue},45%,22%)` : '#fff'} />}
+      </span>
+    );
+  }
+
   const glyph = Lucide ? <Lucide style={{ width: size * 0.56, height: size * 0.56 }} color="#fff" /> : null;
 
   if (pack === 'tile') {

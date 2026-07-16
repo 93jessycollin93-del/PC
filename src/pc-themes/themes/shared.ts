@@ -111,6 +111,65 @@ export const HERO_10 =
   'radial-gradient(90% 90% at 50% 55%, rgba(0,90,180,0.5) 0%, transparent 70%),' +
   'linear-gradient(180deg, #01143a 0%, #032a66 55%, #01102e 100%)';
 
+/**
+ * Complete neutral token baseline for non-Windows themes. Every required
+ * `--pc-*` variable gets a sane value here, so each theme file only spreads
+ * this and overrides its signature colors — keeping 15+ configs small and
+ * guaranteeing no CSS variable is ever undefined inside the scope.
+ */
+export const BASE_TOKENS: Record<`--pc-${string}`, string> = {
+  '--pc-font': `'Segoe UI', 'Helvetica Neue', Arial, sans-serif`,
+  '--pc-titlebar-font': `'Segoe UI', 'Helvetica Neue', Arial, sans-serif`,
+  '--pc-desktop-bg': '#20242c',
+  '--pc-surface': '#f2f2f2',
+  '--pc-surface-text': '#1a1a1a',
+  '--pc-window-bg': '#f2f2f2',
+  '--pc-window-radius': '8px',
+  '--pc-window-border': 'rgba(0,0,0,0.3)',
+  '--pc-window-shadow': '0 10px 30px rgba(0,0,0,0.5)',
+  '--pc-content-bg': '#fafafa',
+  '--pc-titlebar-bg': '#e8e8e8',
+  '--pc-titlebar-bg-inactive': '#f0f0f0',
+  '--pc-titlebar-text': '#1a1a1a',
+  '--pc-titlebar-text-inactive': '#9a9a9a',
+  '--pc-titlebar-height': '32px',
+  '--pc-bevel-light': '#ffffff',
+  '--pc-bevel-dark': '#808080',
+  '--pc-bevel-darker': '#303030',
+  '--pc-accent': '#3584e4',
+  '--pc-accent-text': '#ffffff',
+  '--pc-taskbar-bg': 'rgba(24,24,28,0.9)',
+  '--pc-taskbar-text': '#ffffff',
+  '--pc-taskbar-height': '42px',
+  '--pc-taskbar-border': 'rgba(255,255,255,0.12)',
+  '--pc-taskbar-blur': '14px',
+  '--pc-start-bg': 'transparent',
+  '--pc-start-text': '#ffffff',
+  '--pc-menu-bg': 'rgba(245,245,247,0.95)',
+  '--pc-menu-text': '#1a1a1a',
+  '--pc-menu-hover-bg': 'rgba(0,0,0,0.08)',
+  '--pc-menu-hover-text': '#000000',
+  '--pc-menu-radius': '10px',
+  '--pc-menu-blur': '20px',
+  '--pc-icon-label': '#ffffff',
+  '--pc-icon-label-shadow': '0 1px 2px rgba(0,0,0,0.85)',
+  '--pc-icon-select-bg': 'rgba(255,255,255,0.25)',
+  '--pc-btn-bg': '#ffffff',
+  '--pc-btn-text': '#1a1a1a',
+  '--pc-field-bg': '#ffffff',
+  '--pc-field-text': '#1a1a1a',
+  '--pc-banner-from': '#30343c',
+  '--pc-banner-to': '#5a6270',
+  '--pc-menubar-height': '28px',
+  '--pc-menubar-bg': 'rgba(245,245,247,0.8)',
+  '--pc-menubar-text': '#1a1a1a',
+  '--pc-dock-bg': 'rgba(255,255,255,0.3)',
+  '--pc-dock-border': 'rgba(255,255,255,0.3)',
+  '--pc-dock-radius': '18px',
+  '--pc-dock-blur': '18px',
+  '--pc-dock-plate-bg': 'rgba(255,255,255,0.2)',
+};
+
 /** Windows 11 "Bloom": soft blue ribbon folds. */
 export const BLOOM_11 =
   'radial-gradient(60% 80% at 30% 40%, rgba(120,180,255,0.75) 0%, transparent 60%),' +
