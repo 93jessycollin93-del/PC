@@ -186,19 +186,32 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                 <div
                     onDoubleClick={toggleMaximize}
                     onPointerDown={handleHeaderPointerDown}
-                    className={`pc-titlebar ${isActive ? 'pc-titlebar-active' : 'pc-titlebar-inactive'} flex items-center justify-between select-none touch-none shrink-0 ${!effectiveMaximized ? 'cursor-grab active:cursor-grabbing' : ''} ${effectiveMaximized && isMobile ? 'pt-4' : ''}`}
+                    className={`pc-titlebar ${isActive ? 'pc-titlebar-active' : 'pc-titlebar-inactive'} flex items-center justify-between gap-2 select-none touch-none shrink-0 ${!effectiveMaximized ? 'cursor-grab active:cursor-grabbing' : ''} ${effectiveMaximized && isMobile ? 'pt-4' : ''}`}
                 >
-                    <div className="flex items-center gap-1.5 font-medium pointer-events-none min-w-0">
+                    {/* macOS/Unity-style themes put controls on the LEFT and
+                        center the title; Windows keeps title-left/controls-right. */}
+                    {pcTheme!.theme.window.controlsSide === 'left' && (
+                        <PCWindowControls
+                            controls={pcControls}
+                            url={url}
+                            hideMaximize={isMobile}
+                            onToggleMaximize={toggleMaximize}
+                            onClose={onClose}
+                        />
+                    )}
+                    <div className={`flex items-center gap-1.5 font-medium pointer-events-none min-w-0 flex-1 ${pcTheme!.theme.window.controlsSide === 'left' ? 'justify-center pr-10' : ''}`}>
                         {pcTheme!.theme.window.showTitleIcon && Icon && <Icon size={13} className="opacity-90 shrink-0" />}
                         <span className="truncate">{title}</span>
                     </div>
-                    <PCWindowControls
-                        controls={pcControls}
-                        url={url}
-                        hideMaximize={isMobile}
-                        onToggleMaximize={toggleMaximize}
-                        onClose={onClose}
-                    />
+                    {pcTheme!.theme.window.controlsSide !== 'left' && (
+                        <PCWindowControls
+                            controls={pcControls}
+                            url={url}
+                            hideMaximize={isMobile}
+                            onToggleMaximize={toggleMaximize}
+                            onClose={onClose}
+                        />
+                    )}
                 </div>
             ) : (
             <div
