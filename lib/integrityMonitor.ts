@@ -101,7 +101,7 @@ class IntegrityMonitor {
         };
 
         bus.emit('jackie-notification', {
-          level: 'critical',
+          level: 'error',
           title: 'Integrity violation detected',
           message: `Unexpected mutation in ${record.label}`,
           source: 'integrity-monitor',

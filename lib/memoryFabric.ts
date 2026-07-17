@@ -237,7 +237,7 @@ class MemoryFabric {
     let ingested = 0;
 
     keys.forEach(key => {
-      const value = storage.get<any>(key);
+      const value = storage.get<any>(key, null);
       if (value && typeof value === 'object') {
         // Auto-detect memory-like structures
         if (value.content || value.message || value.text) {

@@ -12,6 +12,7 @@
  */
 
 import type { AppId } from '../types';
+import type { WorkspaceProfile } from './workspaceProfiles';
 
 /**
  * The catalog of known channels and the shape of their payloads.
@@ -45,6 +46,40 @@ export interface BusChannels {
   'automation-run': { ruleId: string; name: string; ok: boolean; detail?: string };
   /** A scheduled job fired (lib/scheduler.ts). */
   'scheduler-run': { jobId: string; name: string; ok: boolean; detail?: string };
+  /** Restore a saved desktop layout (lib/workspaceProfiles.ts). */
+  'restore-workspace-profile': { profile: WorkspaceProfile };
+  /** An app reported a fatal error (lib/appHealthMonitor.ts). */
+  'app-error': { appId: string; error: unknown; timestamp: number };
+  /** An app's stored state was reset (lib/appHealthMonitor.ts). */
+  'app-reset': { appId: string; timestamp: number };
+  /** A failed activity is being retried (lib/activityCenter.ts). */
+  'activity-retry': { activityId: string; retryCount: number };
+  /** Fire an automation rule directly (voice commands, etc.). */
+  'automation-trigger': { ruleId: string };
+  /** Cross-pod message for the agent team orchestrator (dynamic shape). */
+  'pod-message': unknown;
+  /** A multi-agent team run kicked off (lib/agentTeamOrchestrator.ts). */
+  'team-execution-started': { executionId: string; name: string; goal?: string; roles?: unknown };
+  /** A message produced by an agent during a team run (dynamic shape). */
+  'agent-message': unknown;
+  /** A team-run task moved to a new phase (lib/agentTeamOrchestrator.ts). */
+  'task-status-changed': { taskId: string; phase: string; executionId?: string };
+  /** Something was copied through the clipboard bridge. */
+  'clipboard-copied': { dataType: string; sourceApp?: string; length?: number };
+  /** Something was pasted through the clipboard bridge. */
+  'clipboard-pasted': { dataType: string; destinationApp?: string; sourceApp?: string };
+  /** Voice recognition state machine transitions (lib/voiceCommandService.ts). */
+  'voice-state-changed': { state: string };
+  /** Interim/final voice transcription updates. */
+  'voice-transcript': { interim?: string; final?: string; confidence?: number };
+  /** Voice recognition error. */
+  'voice-error': { error: string };
+  /** Wake word detected. */
+  'voice-woken': { transcript: string; confidence: number };
+  /** Dictation text ready to insert. */
+  'voice-dictate': { text: string };
+  /** A voice command matched and ran. */
+  'voice-command-executed': { commandId: string; keyword: string; transcript: string; intent?: string };
 }
 
 export type BusChannel = keyof BusChannels;

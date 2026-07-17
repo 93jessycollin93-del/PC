@@ -109,6 +109,8 @@ import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { secretsVault } from './lib/secretsVault';
+import { migrateSecretsToVault } from './lib/secretsMigration';
 import { bus } from './lib/bus';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
@@ -456,10 +458,10 @@ export const App: React.FC = () => {
             populateMap(desktopItems);
 
             const restoredWindows = profile.windows
-                .map(sw => {
-                    let item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
+                .map((sw): OpenWindow | null => {
+                    const item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
                     if (!item) return null;
-                    return { ...sw, id: sw.id, item };
+                    return { id: sw.id, item, zIndex: sw.zIndex, pos: sw.pos, size: sw.size };
                 })
                 .filter((w): w is OpenWindow => w !== null);
 
@@ -472,8 +474,7 @@ export const App: React.FC = () => {
             }
         };
 
-        bus.on('restore-workspace-profile', handleRestoreProfile);
-        return () => bus.off('restore-workspace-profile', handleRestoreProfile);
+        return bus.on('restore-workspace-profile', handleRestoreProfile);
     }, [desktopItems]);
 
     useEffect(() => {
@@ -552,6 +553,37 @@ export const App: React.FC = () => {
         automationEngine.start();
         schedulerEngine.start();
         startNotificationCollector();
+    }, []);
+
+    // Deep-link support: ?pc=full|half|closed picks the shell mode and
+    // ?app=<desktop item id or appId> auto-launches an app on boot. This is
+    // what lets an embedding shell (e.g. Jackie's left menu) open the PC
+    // directly on a specific tool.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const pc = params.get('pc');
+        if (pc === 'full' || pc === 'half' || pc === 'closed') {
+            setPcMode(pc);
+        }
+        const app = params.get('app');
+        if (!app) return;
+        const findItem = (items: (DesktopItem | null)[]): DesktopItem | undefined => {
+            for (const item of items) {
+                if (!item) continue;
+                if (item.id === app || item.appId === app) return item;
+                if (item.type === 'folder' && item.contents) {
+                    const found = findItem(item.contents);
+                    if (found) return found;
+                }
+            }
+            return undefined;
+        };
+        const item = findItem(desktopItems);
+        if (item) {
+            if (pc === null) setPcMode('half');
+            handleLaunch(item);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Vault unlock gate: if a vault exists but isn't unlocked, prompt for password

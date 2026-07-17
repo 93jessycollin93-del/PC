@@ -26,18 +26,17 @@ export const SecurityCenterApp: React.FC = () => {
     const handleDenial = (detail: { scope: string; capability: string; detail?: string }) => {
       setDenials(prev => [{ time: Date.now(), ...detail }, ...prev.slice(0, 49)]);
     };
-    bus.on('permission-denied', handleDenial);
-    return () => bus.off('permission-denied', handleDenial);
+    return bus.on('permission-denied', handleDenial);
   }, []);
 
   const getStatusColor = (status: string) => {
-    if (status === 'unlocked' || status === true) return 'text-emerald-400';
+    if (status === 'unlocked') return 'text-emerald-400';
     if (status === 'locked') return 'text-amber-400';
     return 'text-red-400';
   };
 
   const getStatusIcon = (status: string) => {
-    if (status === 'unlocked' || status === true) return CheckCircle;
+    if (status === 'unlocked') return CheckCircle;
     if (status === 'locked') return AlertCircle;
     return ShieldAlert;
   };
