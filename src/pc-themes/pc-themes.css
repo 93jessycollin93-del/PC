@@ -639,6 +639,244 @@
   ); /* chunky Win9x blocks */
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   NON-WINDOWS FAMILIES — macclassic · mac · linux · mobile · retro
+   Same contract: token-driven colors, structure per family, all selectors
+   anchored to [data-pc-family] so nothing can leak outside the PC scope.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* — shared titlebar metrics for the new families — */
+[data-pc-family='macclassic'] .pc-titlebar,
+[data-pc-family='mac'] .pc-titlebar,
+[data-pc-family='linux'] .pc-titlebar,
+[data-pc-family='mobile'] .pc-titlebar,
+[data-pc-family='retro'] .pc-titlebar {
+  height: var(--pc-titlebar-height);
+  padding: 0 8px;
+  font-family: var(--pc-titlebar-font);
+  font-size: 12px;
+}
+
+/* — window frames — */
+[data-pc-family='mac'] .pc-window,
+[data-pc-family='linux'] .pc-window,
+[data-pc-family='mobile'] .pc-window {
+  border: 1px solid var(--pc-window-border);
+  backdrop-filter: blur(var(--pc-menu-blur));
+  -webkit-backdrop-filter: blur(var(--pc-menu-blur));
+}
+[data-pc-family='macclassic'] .pc-window {
+  border: 1px solid #333;
+  padding: 0 5px 5px;
+  box-shadow:
+    inset 1px 1px 0 var(--pc-bevel-light),
+    inset -1px -1px 0 var(--pc-bevel-dark),
+    var(--pc-window-shadow);
+}
+[data-pc-family='macclassic'] .pc-titlebar { font-weight: 700; text-align: center; }
+/* Retro workstations share the chunky raised-bevel slab. */
+[data-pc-family='retro'] .pc-window {
+  padding: 3px;
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface),
+    var(--pc-window-shadow);
+}
+[data-pc-family='retro'] .pc-titlebar { font-weight: 700; margin-bottom: 2px; }
+/* Retro caption buttons ride the same bevel recipe as win9x. */
+[data-pc-family='retro'] .pc-title-btn {
+  width: 18px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pc-surface);
+  color: var(--pc-surface-text);
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-darker),
+    inset 1px 1px var(--pc-bevel-light),
+    inset -2px -2px var(--pc-bevel-dark),
+    inset 2px 2px var(--pc-surface);
+}
+[data-pc-family='retro'] .pc-title-btn:active {
+  box-shadow:
+    inset -1px -1px var(--pc-bevel-light),
+    inset 1px 1px var(--pc-bevel-darker),
+    inset -2px -2px var(--pc-surface),
+    inset 2px 2px var(--pc-bevel-dark);
+}
+
+/* Traffic-light glyphs appear on hover (mac tradition). */
+[data-pc-family] .pc-tl-glyph { opacity: 0; transition: opacity 120ms; display: inline-flex; }
+[data-pc-family] .pc-tl:hover .pc-tl-glyph { opacity: 1; }
+[data-pc-family='linux'] .pc-tl-glyph,
+[data-pc-family='mobile'] .pc-tl-glyph { opacity: 0.75; } /* GNOME/iOS show glyphs */
+
+/* ═══ MENUBAR (top strip) ════════════════════════════════════════════ */
+[data-pc-family] .pc-menubar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--pc-menubar-height, 28px);
+  z-index: 2800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--pc-menubar-bg, var(--pc-taskbar-bg));
+  color: var(--pc-menubar-text, var(--pc-taskbar-text));
+  border-bottom: 1px solid var(--pc-taskbar-border);
+  backdrop-filter: blur(var(--pc-taskbar-blur));
+  -webkit-backdrop-filter: blur(var(--pc-taskbar-blur));
+  font-family: var(--pc-font);
+}
+[data-pc-family] .pc-menubar-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: inherit;
+  font-size: 12px;
+}
+[data-pc-family] .pc-menubar-logo:hover,
+[data-pc-family] .pc-menubar-logo-open {
+  background: var(--pc-menu-hover-bg);
+}
+[data-pc-family] .pc-menubar-menu {
+  position: absolute;
+  top: calc(var(--pc-menubar-height, 28px) + 4px);
+  left: 8px;
+  z-index: 2900;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--pc-menu-bg);
+  color: var(--pc-menu-text);
+  border-radius: var(--pc-menu-radius);
+  backdrop-filter: blur(var(--pc-menu-blur));
+  -webkit-backdrop-filter: blur(var(--pc-menu-blur));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  font-family: var(--pc-font);
+}
+
+/* ═══ DOCK ═══════════════════════════════════════════════════════════ */
+[data-pc-family] .pc-dock {
+  position: absolute;
+  z-index: 2800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--pc-dock-bg, rgba(127, 127, 127, 0.35));
+  border: 1px solid var(--pc-dock-border, rgba(255, 255, 255, 0.25));
+  border-radius: var(--pc-dock-radius, 18px);
+  backdrop-filter: blur(var(--pc-dock-blur, 16px));
+  -webkit-backdrop-filter: blur(var(--pc-dock-blur, 16px));
+}
+[data-pc-family] .pc-dock[data-pc-dock='bottom'] {
+  left: 50%;
+  transform: translateX(-50%);
+  /* Floats clear of the global BottomBar (h-8, z-4000) AND Jackie's
+     centered "Bring Jackie back" chip (bottom-3, z-3500) — both sit above
+     the dock's z-index by design, so the dock must not sit under them. */
+  bottom: 4.75rem;
+  flex-direction: row;
+  max-width: 94%;
+  overflow-x: auto;
+}
+[data-pc-family] .pc-dock[data-pc-dock='left'],
+[data-pc-family] .pc-dock[data-pc-dock='right'] {
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+  max-height: 80%;
+  overflow-y: auto;
+}
+[data-pc-family] .pc-dock[data-pc-dock='left'] { left: 6px; }
+[data-pc-family] .pc-dock[data-pc-dock='right'] { right: 6px; }
+[data-pc-family] .pc-dock-item {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--pc-taskbar-text);
+  transition: transform 120ms ease-out;
+  flex-shrink: 0;
+}
+[data-pc-family] .pc-dock-item:hover { transform: scale(1.14); }
+[data-pc-family] .pc-dock-plate {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--pc-dock-plate-bg, rgba(255, 255, 255, 0.18));
+}
+[data-pc-family] .pc-dock-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+  margin-top: 1px;
+}
+[data-pc-family] .pc-dock-active .pc-dock-dot { background: var(--pc-taskbar-text); }
+[data-pc-family] .pc-dock-sep {
+  align-self: stretch;
+  background: rgba(127, 127, 127, 0.45);
+  flex-shrink: 0;
+}
+[data-pc-family] .pc-dock[data-pc-dock='bottom'] .pc-dock-sep { width: 1px; margin: 4px 3px; }
+[data-pc-family] .pc-dock[data-pc-dock='left'] .pc-dock-sep,
+[data-pc-family] .pc-dock[data-pc-dock='right'] .pc-dock-sep { height: 1px; margin: 3px 4px; }
+/* Unity launcher look: square tiles, hard corners, edge-to-edge. */
+[data-pc-theme='ubuntu-unity'] .pc-dock {
+  border-radius: 0;
+  top: calc(var(--pc-menubar-height, 28px));
+  transform: none;
+  bottom: 2rem;
+  max-height: none;
+  justify-content: flex-start;
+}
+/* NeXT dock: bare column of tiles, no pill background. */
+[data-pc-theme='nextstep'] .pc-dock {
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-pc-theme='nextstep'] .pc-dock-plate,
+[data-pc-theme='nextstep'] .pc-dock-item > span:first-child {
+  border-radius: 0;
+}
+
+/* ═══ LAUNCHPAD OVERLAY ══════════════════════════════════════════════ */
+[data-pc-family] .pc-launchpad {
+  position: absolute;
+  inset: 0;
+  z-index: 2850;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 20, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+[data-pc-family] .pc-launchpad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  width: min(860px, 92%);
+  max-height: 76%;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
 /* ═══ MOBILE FALLBACK (inside the PC container only) ═════════════════ */
 @media (max-width: 768px) {
   [data-pc-family]:not([data-pc-family='cosmic']) .pc-taskbar {
@@ -655,4 +893,18 @@
   }
   [data-pc-family] .pc-menu-item { padding: 10px 12px; font-size: 14px; }
   [data-pc-family] .pc-task-btn { max-width: 110px; }
+  /* Side docks (Unity, NeXT) collapse to a bottom dock on phones. */
+  [data-pc-family] .pc-dock[data-pc-dock='left'],
+  [data-pc-family] .pc-dock[data-pc-dock='right'] {
+    top: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: 4.75rem;
+    transform: translateX(-50%) !important;
+    flex-direction: row;
+    max-width: 94%;
+    max-height: none;
+    overflow-x: auto;
+    border-radius: 18px;
+  }
 }

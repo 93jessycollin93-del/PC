@@ -124,7 +124,7 @@ import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestratio
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
 // PC theme system — scoped to the PC desktop surface only (see src/pc-themes/README.md).
 import { usePCTheme } from './src/pc-themes/PCThemeContext';
-import { PCTaskbar } from './src/pc-themes/components/PCTaskbar';
+import { PCShell } from './src/pc-themes/components/PCShell';
 import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
@@ -1219,12 +1219,13 @@ Body: ${emailToSummarize.body}`,
 
                 <InkLayer active={inkMode} strokes={strokes} setStrokes={setStrokes} isProcessing={isProcessing} />
 
-                {/* Era taskbar + Start menu — only with a Windows theme active
-                    and the PC full-screen (in half mode Jackie owns the lower
-                    half). Lives inside the theme scope; launches/focuses via
-                    the exact same callbacks the desktop already uses. */}
+                {/* Era shell bars (taskbar / dock / menubar per theme) — only
+                    with a non-default theme active and the PC full-screen (in
+                    half mode Jackie owns the lower half). Lives inside the
+                    theme scope; launches/focuses via the exact same callbacks
+                    the desktop already uses. */}
                 {!pcThemeIsDefault && pcMode === 'full' && (
-                    <PCTaskbar
+                    <PCShell
                         apps={desktopItems.filter(Boolean) as DesktopItem[]}
                         openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name, item: w.item }))}
                         focusedId={focusedId}

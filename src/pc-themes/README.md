@@ -7,9 +7,32 @@ internal app's logic and state are untouched by design.
 
 ```
 Default: cosmic-jackie  →  the PC looks EXACTLY as it does today.
-Themes:  win95 · win98 · winme · win2000 · winxp · winvista · win7
-         · win8 · win10 · win11   (all with authentic system palettes)
+Windows: win95 · win98 · winme · win2000 · winxp · winvista · win7
+         · win8 · win10 · win11
+macOS:   macos9 (Platinum) · macosx-aqua · macos-sonoma
+Linux:   ubuntu-unity · gnome · kde-plasma · elementary
+Mobile:  android-holo · android-material · ios6 · ios17 · chromeos
+Retro:   amiga · nextstep · beos
+(26 themes, all with era-authentic palettes, fonts, and shell layouts)
 ```
+
+### Shell layouts
+
+Themes declare which bars they mount via `shell.bars`:
+
+| Layout | Used by |
+|---|---|
+| `['taskbar']` (default) | all Windows themes, KDE, Android, ChromeOS |
+| `['menubar','dock']` | macOS Aqua/Sonoma, GNOME, Unity (left dock), elementary |
+| `['menubar']` | Mac OS 9, Amiga Workbench, BeOS |
+| `['dock']` | iOS 6/17 (bottom), NeXTSTEP (right column) |
+
+`PCShell` dispatches to `PCTaskbar`, `PCMenuBar` (system-logo menu +
+clock), and `PCDock` (Launchpad overlay, running-app indicator dots,
+bottom/left/right edges — side docks collapse to bottom on mobile).
+Window controls extend the same way: `traffic` (mac/Ubuntu lights via
+`--pc-tl-*` tokens), `platinum`, `gnome`, `amiga`, `next`, plus
+`controlsSide: 'left'` for the mac-style centered-title layout.
 
 ---
 

@@ -11,6 +11,12 @@ import { win7 } from './themes/win7';
 import { win8 } from './themes/win8';
 import { win10 } from './themes/win10';
 import { win11 } from './themes/win11';
+import { macos9, macosxAqua, macosSonoma } from './themes/macos';
+import { ubuntuUnity, gnomeAdwaita, kdePlasma, elementaryOS } from './themes/linux';
+import {
+  androidMaterial, androidHolo, ios6, ios17, chromeOS,
+} from './themes/mobileos';
+import { amiga, nextstep, beos } from './themes/retroos';
 
 /**
  * PC Theme Registry — the single source of truth for available themes.
@@ -27,6 +33,7 @@ import { win11 } from './themes/win11';
  */
 export const PC_THEMES: PCThemeDefinition[] = [
   cosmicJackie,
+  // — Windows, oldest → newest —
   win95,
   win98,
   winme,
@@ -37,6 +44,27 @@ export const PC_THEMES: PCThemeDefinition[] = [
   win8,
   win10,
   win11,
+  // — macOS, oldest → newest —
+  macos9,
+  macosxAqua,
+  macosSonoma,
+  // — Linux desktops —
+  ubuntuUnity,
+  gnomeAdwaita,
+  kdePlasma,
+  elementaryOS,
+  // — Android —
+  androidHolo,
+  androidMaterial,
+  // — iOS —
+  ios6,
+  ios17,
+  // — ChromeOS —
+  chromeOS,
+  // — Retro / exotic workstations —
+  amiga,
+  nextstep,
+  beos,
 ];
 
 const byId = new Map<string, PCThemeDefinition>(PC_THEMES.map(t => [t.id, t]));
