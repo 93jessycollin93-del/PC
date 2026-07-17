@@ -1,5 +1,5 @@
 {
-  "name": "visual-computer",
+  "name": "jackies-pc",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
+    "@huggingface/transformers": "^3.8.1",
     "chess.js": "^1.4.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",

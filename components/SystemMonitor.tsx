@@ -356,7 +356,7 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                     <span className="font-mono text-[11px] tracking-tight text-zinc-300 flex items-center gap-0.5">
                         {ramUsage.toFixed(1)} <span className="text-[9px] text-zinc-500">GB</span>
                         {isReservationActive && (
-                            <span title="High Integrity Memory Lock Active" className="inline-flex">
+                            <span title="RAM headroom buffer active (adds to the displayed number only — browsers can't lock real memory)" className="inline-flex">
                                 <Lock className="w-2.5 h-2.5 text-emerald-400 animate-pulse shrink-0" />
                             </span>
                         )}
@@ -389,7 +389,7 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             </h4>
                         </div>
                         <span className="text-[10px] text-zinc-500 font-mono">
-                            V-OS Build 2026
+                            Jackie's PC · Build 2026
                         </span>
                     </div>
 
@@ -623,9 +623,9 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             <div className="bg-indigo-950/20 border border-indigo-500/30 p-3 rounded-xl flex gap-2.5 items-start">
                                 <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                                 <div className="text-[10px] leading-relaxed">
-                                    <p className="font-bold text-zinc-100 uppercase tracking-wide">V-OS Core Sandbox Layer</p>
+                                    <p className="font-bold text-zinc-100 uppercase tracking-wide">RAM Headroom Buffer</p>
                                     <p className="text-zinc-400 mt-1">
-                                        Instruct the environment to pin a contiguous memory block. While standard browsers run in sandboxed space, this pre-allocation request signals maximum priority to the V-OS kernel.
+                                        Browsers can't pin or lock real OS memory — this simply adds a planning buffer to the RAM number shown above, so you can budget headroom before opening a heavy app. It has no effect at the OS level.
                                     </p>
                                 </div>
                             </div>
@@ -633,9 +633,9 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             {/* Active Allocation Switch */}
                             <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-3 flex justify-between items-center">
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold uppercase text-zinc-300">Memory Pinning Loop</span>
+                                    <span className="text-[10px] font-bold uppercase text-zinc-300">RAM Headroom Buffer</span>
                                     <span className="text-[9px] text-zinc-500">
-                                        {isReservationActive ? 'Allocating simulated heap page' : 'Simulation loop paused'}
+                                        {isReservationActive ? 'Added to displayed usage' : 'Not applied'}
                                     </span>
                                 </div>
                                 <button
@@ -699,15 +699,11 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                                     </span>
                                 </div>
                                 <div className="leading-normal">
-                                    <p><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> SYS_HANDSHAKE: Target client OK.</p>
-                                    <p><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> MEM_LOCK: {isReservationActive ? `Reserve ${ramReservationMb}MB contiguous block.` : 'Virtual page released.'}</p>
+                                    <p><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> BUDGET: {isReservationActive ? `Adding ${ramReservationMb}MB to displayed RAM usage.` : 'No buffer applied.'}</p>
                                     {isReservationActive ? (
-                                        <>
-                                            <p className="text-emerald-500/80"><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> ALLOC_ACTIVE: Heap mock simulation loop running.</p>
-                                            <p className="text-zinc-600 font-semibold">// browser environment priority signaled</p>
-                                        </>
+                                        <p className="text-emerald-500/80"><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> Display-only — no real memory is reserved.</p>
                                     ) : (
-                                        <p className="text-zinc-600 font-semibold">// reservation buffer is currently idle</p>
+                                        <p className="text-zinc-600 font-semibold">// headroom buffer is currently off</p>
                                     )}
                                 </div>
                             </div>
