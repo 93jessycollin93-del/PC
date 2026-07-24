@@ -718,6 +718,47 @@ async function startServer() {
     res.json(results);
   });
 
+  // ── eYe Wave 1: same-origin proxy to the jacky Flask engine ───────────────
+  // Browser apps call /api/jacky/<path>; we forward to JACKY_API_BASE/api/<path>
+  // server-side so the token never reaches the client and CORS is a non-issue.
+  // Gated by requireAuth like the other sensitive endpoints. When
+  // JACKY_API_BASE is unset the client gets a 503 and falls back to demo mode.
+  const JACKY_API_BASE = (process.env.JACKY_API_BASE || '').replace(/\/+$/, '');
+  const JACKY_API_TOKEN = process.env.JACKY_API_TOKEN || '';
+  app.use('/api/jacky', async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    if (!JACKY_API_BASE) {
+      res.status(503).json({
+        error: 'jacky link not configured',
+        detail: 'Set JACKY_API_BASE (jacky host root) and optionally JACKY_API_TOKEN.',
+      });
+      return;
+    }
+    // req.url is the path after the mount point, query string included.
+    const target = `${JACKY_API_BASE}/api${req.url}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (JACKY_API_TOKEN) headers['Authorization'] = `Bearer ${JACKY_API_TOKEN}`;
+      const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+      const upstream = await fetch(target, {
+        method: req.method,
+        headers,
+        body: hasBody ? JSON.stringify(req.body ?? {}) : undefined,
+        signal: controller.signal,
+      });
+      const body = await upstream.text();
+      res.status(upstream.status);
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+      res.send(body);
+    } catch (e: any) {
+      res.status(502).json({ error: 'jacky upstream unreachable', detail: String(e?.message || e) });
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
