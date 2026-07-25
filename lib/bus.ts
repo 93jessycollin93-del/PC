@@ -80,6 +80,8 @@ export interface BusChannels {
   'voice-dictate': { text: string };
   /** A voice command matched and ran. */
   'voice-command-executed': { commandId: string; keyword: string; transcript: string; intent?: string };
+  /** Link to the real `jacky` engine came up or went down (lib/jackyClient.ts). */
+  'jacky-link-changed': { state: 'live' | 'offline' | 'demo' };
 }
 
 export type BusChannel = keyof BusChannels;

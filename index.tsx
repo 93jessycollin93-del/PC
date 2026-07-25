@@ -9,6 +9,10 @@ import { initializeGlobalState } from './lib/persist';
 import { AuthProvider } from './lib/authContext';
 import { ToastProvider } from './lib/toastContext';
 import { PCThemeProvider } from './src/pc-themes/PCThemeContext';
+// Points the shared jackyClient at this server's /api/jacky relay, so every
+// panel that asks for telemetry gets the real engine instead of placeholders.
+// Side-effect import: must run before any app queries jackyClient.
+import './lib/jackyBootstrap';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Failed to find the root element');
