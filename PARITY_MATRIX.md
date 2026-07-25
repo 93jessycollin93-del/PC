@@ -11,14 +11,19 @@ Lovable/Supabase). Update the cells as each wave lands.
 > the Eru pages, so many of its cells start at 🪟/🔶 rather than ❌. Eru is its own
 > large Base44 app, so several domains start 🔶 (its own take exists) rather than ❌.
 
-## Wave 1 — real backend bridge (shipped, in review)
+## Wave 1 + 2 — real backend bridge & native live surfaces (merged ✅)
 
 | Capability | PC | Eru | Jackie |
 |---|---|---|---|
 | jacky bridge (status/assessment/ask/control/models/bots/squads) | ✅ `lib/jackyClient.ts` + `/api/jacky` proxy | ✅ `base44/functions/jackyProxy` | ✅ `supabase/functions/jacky-proxy` |
-| Live System Monitor (real GPU/CPU/RAM/thermal) | 🔶 client ready → wire `MissionControl` | ❌ wire to `jackyProxy` | ❌ wire to `jacky-proxy` |
-| Ask Jackie w/ visible fallback chain + master switch | 🔶 client ready → wire console | ❌ | ❌ |
-| Squad console (coding/security/archivist) | 🔶 client ready | ❌ | ❌ |
+| Live System Monitor (real GPU/CPU/RAM/thermal) | ✅ App Commander proxy mode | ✅ native `/jacky-live` | ✅ native `/jacky-live` |
+| Ask Jackie w/ situation-aware routing | ✅ App Commander console (proxy) | ✅ `/jacky-live` | ✅ `/jacky-live` |
+| Squad console (coding/security/archivist) | 🔶 client ready → surface next | ❌ | ❌ |
+| MissionControl (native PC React wiring) | 🔶 next PC piece → `jackyClient` | — | — |
+
+> **Go live:** set `JACKY_API_BASE` (+ optional `JACKY_API_TOKEN`) in each app's env/secrets.
+> PC's App Commander adds a **Same-origin proxy** link mode (⚙, top-right) that needs zero
+> client config when the page is served by PC's server.
 
 ## AI / agents / models
 
