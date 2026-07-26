@@ -37,14 +37,20 @@ const DB_VERSION = 1;
 
 let useIDB = true;
 
-// Check if we are in an iframe (Vite dev environment in AI Studio)
+// Probe for IndexedDB rather than assuming any iframe lacks it. This check
+// used to disable IndexedDB whenever `window.self !== window.top`, which was
+// written for the AI Studio dev environment but fires in every embedded
+// context — deploy previews, dashboards, anything framed — silently demoting
+// all state to localStorage there. Reading the property is enough: it throws
+// in sandboxed frames with an opaque origin, and is undefined where the API
+// is absent. Real open failures are still caught by getDB()'s timeout below,
+// and both call sites fall back to localStorage on rejection.
 if (typeof window !== 'undefined') {
     try {
-        const isIframe = window.self !== window.top;
-        if (isIframe) {
+        if (!window.indexedDB) {
             useIDB = false;
         }
-    } catch (e) {
+    } catch {
         useIDB = false;
     }
 }
