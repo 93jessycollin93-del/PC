@@ -35,6 +35,9 @@ const PROVIDER_COLORS: Record<ModelProvider, string> = {
   deepseek: 'text-violet-400',
   anthropic: 'text-amber-400',
   grok: 'text-emerald-400',
+  // 'ollama' joined ModelProvider with the local micro-router; the map is
+  // keyed by the full union, so omitting it fails to typecheck.
+  ollama: 'text-cyan-400',
 };
 
 export const MissionControlApp: React.FC = () => {

@@ -16,7 +16,13 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           output: {
             // Split the biggest self-contained vendors out of the main bundle
-            // so app-code changes don't invalidate the whole download.
+            // so app-code changes don't invalidate the whole download, and
+            // keep the desktop shell small as apps are added.
+            //
+            // Matches are anchored to node_modules/<pkg>/ rather than a bare
+            // substring: an unanchored 'react-dom' or 'firebase' also catches
+            // packages that merely mention them in a path, which lands them in
+            // the wrong chunk.
             manualChunks(id: string) {
               if (!id.includes('node_modules')) return undefined;
               if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react';
@@ -24,7 +30,9 @@ export default defineConfig(({ mode }) => {
               if (id.includes('node_modules/@google/genai')) return 'vendor-genai';
               if (id.includes('node_modules/chess.js') || id.includes('node_modules/react-chessboard')) return 'vendor-chess';
               if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
-              return undefined;
+              // Everything else in node_modules goes to a shared vendor chunk
+              // instead of being inlined into whichever app imported it first.
+              return 'vendor';
             },
           },
         },

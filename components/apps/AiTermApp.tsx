@@ -750,7 +750,7 @@ SHORTCUTS
                 if (raw.includes('pgrep') && raw.includes('node')) {
                     addLine('kill: SIGTERM sent to 1024 (node)');
                 } else {
-                    addLine(`kill: ${raw || 'usage: kill [-s sigspec] pid'}`, 'err');
+                    addLine(raw ? `kill: ${raw} — not available in this browser terminal` : 'kill: usage: kill [-s sigspec] pid', 'err');
                 }
                 break;
             }

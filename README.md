@@ -42,3 +42,19 @@ globs in `tailwind.config.js` or its utilities get purged from the build.
 | `src/` | `jackie-core/`, `pc-themes/`, `sas-pod-system/`, `components/` |
 | `server.ts` | Express host and the `/api/jacky` relay to the Flask engine |
 | `jackie-shell/` | Standalone vanilla-JS Jackie prototype (not wired up) |
+
+## SAS Hub upgrade staging
+
+> Start here: [`docs/HANDOFF.md`](docs/HANDOFF.md)
+
+Draft code and planning for SAS Hub upgrade work, staged in this repo rather
+than applied to the running system.
+
+| Path | What it is |
+|---|---|
+| `docs/HANDOFF.md` | Honest status and next-agent handoff |
+| `docs/SAS_HUB_PLAN.md` | SAS Hub control-plan draft |
+| `src/sas-upgrade/api/control_routes.py` | Draft Flask control routes for later integration |
+| `src/sas-upgrade/terminal/` | SAS Workstation Terminal |
+| `src/sas-upgrade/flipper/` | Flipper Zero bridge |
+| `src/sas-upgrade/mobile/` | Mobile approvals surface |
