@@ -19,6 +19,7 @@
     "fflate": "^0.8.3",
     "firebase": "^12.15.0",
     "firebase-admin": "^14.1.0",
+    "js-sha256": "^0.11.1",
     "lucide-react": "^0.548.0",
     "lz-string": "^1.5.0",
     "react": "^19.2.0",

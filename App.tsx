@@ -122,12 +122,15 @@ import GlobalKeyboard from './src/components/GlobalKeyboard';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
 import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
+import { FusionApp } from './components/apps/FusionApp';
+import { GlobalTerminal } from './components/GlobalTerminal';
 // PC theme system — scoped to the PC desktop surface only (see src/pc-themes/README.md).
 import { usePCTheme } from './src/pc-themes/PCThemeContext';
 import { PCShell } from './src/pc-themes/components/PCShell';
 import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
+    { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
     { id: 'consensus_lab', name: 'Consensus Lab', type: 'app', icon: Network, appId: 'consensus_lab', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
     { id: 'cloud_deploy', name: 'Global Deploy', type: 'app', icon: Cloud, appId: 'cloud_deploy', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-800 to-zinc-950 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
@@ -514,6 +517,7 @@ export const App: React.FC = () => {
 
         let initialSize = { width: 960, height: 600 };
         if (item.appId === 'app_connector') initialSize = { width: 950, height: 620 };
+        if (item.appId === 'fusion') initialSize = { width: 1040, height: 680 };
         if (item.url) initialSize = { width: 950, height: 650 };
         if (item.appId === 'mail') initialSize = { width: 800, height: 600 };
         if (item.appId === 'aiterm') initialSize = { width: 450, height: 840 };
@@ -1100,6 +1104,7 @@ Body: ${emailToSummarize.body}`,
                 {openWindows.map(win => {
                     let content = null;
                     if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
+                    else if (win.item.appId === 'fusion') content = <FusionApp />;
                     else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
                     else if (win.item.appId === 'slides') content = <SlidesApp />;
                     else if (win.item.appId === 'snake') content = <SnakeGame />;
@@ -1218,6 +1223,11 @@ Body: ${emailToSummarize.body}`,
                 })}
 
                 <InkLayer active={inkMode} strokes={strokes} setStrokes={setStrokes} isProcessing={isProcessing} />
+
+                {/* Global Terminal — always available, independent of the window manager */}
+                <GlobalTerminal onStateChange={(isActive) => {
+                    showToast(isActive ? '✓ Global Terminal Activated' : '✗ Global Terminal Deactivated', isActive ? 'Terminal' : 'Info', true);
+                }} />
 
                 {/* Era shell bars (taskbar / dock / menubar per theme) — only
                     with a non-default theme active and the PC full-screen (in
