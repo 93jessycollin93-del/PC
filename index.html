@@ -8,27 +8,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><defs><linearGradient id='jg' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236366f1'/><stop offset='0.55' stop-color='%238b5cf6'/><stop offset='1' stop-color='%23db2777'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(#jg)' /><text x='50' y='69' font-family='ui-rounded,system-ui,-apple-system,sans-serif' font-size='56' font-weight='800' fill='white' text-anchor='middle'>J</text></svg>">
     <title>Jackie's PC</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind is compiled into the bundle by PostCSS (see tailwind.config.js
+         and index.css) rather than fetched from cdn.tailwindcss.com, so the PC
+         styles correctly offline. The theme that used to be declared inline
+         here now lives in tailwind.config.js. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        os: {
-                            bg: '#1e1e2e',
-                            surface: '#313244',
-                            text: '#cdd6f4',
-                            accent: '#89b4fa'
-                        }
-                    },
-                    animation: {
-                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }
-                }
-            }
-        }
-    </script>
     <style>
         * {
             -webkit-tap-highlight-color: transparent;
@@ -87,7 +71,8 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
+<!-- index.css is imported from index.tsx so PostCSS compiles the @tailwind
+     directives; linking it here as well would ship the raw file too. -->
 <!-- PC theme system: styles are scoped under [data-pc-family] on the PC
      desktop container only — inert while the cosmic default is active. -->
 <link rel="stylesheet" href="/src/pc-themes/pc-themes.css">

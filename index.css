@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Mobile & Landscape Responsive Fixes */
 @media (max-width: 768px) {
     /* Ensure top-right UI doesn't overflow on mobile */
