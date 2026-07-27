@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { haptic } from './haptics';
 
 export interface MenuEntry {
   id: string;
@@ -123,9 +124,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const choose = useCallback((entry: MenuEntry) => {
     if (entry.disabled) return;
     if (entry.submenu) {
+      haptic('select');
       setOpenSub((cur) => (cur === entry.id ? null : entry.id));
       return;
     }
+    // Destructive entries get the heavier "error" pattern, so a delete
+    // never feels the same as an ordinary pick.
+    haptic(entry.danger ? 'error' : 'select');
     entry.onSelect?.();
     onClose();
   }, [onClose]);

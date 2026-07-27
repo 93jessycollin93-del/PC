@@ -29,11 +29,23 @@ interface StoredItem {
   contents?: StoredItem[];
 }
 
+/**
+ * Best available name for an item's icon. Built-in catalog items carry the
+ * icon component but no `iconName`, so without the displayName fallback an
+ * exported item comes back wearing the wrong icon.
+ */
+function iconNameOf(item: DesktopItem): string {
+  if (item.iconName) return item.iconName;
+  const display = (item.icon as { displayName?: string })?.displayName;
+  if (display) return display;
+  return item.type === 'folder' ? 'Folder' : 'Globe';
+}
+
 const toStored = (item: DesktopItem): StoredItem => ({
   id: item.id,
   name: item.name,
   type: item.type,
-  iconName: item.iconName || (item.type === 'folder' ? 'Folder' : 'Globe'),
+  iconName: iconNameOf(item),
   bgColor: item.bgColor,
   appId: item.appId,
   notepadInitialContent: item.notepadInitialContent,
@@ -198,6 +210,87 @@ export function moveIntoFolder(
       return i;
     })
     .map((i) => (i && i.id === itemId ? null : i));
+}
+
+/* ── Export / import ────────────────────────────────────────────────────
+   An app or folder leaves the PC as a small versioned JSON file and comes
+   back the same way, so a desktop can be moved between browsers, devices,
+   or shared. Versioned because a file written today has to still be
+   readable after the item shape changes. */
+
+export const EXPORT_FORMAT = 'pc-desktop-item';
+export const EXPORT_VERSION = 1;
+
+interface ExportEnvelope {
+  format: typeof EXPORT_FORMAT;
+  version: number;
+  exportedAt: string;
+  item: StoredItem;
+}
+
+/** Serialize one item to the text that gets written to a .json file. */
+export function serializeForExport(item: DesktopItem): string {
+  const envelope: ExportEnvelope = {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    item: toStored(item),
+  };
+  return JSON.stringify(envelope, null, 2);
+}
+
+/** A filename that's safe on every OS and still recognisable. */
+export function exportFilename(item: DesktopItem): string {
+  const safe = item.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+  return `${safe || 'desktop-item'}.pcapp.json`;
+}
+
+/** Deliberately a flat shape rather than a discriminated union: this repo
+ *  compiles with `strict: false`, which turns off the narrowing that would
+ *  make a union ergonomic at the call site. */
+export interface ImportResult {
+  ok: boolean;
+  item?: DesktopItem;
+  error?: string;
+}
+
+/**
+ * Parse an exported file back into an item. Always returns a result rather
+ * than throwing: this is fed by a user-chosen file, so "that isn't a valid
+ * export" is an expected outcome, not an exception. The imported item gets
+ * a fresh id so importing the same file twice yields two items instead of
+ * silently colliding with the original.
+ */
+export function parseImport(
+  text: string,
+  siblings: DesktopList,
+  resolveIcon: (name: string) => DesktopItem['icon'],
+): ImportResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'That file is not valid JSON.' };
+  }
+  const env = parsed as Partial<ExportEnvelope>;
+  if (!env || env.format !== EXPORT_FORMAT) {
+    return { ok: false, error: 'That file is not a PC desktop item export.' };
+  }
+  if (typeof env.version !== 'number' || env.version > EXPORT_VERSION) {
+    return { ok: false, error: `That export is version ${env.version}, newer than this PC understands (${EXPORT_VERSION}).` };
+  }
+  if (!env.item || typeof env.item.name !== 'string' || !env.item.type) {
+    return { ok: false, error: 'That export is missing its item data.' };
+  }
+  const restored = fromStored(env.item, resolveIcon);
+  return {
+    ok: true,
+    item: {
+      ...restored,
+      id: newId(restored.type),
+      name: uniqueName(restored.name, siblings),
+    },
+  };
 }
 
 /** Duplicate — "Copy" then "Paste" of the same item, as one step. */

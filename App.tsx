@@ -597,6 +597,7 @@ export const App: React.FC = () => {
     // clipboard has no concept of a desktop item.
     const [clipboard, setClipboard] = useState<{ item: DesktopItem; cut: boolean } | null>(null);
     const wallpaperInputRef = useRef<HTMLInputElement>(null);
+    const importInputRef = useRef<HTMLInputElement>(null);
 
     // Anything the user created is written back whenever the desktop changes,
     // so folders survive a reload. Built-in items are re-merged from source
@@ -646,6 +647,7 @@ export const App: React.FC = () => {
         openDisplaySettings: () => launchByAppId('system_settings', 'System Settings'),
         openPersonalize: () => launchByAppId('pc_themes', 'Themes'),
         openTerminal: () => launchByAppId('termstudio', 'TermStudio'),
+        importItem: () => importInputRef.current?.click(),
     };
 
     const itemMenuActions = {
@@ -687,6 +689,21 @@ export const App: React.FC = () => {
             if (!target) { showToast('No folder with that number.', 'Move'); return; }
             setDesktopItems(ops.moveIntoFolder(desktopItems, item.id, target.id));
             showToast(`Moved "${item.name}" into "${target.name}".`, 'Move');
+        },
+        exportItem: (item: DesktopItem) => {
+            // Blob + object URL: keeps the whole thing local, no upload,
+            // and works the same in every browser that can download a file.
+            const blob = new Blob([ops.serializeForExport(item)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = ops.exportFilename(item);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            // Revoking immediately can cancel the download in some browsers.
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+            showToast(`Exported "${item.name}".`, 'Export');
         },
         toggleFeatured: (item: DesktopItem) => {
             setDesktopItems(desktopItems.map((d) =>
@@ -1556,6 +1573,26 @@ Body: ${emailToSummarize.body}`,
                     };
                     reader.onerror = () => showToast('Could not read that image.', 'Wallpaper');
                     reader.readAsDataURL(file);
+                }}
+            />
+            <input
+                ref={importInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    const text = await file.text().catch(() => null);
+                    if (text === null) { showToast('Could not read that file.', 'Import'); return; }
+                    const result = ops.parseImport(text, desktopItems, (n) => iconMap[n] || Folder);
+                    if (!result.ok || !result.item) {
+                        showToast(result.error || 'That file could not be imported.', 'Import failed');
+                        return;
+                    }
+                    setDesktopItems([...desktopItems, result.item]);
+                    showToast(`Imported "${result.item.name}".`, 'Import');
                 }}
             />
             {menu && (
