@@ -1,0 +1,176 @@
+{
+  "sasInfinitePodSchema": {
+    "version": "2.0.0",
+    "description": "SAS pod system — future-proof to 10+ TB. Dormant pods = zero footprint.",
+    "philosophy": "Pod schemas are blueprints. Only active instances consume resources.",
+    "futureProofScale": "1 TB → 10 TB → 100 TB → ∞ (configuration only)",
+
+    "tierDefinition": {
+      "type": "dynamic",
+      "explanation": "Define any size, any quantity. Dormant pods cost nothing.",
+      "activationModel": "Lazy-load on spawn() call only"
+    },
+
+    "presetTiers": {
+      "note": "These are instantiated at SAS startup. Zero impact if empty.",
+      "smallBackups": {
+        "id": "tier_5mb",
+        "size": 5242880,
+        "quantity": 1000,
+        "status": "preset",
+        "purpose": "Minimal seed backups"
+      },
+      "mediumBackups": {
+        "id": "tier_50mb",
+        "size": 52428800,
+        "quantity": 500,
+        "status": "preset",
+        "purpose": "Standard expansion pods"
+      },
+      "largeBackups": {
+        "id": "tier_500mb",
+        "size": 524288000,
+        "quantity": 100,
+        "status": "preset",
+        "purpose": "Large specialized pods"
+      },
+      "masterPod": {
+        "id": "tier_1gb",
+        "size": 1073741824,
+        "quantity": 5,
+        "status": "preset",
+        "purpose": "Master/orchestration pods"
+      }
+    },
+
+    "futureReadyTiers": {
+      "note": "These exist in schema only. Zero storage until first spawn().",
+      "explanation": "Add new tiers as AI models grow. No code changes needed.",
+
+      "nextGeneration": {
+        "id": "tier_5gb",
+        "size": 5368709120,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "Next-gen AI models (2026-2027)",
+        "estimatedUse": "When GPT-7/Claude-4 models need 5 GB"
+      },
+
+      "largeLlm": {
+        "id": "tier_50gb",
+        "size": 53687091200,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "Large LLM models (2027-2028)",
+        "estimatedUse": "Multi-modal foundation models"
+      },
+
+      "massiveFoundation": {
+        "id": "tier_500gb",
+        "size": 536870912000,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "Massive foundation models (2028-2030)",
+        "estimatedUse": "Next frontier in scale"
+      },
+
+      "terrabyteScale": {
+        "id": "tier_1tb",
+        "size": 1099511627776,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "Terabyte-scale models (2030+)",
+        "estimatedUse": "Future-proof capacity"
+      },
+
+      "doubleTerabyte": {
+        "id": "tier_2tb",
+        "size": 2199023255552,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "2 TB models (unknown timeline)",
+        "estimatedUse": "Safety margin for extreme growth"
+      },
+
+      "extremeScale": {
+        "id": "tier_10tb",
+        "size": 10995116277760,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "10 TB models (ultra-future-proof)",
+        "estimatedUse": "Whatever comes next"
+      }
+    },
+
+    "dynamicTierFactory": {
+      "explanation": "Need a 247 GB pod? Just define it. Cost: one line in config.",
+      "example": {
+        "id": "tier_247gb_custom_2026",
+        "size": 265289113600,
+        "quantity": 0,
+        "status": "on-demand",
+        "purpose": "Custom model size discovered in 2026",
+        "note": "Added without touching any code"
+      }
+    },
+
+    "storageMath": {
+      "presetTiersTotal": {
+        "5mb_1000": "5 GB",
+        "50mb_500": "25 GB",
+        "500mb_100": "50 GB",
+        "1gb_5": "5 GB",
+        "totalPreset": "85 GB uncompressed",
+        "totalPresetCompressed": "~8-12 GB (10-12:1 ratio)",
+        "activationCost": "~50 MB per active instance"
+      },
+
+      "futureReadyTiersTotal": {
+        "status": "Schema only (zero storage)",
+        "capacity": "Up to 10+ TB if all activated",
+        "activationCost": "Pay per instance, not per schema",
+        "example": "Define 100 × 1TB pods in config, use 0 bytes until spawn()"
+      },
+
+      "totalArchitectureCapacity": "10+ TB (schema defined, zero overhead)",
+      "activeCapacity": "Only what's running (scale on demand)"
+    },
+
+    "implementation": {
+      "podFactory": {
+        "method": "PodFactory.spawn('tier_1tb', quantity: 1)",
+        "cost": "Lazy-loaded on first call",
+        "schema": "Checked at startup (JSON parse, ~1ms)"
+      },
+
+      "scaling": {
+        "addNewTier": "Edit this JSON, restart. No code change.",
+        "example": {
+          "id": "tier_7tb_custom",
+          "size": 7696581394432,
+          "quantity": 0,
+          "status": "on-demand"
+        },
+        "effort": "30 seconds"
+      }
+    },
+
+    "futureProofGuarantees": {
+      "1": "Schemas defined for 1 TB → 10 TB → ∞",
+      "2": "Dormant pods = zero CPU/disk/memory impact",
+      "3": "New tier = one JSON entry (no code rewrite)",
+      "4": "Active instances scale independently",
+      "5": "Compression built-in (10-20:1 ratios)",
+      "6": "Self-replicating pods (no manual scaling)",
+      "7": "Developer-proof (just call .spawn(), forget the complexity)"
+    },
+
+    "deployment": {
+      "sas_pod_schema.json": "This file (config-only)",
+      "pod_factory.ts": "Generic factory (never changes)",
+      "mother_shell.ts": "Orchestrator (never changes)",
+      "lifecycle_manager.ts": "Hydration/compression (never changes)",
+      "result": "Add 5 TB pod? Just edit the JSON. No recompile."
+    }
+  }
+}

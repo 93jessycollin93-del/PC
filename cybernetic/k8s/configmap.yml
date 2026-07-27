@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cybernetic-config
+  namespace: cybernetic
+data:
+  NODE_ENV: "production"
+  PORT: "3001"
+  CONSOLE_PORT: "3000"
+  OLLAMA_HOST: "http://ollama:11434"
+  REDIS_URL: "redis://redis:6379"
+  DATABASE_URL: "postgresql://cybernetic:${DB_PASSWORD}@postgres:5432/cybernetic"
+  NEXT_PUBLIC_API_URL: "https://api.cybernetic.example.com"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cybernetic-secrets
+  namespace: cybernetic
+type: Opaque
+stringData:
+  DB_PASSWORD: "change_me_in_production"
+  DB_USER: "cybernetic"
+  DB_NAME: "cybernetic"
+  GROQ_API_KEY: ""
+  MISTRAL_API_KEY: ""
+  GOOGLE_API_KEY: ""
+  ANTHROPIC_API_KEY: ""
+  OPENAI_API_KEY: ""
+  GRAFANA_PASSWORD: "change_me_in_production"
+  JWT_SECRET: "change_me_in_production"

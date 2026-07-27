@@ -48,7 +48,28 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
     const [isClearingCache, setIsClearingCache] = useState(false);
     const [cacheClearedSuccess, setCacheClearedSuccess] = useState(false);
     const [expandedStep, setExpandedStep] = useState<number | null>(0); // Step 1 expanded by default
-    const [simulatedLocalCache, setSimulatedLocalCache] = useState('342 KB');
+    // Real persisted-storage footprint (IndexedDB + localStorage + Cache API),
+    // read from the Storage API. This is the actual compressed-vault size.
+    const [storageBytes, setStorageBytes] = useState<{ usage: number; quota: number } | null>(null);
+
+    const formatBytes = (bytes: number) => {
+        if (!bytes || bytes < 1) return '0 KB';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+        return `${(bytes / Math.pow(1024, i)).toFixed(i >= 2 ? 2 : 0)} ${units[i]}`;
+    };
+
+    const refreshStorage = React.useCallback(() => {
+        if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+            navigator.storage.estimate()
+                .then(({ usage, quota }) => setStorageBytes({ usage: usage ?? 0, quota: quota ?? 0 }))
+                .catch(() => { /* Storage API unavailable — leave as null */ });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) refreshStorage();
+    }, [isOpen, activeTab, refreshStorage]);
 
     const profiles = [
         { id: 'auto', name: 'Auto-Detect (UA)', ram: 16, description: 'Smart automatic detection based on browser platform' },
@@ -301,7 +322,7 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
         }
 
         setTimeout(() => {
-            setSimulatedLocalCache('0 KB');
+            refreshStorage(); // re-measure real footprint after purge
             setIsClearingCache(false);
             setCacheClearedSuccess(true);
             setTimeout(() => {
@@ -335,7 +356,9 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                     <span className="font-mono text-[11px] tracking-tight text-zinc-300 flex items-center gap-0.5">
                         {ramUsage.toFixed(1)} <span className="text-[9px] text-zinc-500">GB</span>
                         {isReservationActive && (
-                            <Lock className="w-2.5 h-2.5 text-emerald-400 animate-pulse shrink-0" title="High Integrity Memory Lock Active" />
+                            <span title="RAM headroom buffer active (adds to the displayed number only — browsers can't lock real memory)" className="inline-flex">
+                                <Lock className="w-2.5 h-2.5 text-emerald-400 animate-pulse shrink-0" />
+                            </span>
                         )}
                     </span>
                 </div>
@@ -366,7 +389,7 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             </h4>
                         </div>
                         <span className="text-[10px] text-zinc-500 font-mono">
-                            V-OS Build 2026
+                            Jackie's PC · Build 2026
                         </span>
                     </div>
 
@@ -600,9 +623,9 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             <div className="bg-indigo-950/20 border border-indigo-500/30 p-3 rounded-xl flex gap-2.5 items-start">
                                 <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                                 <div className="text-[10px] leading-relaxed">
-                                    <p className="font-bold text-zinc-100 uppercase tracking-wide">V-OS Core Sandbox Layer</p>
+                                    <p className="font-bold text-zinc-100 uppercase tracking-wide">RAM Headroom Buffer</p>
                                     <p className="text-zinc-400 mt-1">
-                                        Instruct the environment to pin a contiguous memory block. While standard browsers run in sandboxed space, this pre-allocation request signals maximum priority to the V-OS kernel.
+                                        Browsers can't pin or lock real OS memory — this simply adds a planning buffer to the RAM number shown above, so you can budget headroom before opening a heavy app. It has no effect at the OS level.
                                     </p>
                                 </div>
                             </div>
@@ -610,9 +633,9 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             {/* Active Allocation Switch */}
                             <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-xl p-3 flex justify-between items-center">
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold uppercase text-zinc-300">Memory Pinning Loop</span>
+                                    <span className="text-[10px] font-bold uppercase text-zinc-300">RAM Headroom Buffer</span>
                                     <span className="text-[9px] text-zinc-500">
-                                        {isReservationActive ? 'Allocating simulated heap page' : 'Simulation loop paused'}
+                                        {isReservationActive ? 'Added to displayed usage' : 'Not applied'}
                                     </span>
                                 </div>
                                 <button
@@ -676,15 +699,11 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                                     </span>
                                 </div>
                                 <div className="leading-normal">
-                                    <p><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> SYS_HANDSHAKE: Target client OK.</p>
-                                    <p><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> MEM_LOCK: {isReservationActive ? `Reserve ${ramReservationMb}MB contiguous block.` : 'Virtual page released.'}</p>
+                                    <p><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> BUDGET: {isReservationActive ? `Adding ${ramReservationMb}MB to displayed RAM usage.` : 'No buffer applied.'}</p>
                                     {isReservationActive ? (
-                                        <>
-                                            <p className="text-emerald-500/80"><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> ALLOC_ACTIVE: Heap mock simulation loop running.</p>
-                                            <p className="text-zinc-600 font-semibold">// browser environment priority signaled</p>
-                                        </>
+                                        <p className="text-emerald-500/80"><span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> Display-only — no real memory is reserved.</p>
                                     ) : (
-                                        <p className="text-zinc-600 font-semibold">// reservation buffer is currently idle</p>
+                                        <p className="text-zinc-600 font-semibold">// headroom buffer is currently off</p>
                                     )}
                                 </div>
                             </div>
@@ -707,11 +726,24 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             {/* Local Storage Origin Purger */}
                             <div className="bg-zinc-900/30 border border-zinc-800 p-2.5 rounded-xl flex flex-col gap-1.5">
                                 <div className="flex justify-between items-center text-left">
-                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Local Web Storage</span>
-                                    <span className="text-[10px] font-mono font-bold text-zinc-300">{simulatedLocalCache}</span>
+                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Vault Footprint (Real)</span>
+                                    <span className="text-[10px] font-mono font-bold text-zinc-300">
+                                        {storageBytes ? formatBytes(storageBytes.usage) : '—'}
+                                        {storageBytes && storageBytes.quota > 0 && (
+                                            <span className="text-zinc-500"> / {formatBytes(storageBytes.quota)}</span>
+                                        )}
+                                    </span>
                                 </div>
+                                {storageBytes && storageBytes.quota > 0 && (
+                                    <div className="w-full bg-zinc-800/80 rounded-full h-1 overflow-hidden">
+                                        <div
+                                            className="h-full bg-emerald-500 transition-all duration-500"
+                                            style={{ width: `${Math.min(100, (storageBytes.usage / storageBytes.quota) * 100).toFixed(2)}%` }}
+                                        ></div>
+                                    </div>
+                                )}
                                 <p className="text-[9px] text-zinc-400 leading-normal text-left">
-                                    Wipe all offline caches, localStorage states, and document cache buffers for this application.
+                                    Measured live via the Storage API — the true compressed on-device size of this app's IndexedDB, localStorage, and Cache API data. Purging wipes offline caches and re-measures.
                                 </p>
                                 <button
                                     onClick={handleClearLocalCache}

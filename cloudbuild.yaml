@@ -1,0 +1,98 @@
+steps:
+  # Step 1: Terraform init
+  - name: 'gcr.io/cloud-builders/terraform'
+    id: 'terraform-init'
+    args:
+      - 'init'
+    dir: 'terraform'
+    env:
+      - 'TF_VAR_gcp_project_id=$PROJECT_ID'
+      - 'TF_VAR_ssl_certificate=${_SSL_CERT}'
+      - 'TF_VAR_ssl_private_key=${_SSL_KEY}'
+
+  # Step 2: Terraform validate
+  - name: 'gcr.io/cloud-builders/terraform'
+    id: 'terraform-validate'
+    args:
+      - 'validate'
+    dir: 'terraform'
+    waitFor: ['terraform-init']
+
+  # Step 3: Terraform plan
+  - name: 'gcr.io/cloud-builders/terraform'
+    id: 'terraform-plan'
+    args:
+      - 'plan'
+      - '-out=tfplan'
+    dir: 'terraform'
+    env:
+      - 'TF_VAR_gcp_project_id=$PROJECT_ID'
+      - 'TF_VAR_ssl_certificate=${_SSL_CERT}'
+      - 'TF_VAR_ssl_private_key=${_SSL_KEY}'
+    waitFor: ['terraform-validate']
+
+  # Step 4: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/pc-os:latest'
+      - '.'
+    waitFor: ['-']
+
+  # Step 5: Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+    waitFor: ['build-image']
+
+  # Step 6: Terraform apply (deploy infrastructure)
+  - name: 'gcr.io/cloud-builders/terraform'
+    id: 'terraform-apply'
+    args:
+      - 'apply'
+      - '-auto-approve'
+      - 'tfplan'
+    dir: 'terraform'
+    env:
+      - 'TF_VAR_gcp_project_id=$PROJECT_ID'
+      - 'TF_VAR_ssl_certificate=${_SSL_CERT}'
+      - 'TF_VAR_ssl_private_key=${_SSL_KEY}'
+    waitFor: ['terraform-plan', 'push-image']
+
+  # Step 7: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/run'
+    id: 'deploy-cloud-run'
+    args:
+      - 'deploy'
+      - 'pc-os-app'
+      - '--image=gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=3600'
+      - '--set-env-vars=GOOGLE_PROJECT_ID=$PROJECT_ID,DEPLOYMENT_REGION=us-central1'
+    waitFor: ['terraform-apply']
+
+images:
+  - 'gcr.io/$PROJECT_ID/pc-os:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/pc-os:latest'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
+
+timeout: '3600s'
+
+# Substitution variables - set these in Cloud Build trigger
+substitutions:
+  _SSL_CERT: 'REPLACE_WITH_SSL_CERTIFICATE'
+  _SSL_KEY: 'REPLACE_WITH_SSL_PRIVATE_KEY'

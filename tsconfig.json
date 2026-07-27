@@ -25,5 +25,15 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "cybernetic",
+    "router-console",
+    "sas-hub-core",
+    "export",
+    "campaign-studio",
+    "jackie-shell"
+  ]
 }

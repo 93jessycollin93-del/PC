@@ -1,3 +1,7 @@
+# Real AiTerm sandboxed filesystem (user's real files + access-toggle state)
+data/aiterm-fs
+data/aiterm-fs-state.json
+
 # Logs
 logs
 *.log
@@ -11,10 +15,6 @@ node_modules
 dist
 dist-ssr
 *.local
-.env
-.env.local
-.env.ai-studio
-.env.production
 
 # Editor directories and files
 .vscode/*

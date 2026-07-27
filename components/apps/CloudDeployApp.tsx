@@ -7,32 +7,41 @@ export const CloudDeployApp = () => {
     const [deployed, setDeployed] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
 
-    const handleDeploy = () => {
+    const handleDeploy = async () => {
         if (!selectedProvider) return;
         setDeploying(true);
-        setLogs([`Connecting to ${selectedProvider.toUpperCase()} deployment bridge...`, 'Packaging Pod System & Global State...']);
-        
-        let step = 0;
-        const deploySteps = [
-            'Compressing Memory Pods (LZString + DEFLATE)...',
-            'Synchronizing with Cloud State (Firestore)...',
-            'Provisioning Edge Functions...',
-            'Building UI Assets...',
-            `Deploying to ${selectedProvider === 'vercel' ? 'Vercel Edge Network' : selectedProvider === 'gcp' ? 'Google Cloud Run' : 'Replit Global Repls'}...`,
-            'Verifying Endpoint...'
-        ];
+        setDeployed(false);
 
-        const interval = setInterval(() => {
-            if (step < deploySteps.length) {
-                setLogs(prev => [...prev, deploySteps[step]]);
-                step++;
-            } else {
-                clearInterval(interval);
+        if (selectedProvider !== 'replit') {
+            // Being real: this environment has no Vercel/GCP credentials connected,
+            // so we cannot actually deploy there. Say so instead of faking a log cycle.
+            setLogs([`No ${selectedProvider === 'vercel' ? 'Vercel' : 'Google Cloud'} account is connected to this project.`,
+                'Connect real hosting credentials (via Replit\'s environment secrets) to enable a real deployment here.']);
+            setDeploying(false);
+            return;
+        }
+
+        // Replit path: this app is already running live in a real Replit container.
+        // "Deploying" here means running the real production build against the
+        // real running server and reporting its actual live URL.
+        setLogs(['Running real production build (`npm run build`)...']);
+        try {
+            const resp = await fetch('/api/build/run', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            const data = await resp.json();
+            if (!data.success) {
+                setLogs(prev => [...prev, 'Build failed:', data.stderr || data.stdout || 'Unknown build error']);
                 setDeploying(false);
-                setDeployed(true);
-                setLogs(prev => [...prev, 'Deployment Successful! \u2728']);
+                return;
             }
-        }, 1200);
+            setLogs(prev => [...prev, `Build succeeded in ${(data.durationMs / 1000).toFixed(1)}s.`,
+                'This container is your real, already-live server — no separate deploy step needed on Replit.',
+                `Live at: ${window.location.origin}`]);
+            setDeployed(true);
+        } catch (err: any) {
+            setLogs(prev => [...prev, `Deployment check failed: ${err.message}`]);
+        } finally {
+            setDeploying(false);
+        }
     };
 
     return (

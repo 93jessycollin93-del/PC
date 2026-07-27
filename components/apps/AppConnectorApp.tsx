@@ -240,18 +240,18 @@ const REMIX_PRESET_CATALOG: PresetApp[] = [
         suggestedSlug: "blender"
     },
     {
-        name: "Mail App Client",
-        description: "Standard email client sandbox to securely scan inbox, drafts, and archives.",
-        iconName: "MessageSquare",
-        bgColor: "bg-gradient-to-br from-blue-600 via-zinc-900 to-zinc-950 border border-blue-500/30",
-        suggestedSlug: "mail"
-    },
-    {
         name: "Slides App Builder",
         description: "Elegant visual presentation slides builder with automated formatting options.",
         iconName: "Laptop",
         bgColor: "bg-gradient-to-br from-amber-600 via-zinc-900 to-zinc-950 border border-amber-500/30",
         suggestedSlug: "slides"
+    },
+    {
+        name: "Mail App Client",
+        description: "Standard email client sandbox to securely scan inbox, drafts, and archives.",
+        iconName: "MessageSquare",
+        bgColor: "bg-gradient-to-br from-blue-600 via-zinc-900 to-zinc-950 border border-blue-500/30",
+        suggestedSlug: "mail"
     },
     {
         name: "Snake Game Simulator",

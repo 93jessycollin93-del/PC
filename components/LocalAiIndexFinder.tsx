@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { getAiClient, MODEL_NAME } from '../lib/gemini';
 import { compressToGzipBase64 } from '../lib/compression';
+import { loadLocalModel, generateLocally, isLocalModelLoaded, DEFAULT_LOCAL_MODEL_ID } from '../lib/localLlm';
+import { OFFLINE_MODELS, formatBytes } from '../lib/offlineAiCatalog';
 
 interface LocalAiIndexFinderProps {
     apps: { id: string; name: string; appId?: string }[];
@@ -23,14 +25,29 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
     const [aiResponse, setAiResponse] = useState<string | null>(null);
     const [isThinking, setIsThinking] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    // Compression-cycle unfold stage for the settings dashboard: each tap of
+    // the gear while settings are open unfolds one layer bigger (0 → 1 → 2),
+    // revealing progressively more context, then wraps back around.
+    const [unfoldStage, setUnfoldStage] = useState<0 | 1 | 2>(0);
+    const [unfoldKey, setUnfoldKey] = useState(0);
 
-    // Advanced Local Model Config States
+    // Real Local Model State — Transformers.js (lib/localLlm.ts). No fabricated
+    // progress or output: every field here is either user input or comes back
+    // from the runtime's real progress_callback / generation result.
     const [modelSource, setModelSource] = useState<'rule' | 'wasm'>('rule');
-    const [githubModelUrl, setGithubModelUrl] = useState('https://github.com/onnx/models/raw/main/validated/tiny_intent_classifier.onnx');
-    const [modelSizeMb, setModelSizeMb] = useState('142.5');
+    const [modelId, setModelId] = useState(DEFAULT_LOCAL_MODEL_ID);
     const [isDownloadingModel, setIsDownloadingModel] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
-    const [isModelLoaded, setIsModelLoaded] = useState(false);
+    const [totalBytes, setTotalBytes] = useState<number | null>(null);
+    const [modelError, setModelError] = useState<string | null>(null);
+    const [isModelLoaded, setIsModelLoaded] = useState(() => isLocalModelLoaded(DEFAULT_LOCAL_MODEL_ID));
+
+    // Known real size for the default catalog model (lib/offlineAiCatalog.ts),
+    // shown before download starts; real reported bytes take over once loading.
+    const catalogEntry = OFFLINE_MODELS.find(m => m.id === 'smollm2-135m-onnx');
+    const modelSizeLabel = totalBytes
+        ? formatBytes(totalBytes)
+        : (catalogEntry ? catalogEntry.size.replace(/\s*\(.*\)$/, '') : '~137 MB');
 
     // Routing Pipeline states
     const [pipelineQuery, setPipelineQuery] = useState('');
@@ -54,7 +71,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
         webGl: true
     });
 
-    // Simulated model terminal logs
+    // Local model terminal logs — populated with real download/inference events
     const [terminalLogs, setTerminalLogs] = useState<string[]>([
         '[SYSTEM] Ready to compile local model arrays.',
         '[HARDWARE] Device profile verified.'
@@ -174,38 +191,50 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
         setTerminalLogs(prev => [...prev.slice(-14), `[${timestamp}] ${msg}`]);
     };
 
-    // Simulate downloading weights from the user-specified custom model repo (e.g. GitHub/HuggingFace)
-    const handleDownloadModel = () => {
-        if (isDownloadingModel) return;
+    // Real download + load of an on-device ONNX model via Transformers.js.
+    // Progress below comes from the runtime's actual progress_callback — see
+    // lib/localLlm.ts. Nothing here is randomly generated.
+    const handleDownloadModel = async () => {
+        if (isDownloadingModel || isModelLoaded) return;
         setIsDownloadingModel(true);
         setDownloadProgress(0);
-        setIsModelLoaded(false);
-        addTerminalLog(`[DOWNLOAD] Initiated stream from Github raw model endpoint...`);
-        addTerminalLog(`[DOWNLOAD] Allocation target: ${modelSizeMb} MB`);
+        setTotalBytes(null);
+        setModelError(null);
+        addTerminalLog(`[DOWNLOAD] Requesting real weights: ${modelId}`);
 
-        const interval = setInterval(() => {
-            setDownloadProgress(prev => {
-                const next = prev + Math.floor(Math.random() * 15) + 5;
-                if (next >= 100) {
-                    clearInterval(interval);
-                    setIsDownloadingModel(false);
-                    setIsModelLoaded(true);
-                    setStatusMessage(`Online • ${modelSizeMb}MB On-Device Model Active`);
-                    addTerminalLog(`[MODEL] Verified integrity signature of custom ONNX bundle.`);
-                    addTerminalLog(`[ALLOC] Allocated ${(parseFloat(modelSizeMb) * 0.9).toFixed(1)}MB WebAssembly linear heap memory inside browser.`);
-                    addTerminalLog(`[MODEL] Finished initializing custom local compiler! Try typing a command.`);
-                    return 100;
+        let finalTotalBytes: number | null = null;
+        try {
+            await loadLocalModel(modelId, (p) => {
+                if (typeof p.total === 'number') {
+                    finalTotalBytes = p.total;
+                    setTotalBytes(p.total);
                 }
-                if (Math.random() > 0.6) {
-                    const bytesDownloaded = ((parseFloat(modelSizeMb) * next) / 100).toFixed(1);
-                    addTerminalLog(`[FETCH] Received segment: ${bytesDownloaded} / ${modelSizeMb} MB (${next}%)`);
+                if (typeof p.progress === 'number') {
+                    setDownloadProgress(Math.round(p.progress));
+                    if (p.status === 'progress_total' || p.status === 'progress') {
+                        addTerminalLog(`[FETCH] ${p.file ? `${p.file}: ` : ''}${p.progress.toFixed(1)}%`);
+                    }
                 }
-                return next;
+                if (p.status === 'done' && p.file) addTerminalLog(`[FETCH] ${p.file} complete.`);
+                if (p.status === 'ready') addTerminalLog(`[MODEL] Runtime ready.`);
             });
-        }, 180);
+            setIsModelLoaded(true);
+            setDownloadProgress(100);
+            const sizeLabel = finalTotalBytes ? formatBytes(finalTotalBytes) : modelSizeLabel;
+            setStatusMessage(`Online • ${sizeLabel} On-Device Model Active`);
+            addTerminalLog(`[MODEL] ${modelId} loaded — real local inference ready.`);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            setModelError(msg);
+            setStatusMessage('Model load failed — see log');
+            addTerminalLog(`[ERROR] Model load failed: ${msg}`);
+        } finally {
+            setIsDownloadingModel(false);
+        }
     };
 
-    // Real-world Memory Allocation Simulator to test the System Monitor constraints directly!
+    // Real memory allocation test — reserves genuine Float32 heap buffers so the
+    // System Monitor's real numbers move; nothing here is simulated.
     const handleSimulateMemoryAllocation = async () => {
         if (isAllocatingMemory) return;
         setIsAllocatingMemory(true);
@@ -230,7 +259,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                 window.dispatchEvent(new Event('resize'));
             }
             
-            addTerminalLog(`[ALLOC_TEST] Success! Memory successfully locked inside WebAssembly thread.`);
+            addTerminalLog(`[ALLOC_TEST] Success! Memory reserved in the real JS heap.`);
         } catch (err) {
             addTerminalLog(`[ERROR] Out of memory context or allocation rejected by thread loop.`);
         }
@@ -264,10 +293,10 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
             { keywords: ['game', 'snake', 'play game'], appName: 'snake', appId: 'snake' },
             { keywords: ['telegram', 'chat', 'replica', 'cybernetic67'], appName: 'Telegram Replica', appId: 'cybernetic67' },
             { keywords: ['email', 'mail', 'inbox'], appName: 'Mail', appId: 'mail' },
-            { keywords: ['slide', 'presentation'], appName: 'Slides', appId: 'slides' },
             { keywords: ['chess', 'zenith'], appName: 'Zenith Chess AI', appId: 'chess' },
             { keywords: ['laser', 'tag'], appName: 'Laser Tag Arcade', appId: 'laser-tag' },
             { keywords: ['note', 'todo', 'notepad'], appName: 'Notes', appId: 'notepad' },
+            { keywords: ['slide', 'presentation'], appName: 'Slides', appId: 'slides' },
             { keywords: ['bot', 'studio', 'ai studio', 'offline'], appName: 'Offline AI Studio', appId: 'bot_studio' },
             { keywords: ['qpdb', 'matrix'], appName: 'qpdb Matrix', appId: 'qpdb' },
             { keywords: ['consensus', 'multi-agent'], appName: 'Consensus Lab', appId: 'consensus_lab' },
@@ -300,7 +329,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                         setIsExpanded(false);
                         setQuery('');
                         setAiResponse(null);
-                        setStatusMessage(modelSource === 'wasm' ? `Online • ${modelSizeMb}MB On-Device Model Active` : 'Standby • 128-byte Index-01 Local Model');
+                        setStatusMessage(modelSource === 'wasm' ? `Online • ${modelSizeLabel} On-Device Model Active` : 'Standby • 128-byte Index-01 Local Model');
                     }, 2000);
                     break;
                 }
@@ -323,27 +352,48 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                 setIsExpanded(false);
                 setQuery('');
                 setAiResponse(null);
-                setStatusMessage(modelSource === 'wasm' ? `Online • ${modelSizeMb}MB On-Device Model Active` : 'Standby • 128-byte Index-01 Local Model');
+                setStatusMessage(modelSource === 'wasm' ? `Online • ${modelSizeLabel} On-Device Model Active` : 'Standby • 128-byte Index-01 Local Model');
             }, 3000);
         }
 
-        // 3. Fallback: ask general assistance (simulated local 128-byte generative guide)
+        // 3. Fallback: the 128-byte rule matrix, or a REAL generation from the
+        //    loaded on-device model — never a canned string pretending to be one.
         if (!matched) {
-            let answer = '';
-            if (cleanText.includes('hello') || cleanText.includes('hi')) {
-                answer = "Hello! Say 'Open Snake' or 'Clear Cache' to instantly run local hardware commands.";
-            } else if (cleanText.includes('who are you') || cleanText.includes('what is this')) {
-                answer = `I am Index-01: your ultra-low-power local OS index. Model configuration: ${modelSource === 'wasm' ? '150MB Custom Wasm Model' : '128-byte Rule Matrix'}. Zero server lag!`;
-            } else if (cleanText.includes('help') || cleanText.includes('guide')) {
-                answer = "Speak: 'Open Snake' to run the game, or 'Optimize system' to purge temporary cache memories.";
+            if (modelSource === 'wasm') {
+                if (!isModelLoaded) {
+                    setAiResponse('No on-device model is loaded yet — open the gear icon and tap "Pull Weights" first.');
+                    setStatusMessage('Model not loaded.');
+                    addTerminalLog(`[INFERENCE] Skipped — no local model loaded.`);
+                } else {
+                    try {
+                        const generated = await generateLocally(text);
+                        setAiResponse(generated || '(The local model returned an empty response.)');
+                        setStatusMessage('Local generation complete.');
+                        addTerminalLog(`[INFERENCE] Real local generation for: "${cleanText.substring(0, 20)}..."`);
+                    } catch (err) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        setAiResponse(`Local generation failed: ${msg}`);
+                        setStatusMessage('Local generation error.');
+                        addTerminalLog(`[ERROR] ${msg}`);
+                    }
+                }
             } else {
-                const words = cleanText.split(' ');
-                const primaryNoun = words[words.length - 1] || 'request';
-                answer = `[Local Inference] Intent parsed: "${primaryNoun}". Try speaking: 'Open Game' or 'Clean System'.`;
+                let answer = '';
+                if (cleanText.includes('hello') || cleanText.includes('hi')) {
+                    answer = "Hello! Say 'Open Snake' or 'Clear Cache' to instantly run local hardware commands.";
+                } else if (cleanText.includes('who are you') || cleanText.includes('what is this')) {
+                    answer = `I am Index-01: your ultra-low-power local OS index. Currently running the 128-byte Rule Matrix — switch to Local LLM in settings for real generated answers.`;
+                } else if (cleanText.includes('help') || cleanText.includes('guide')) {
+                    answer = "Speak: 'Open Snake' to run the game, or 'Optimize system' to purge temporary cache memories.";
+                } else {
+                    const words = cleanText.split(' ');
+                    const primaryNoun = words[words.length - 1] || 'request';
+                    answer = `[Rule Match] No command recognized for "${primaryNoun}". Try 'Open Game' or 'Clean System' — or switch to Local LLM for open-ended answers.`;
+                }
+                setAiResponse(answer);
+                setStatusMessage('Rule match complete.');
+                addTerminalLog(`[INFERENCE] Rule-matrix reply for: "${cleanText.substring(0, 20)}..."`);
             }
-            setAiResponse(answer);
-            setStatusMessage('Guidance generated.');
-            addTerminalLog(`[INFERENCE] Fallback generated local answer for token: "${cleanText.substring(0, 20)}..."`);
         }
 
         setIsThinking(false);
@@ -380,6 +430,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                 setIsExpanded(false);
                 setAiResponse(null);
                 setShowSettings(false);
+                setUnfoldStage(0);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -390,11 +441,20 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
         <div 
             id="local-ai-index-finder"
             ref={containerRef}
-            className="fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[4000] font-sans"
+            className="relative z-[4000] font-sans"
         >
-            {/* Expanded State (Dynamic Island opened) */}
+            {/* Expanded State (Dynamic Island opened) — pops up above the bottom bar */}
             {isExpanded ? (
-                <div className="absolute bottom-0 right-0 w-[295px] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 rounded-[1.75rem] p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] text-zinc-100 flex flex-col gap-3 animate-in zoom-in-95 duration-200 select-none">
+                <div
+                    key={unfoldKey}
+                    className={`unfold-panel absolute bottom-full right-0 mb-2 max-w-[90vw] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800/80 p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] text-zinc-100 flex flex-col gap-3 select-none ${
+                        showSettings && unfoldStage === 2
+                            ? 'w-[440px] rounded-[1.25rem]'
+                            : showSettings && unfoldStage === 1
+                                ? 'w-[360px] rounded-[1.5rem]'
+                                : 'w-[295px] rounded-[1.75rem]'
+                    }`}
+                >
                     {/* Compact Header */}
                     <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
                         <div className="flex items-center gap-1.5">
@@ -406,16 +466,26 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                         <div className="flex items-center gap-1.5">
                             <button
                                 onClick={() => {
-                                    setShowSettings(!showSettings);
                                     setAiResponse(null);
+                                    if (!showSettings) {
+                                        // First open: unfold one layer.
+                                        setShowSettings(true);
+                                        setUnfoldStage(1);
+                                    } else {
+                                        // Already open: unfold bigger, revealing more context —
+                                        // wraps back to a fresh single fold after the deepest layer.
+                                        setUnfoldStage(prev => (prev >= 2 ? 1 : (prev + 1) as 1 | 2));
+                                    }
+                                    setUnfoldKey(k => k + 1);
+                                    addTerminalLog(`[UNFOLD] Compression layer expanded (stage ${showSettings ? Math.min((unfoldStage + 1), 2) : 1}/2).`);
                                 }}
                                 className={`p-1 rounded-md transition-all cursor-pointer ${showSettings ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'}`}
-                                title="Toggle On-Device Model Manager"
+                                title="Unfold On-Device Model Manager — tap again to unfold deeper"
                             >
                                 <Settings2 className="w-4 h-4" />
                             </button>
                             <button 
-                                onClick={() => { setIsExpanded(false); setAiResponse(null); setShowSettings(false); }}
+                                onClick={() => { setIsExpanded(false); setAiResponse(null); setShowSettings(false); setUnfoldStage(0); }}
                                 className="p-1 hover:bg-zinc-800 rounded-md transition-all text-zinc-400 hover:text-zinc-200 cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
@@ -424,15 +494,18 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                     </div>
 
                     {showSettings ? (
-                        /* Advanced 150MB Custom On-Device Model Configuration Dashboard */
-                        <div className="flex flex-col gap-3 animate-in fade-in duration-150 text-left">
-                            <div className="flex items-center gap-1.5 text-indigo-400">
-                                <Cpu className="w-4 h-4" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">Model Configuration Dashboard</span>
+                        /* Advanced Local Model (Transformers.js) Configuration Dashboard */
+                        <div className="flex flex-col gap-3 text-left">
+                            <div className="unfold-layer flex items-center justify-between text-indigo-400" style={{ '--unfold-delay': '0ms' } as React.CSSProperties}>
+                                <div className="flex items-center gap-1.5">
+                                    <Cpu className="w-4 h-4" />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider">Model Configuration Dashboard</span>
+                                </div>
+                                <span className="text-[8px] font-mono text-zinc-500">fold {unfoldStage}/2</span>
                             </div>
 
                             {/* Model Engine Selector */}
-                            <div className="grid grid-cols-2 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-center text-[10px] font-bold uppercase">
+                            <div className="unfold-layer grid grid-cols-2 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-center text-[10px] font-bold uppercase" style={{ '--unfold-delay': '60ms' } as React.CSSProperties}>
                                 <button
                                     onClick={() => {
                                         setModelSource('rule');
@@ -447,79 +520,78 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                                     onClick={() => {
                                         setModelSource('wasm');
                                         if (isModelLoaded) {
-                                            setStatusMessage(`Online • ${modelSizeMb}MB On-Device Model Active`);
+                                            setStatusMessage(`Online • ${modelSizeLabel} On-Device Model Active`);
                                         } else {
-                                            setStatusMessage('WASM Ready • Weights Pending Load');
+                                            setStatusMessage('Transformers.js Ready • Weights Pending Load');
                                         }
-                                        addTerminalLog('[SYSTEM] Loaded WebAssembly execution runtime environment.');
+                                        addTerminalLog('[SYSTEM] Loaded Transformers.js (ONNX Runtime Web) execution environment.');
                                     }}
                                     className={`py-1 rounded-md transition-all cursor-pointer ${modelSource === 'wasm' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
                                 >
-                                    Custom LLM (&lt;150 MB)
+                                    Local LLM (~137 MB)
                                 </button>
                             </div>
 
                             {modelSource === 'rule' ? (
-                                <div className="bg-emerald-950/10 border border-emerald-900/30 p-2.5 rounded-xl flex gap-2 items-start text-[10px] text-zinc-400 leading-relaxed">
+                                <div className="unfold-layer bg-emerald-950/10 border border-emerald-900/30 p-2.5 rounded-xl flex gap-2 items-start text-[10px] text-zinc-400 leading-relaxed" style={{ '--unfold-delay': '110ms' } as React.CSSProperties}>
                                     <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                                     <div>
                                         <span className="font-bold text-emerald-300">Default Ultra-low Power:</span> Running a highly compressed, instant local lookup table that requires <strong>0 MB memory allocation</strong>. Extremely battery-friendly for daily iPhone use.
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-2.5">
-                                    {/* Custom Model Source Fields */}
+                                <div className="unfold-layer flex flex-col gap-2.5" style={{ '--unfold-delay': '110ms' } as React.CSSProperties}>
+                                    {/* Real Model Source — a Hugging Face model id loaded via Transformers.js */}
                                     <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5 flex flex-col gap-2">
                                         <div className="flex justify-between items-center text-[9px] text-zinc-400 font-bold uppercase">
-                                            <span>Model Quantized weights URL</span>
-                                            <span className="text-indigo-400">Custom Load</span>
+                                            <span>Hugging Face Model Id</span>
+                                            <span className="text-indigo-400">{modelSizeLabel}</span>
                                         </div>
                                         <input
                                             type="text"
-                                            value={githubModelUrl}
-                                            onChange={(e) => setGithubModelUrl(e.target.value)}
-                                            placeholder="https://github.com/user/repo/raw/model.onnx"
-                                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 text-[10px] font-mono text-zinc-300 focus:outline-none focus:border-indigo-500"
+                                            value={modelId}
+                                            onChange={(e) => setModelId(e.target.value)}
+                                            disabled={isDownloadingModel || isModelLoaded}
+                                            placeholder="HuggingFaceTB/SmolLM2-135M-Instruct"
+                                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 text-[10px] font-mono text-zinc-300 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
                                         />
-                                        <div className="grid grid-cols-2 gap-2 items-center">
-                                            <div>
-                                                <span className="text-[8px] text-zinc-500 font-bold uppercase">Quant Size (MB)</span>
-                                                <input
-                                                    type="number"
-                                                    value={modelSizeMb}
-                                                    onChange={(e) => setModelSizeMb(e.target.value)}
-                                                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-1 px-1.5 text-[10px] font-mono text-zinc-300 mt-1"
-                                                />
-                                            </div>
-                                            <button
-                                                onClick={handleDownloadModel}
-                                                disabled={isDownloadingModel}
-                                                className={`py-1.5 px-2 rounded-lg border text-[10px] font-bold transition-all flex items-center justify-center gap-1 mt-3 cursor-pointer ${
-                                                    isModelLoaded 
-                                                        ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40' 
-                                                        : isDownloadingModel 
-                                                            ? 'bg-indigo-950/40 text-indigo-300 border-indigo-800/40 cursor-not-allowed' 
-                                                            : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800'
-                                                }`}
-                                            >
-                                                {isDownloadingModel ? (
-                                                    <>
-                                                        <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
-                                                        <span>{downloadProgress}%</span>
-                                                    </>
-                                                ) : isModelLoaded ? (
-                                                    <>
-                                                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                                        <span>Model Loaded</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <DownloadCloud className="w-3 h-3" />
-                                                        <span>Pull Weights</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
+                                        <p className="text-[8px] text-zinc-500 leading-normal">
+                                            Any Transformers.js-compatible text-generation model id from the{' '}
+                                            <a href="https://huggingface.co/models?library=transformers.js" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">
+                                                Hugging Face Hub
+                                            </a>. Defaults to the catalog's verified {catalogEntry?.size || '~137 MB'} model.
+                                        </p>
+                                        <button
+                                            onClick={handleDownloadModel}
+                                            disabled={isDownloadingModel || isModelLoaded}
+                                            className={`w-full py-1.5 px-2 rounded-lg border text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                                isModelLoaded
+                                                    ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40'
+                                                    : isDownloadingModel
+                                                        ? 'bg-indigo-950/40 text-indigo-300 border-indigo-800/40 cursor-not-allowed'
+                                                        : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800'
+                                            }`}
+                                        >
+                                            {isDownloadingModel ? (
+                                                <>
+                                                    <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
+                                                    <span>{downloadProgress}% real download{totalBytes ? ` of ${formatBytes(totalBytes)}` : ''}</span>
+                                                </>
+                                            ) : isModelLoaded ? (
+                                                <>
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                                    <span>Model Loaded</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <DownloadCloud className="w-3 h-3" />
+                                                    <span>Pull Weights</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        {modelError && (
+                                            <p className="text-[8px] text-red-400 leading-normal">{modelError}</p>
+                                        )}
                                     </div>
 
                                     {/* Interactive Real Memory Allocator to Test Device Capacity */}
@@ -537,7 +609,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                                                 disabled={isAllocatingMemory}
                                                 className="flex-1 py-1 px-2 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-800 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
                                             >
-                                                {isAllocatingMemory ? 'Allocating...' : 'Simulate Alloc'}
+                                                {isAllocatingMemory ? 'Allocating...' : 'Allocate Test Memory'}
                                             </button>
                                             {allocatedTestMemory !== '0 MB' && (
                                                 <button
@@ -551,7 +623,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                                     </div>
 
                                     {/* Local Hardware Acceleration Status Diagnostics */}
-                                    <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-[8px] uppercase tracking-wide">
+                                    <div className="unfold-layer grid grid-cols-4 gap-1.5 text-center font-mono text-[8px] uppercase tracking-wide" style={{ '--unfold-delay': '160ms' } as React.CSSProperties}>
                                         <div className={`p-1 rounded-lg border ${hardwareSupport.webAssembly ? 'bg-emerald-950/25 border-emerald-900/35 text-emerald-400' : 'bg-red-950/25 border-red-900/35 text-red-400'}`}>
                                             <div>Wasm</div>
                                             <div className="font-bold mt-0.5">{hardwareSupport.webAssembly ? 'YES' : 'NO'}</div>
@@ -573,7 +645,7 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                             )}
 
                             {/* Live Terminal Log stream */}
-                            <div className="bg-zinc-950 border border-zinc-900 p-2 rounded-xl">
+                            <div className="unfold-layer bg-zinc-950 border border-zinc-900 p-2 rounded-xl" style={{ '--unfold-delay': '200ms' } as React.CSSProperties}>
                                 <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-bold uppercase mb-1 pb-1 border-b border-zinc-900/60">
                                     <Terminal className="w-3 h-3" />
                                     <span>Model Inference compiler Console</span>
@@ -584,6 +656,30 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Deepest fold: only revealed on the second unfold — a bigger,
+                                richer context layer summarizing everything above it. */}
+                            {unfoldStage === 2 && (
+                                <div className="unfold-layer bg-indigo-950/20 border border-indigo-800/40 rounded-xl p-2.5 flex flex-col gap-1.5" style={{ '--unfold-delay': '260ms' } as React.CSSProperties}>
+                                    <div className="flex items-center gap-1.5 text-indigo-300">
+                                        <Layers className="w-3.5 h-3.5" />
+                                        <span className="text-[9px] font-bold uppercase tracking-wider">Deep Context — Full Pod Snapshot</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] font-mono text-zinc-400">
+                                        <span>Engine</span>
+                                        <span className="text-zinc-200 text-right">{modelSource === 'wasm' ? 'Custom ONNX' : 'Rule Matrix'}</span>
+                                        <span>Footprint</span>
+                                        <span className="text-zinc-200 text-right">{modelSource === 'wasm' ? (isModelLoaded ? modelSizeLabel : 'not loaded') : '128 B'}</span>
+                                        <span>Heap reserved</span>
+                                        <span className="text-zinc-200 text-right">{allocatedTestMemory}</span>
+                                        <span>Log depth</span>
+                                        <span className="text-zinc-200 text-right">{terminalLogs.length} events</span>
+                                    </div>
+                                    <p className="text-[8px] text-indigo-300/70 leading-relaxed pt-1 border-t border-indigo-900/40">
+                                        This is the compressed pod's full reconstructed state — every layer above folded together into one context window.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         /* Standard Chat / Search UI interface */
@@ -690,17 +786,17 @@ export const LocalAiIndexFinder: React.FC<LocalAiIndexFinderProps> = ({ apps, on
                 /* Collapsed Dynamic Island Capsule Button */
                 <button
                     onClick={() => setIsExpanded(true)}
-                    className="flex items-center gap-2.5 px-3.5 py-1.5 bg-zinc-950/90 hover:bg-zinc-900/95 border border-zinc-800 hover:border-zinc-700 rounded-full text-zinc-300 transition-all hover:scale-105 active:scale-95 shadow-xl select-none"
+                    className="flex items-center gap-1.5 px-2 py-1 hover:bg-zinc-900/80 rounded-full text-zinc-400 hover:text-zinc-200 transition-all active:scale-95 select-none"
                     title="Open On-Device Index Finder AI"
                 >
                     <div className="relative flex items-center justify-center">
-                        <Bot className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                        <Bot className="w-3 h-3 text-emerald-400 animate-pulse" />
+                        <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-emerald-400 rounded-full"></span>
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-200">
-                        Index-01 Local AI
+                    <span className="text-[9px] font-bold uppercase tracking-wider">
+                        Index-01
                     </span>
-                    <Mic className="w-3 h-3 text-zinc-400 hover:text-emerald-400" />
+                    <Mic className="w-2.5 h-2.5 text-zinc-500" />
                 </button>
             )}
         </div>

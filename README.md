@@ -1,35 +1,60 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Jackie's PC
 
-# Run and deploy your AI Studio app
+A windowed desktop OS in the browser — the app roster lives in draggable
+windows over a shared state layer, with ink gestures, on-device AI, a
+vault/compression subsystem, and PWA install.
 
-This contains everything you need to run your app locally.
+Reference implementation for the fleet described in `FLEET_PARITY_PLAN.md`;
+`PARITY_MATRIX.md` tracks how far the sibling apps have followed.
 
-View your app in AI Studio: https://ai.studio/apps/29eeb369-088f-4ccd-bda6-77e53eccb448
+## Run locally
 
-## Run Locally
+**Prerequisites:** Node.js
 
-**Prerequisites:**  Node.js
+```bash
+npm install
+npm run dev          # tsx server.ts
+```
 
+Set `GEMINI_API_KEY` in `.env.local` before starting. `.env.production.example`
+lists what a deployed instance expects.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Build
 
-## Keep AI Studio updates isolated from Vercel production
+```bash
+npm run build        # vite build + esbuild bundle of server.ts
+npm start            # node dist/server.cjs
+npm run lint         # tsc --noEmit
+```
 
-1. Create and use a dedicated AI Studio branch (example: `ai-studio/experiments`) for AI Studio sync work.
-2. Keep production on `main` only.
-3. This repository includes `vercel.json` branch deploy guards so only `main` auto-deploys.
-4. Keep separate environment files:
-   - AI Studio/local: `.env.ai-studio` (use `.env.ai-studio.example` as template)
-   - Production/Vercel: `.env.production` (use `.env.production.example` as template)
-5. Only merge AI Studio changes into `main` when you explicitly want Vercel production updated.
+Tailwind is compiled into the bundle by PostCSS — see `tailwind.config.js` and
+`index.css`. It is not loaded from a CDN, so the PC styles correctly offline.
+If you add a directory that ships `className` strings, add it to the `content`
+globs in `tailwind.config.js` or its utilities get purged from the build.
 
-### Vercel project settings (one-time)
+## Layout
 
-- Production Branch: set to `main`
-- Auto-deploy previews: disable in the Vercel dashboard if you want zero preview deploys
+| Path | Contents |
+|---|---|
+| `App.tsx` | Window manager, desktop items, app dispatch |
+| `components/apps/` | The app roster — one component per window |
+| `lib/` | Shared clients: `gemini.ts`, `persist.ts`, `jackyClient.ts`, `ai/`, `engine/` |
+| `src/` | `jackie-core/`, `pc-themes/`, `sas-pod-system/`, `components/` |
+| `server.ts` | Express host and the `/api/jacky` relay to the Flask engine |
+| `jackie-shell/` | Standalone vanilla-JS Jackie prototype (not wired up) |
+
+## SAS Hub upgrade staging
+
+> Start here: [`docs/HANDOFF.md`](docs/HANDOFF.md)
+
+Draft code and planning for SAS Hub upgrade work, staged in this repo rather
+than applied to the running system.
+
+| Path | What it is |
+|---|---|
+| `docs/HANDOFF.md` | Honest status and next-agent handoff |
+| `docs/SAS_HUB_PLAN.md` | SAS Hub control-plan draft |
+| `src/sas-upgrade/api/control_routes.py` | Draft Flask control routes for later integration |
+| `src/sas-upgrade/terminal/` | SAS Workstation Terminal |
+| `src/sas-upgrade/flipper/` | Flipper Zero bridge |
+| `src/sas-upgrade/mobile/` | Mobile approvals surface |

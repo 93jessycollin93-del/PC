@@ -259,7 +259,7 @@ Provide ONLY the valid qpdb code inside the '[}' and '{]' boundaries, responding
             <div className="flex-1 flex overflow-hidden">
                 
                 {/* Left Area: Controls, Composer, Code, AI, Theory */}
-                <div className="w-[45%] border-r border-[#141822] bg-[#080a0f] flex flex-col overflow-y-auto custom-scrollbar p-5 space-y-6">
+                <div className="w-[40%] min-w-[280px] border-r border-[#141822] bg-[#080a0f] flex flex-col overflow-y-auto custom-scrollbar p-5 space-y-6">
                     
                     {/* Source Code Section */}
                     <div className="space-y-2">

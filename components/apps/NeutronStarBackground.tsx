@@ -10,7 +10,7 @@ export const NeutronStarBackground: React.FC<NeutronStarBackgroundProps> = ({
     speed = 1.0 
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const requestRef = useRef<number>();
+    const requestRef = useRef<number | undefined>(undefined);
     
     // Config state
     const [config, setConfig] = useState({ b: brightness, s: speed });

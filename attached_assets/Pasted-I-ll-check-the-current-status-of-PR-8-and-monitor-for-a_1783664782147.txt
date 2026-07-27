@@ -1,0 +1,23 @@
+I'll check the current status of PR #8 and monitor for any CI failures or review comments.
+
+I see you have a new message about two critical items. Let me check the context on both before another agent picks them up.
+
+**Re: Firestore database issue —** I didn't set this up. The `firebase-applet-config.json` and `lib/firebase.ts` files exist in the repo but are outside the Pod Control Panel work I just completed. The config does point to a non-existent database (`ai-studio-dyi-29eeb369-088f-4ccd-bda6-77e53eccb448` in project `gen-lang-client-0404792141`). Since you've already added the manual on/off toggle and sync logic in `lib/persist.ts` + `SyncStatusIndicator.tsx`, you should handle the Firestore database fix on your end — either recreate it in that project or re-point the config to the correct database. I won't touch this to avoid conflicts.
+
+**Re: modelRouter.ts —** Good news: this file already exists and is well-structured. It has no Ollama integration yet, but it's trivial to add. The router currently prioritizes:
+1. Groq (free) → Gemini (free) → DeepSeek → Anthropic → Grok
+
+**What I can confirm:**
+- `modelRouter.ts` was not built by me in this session — it's pre-existing
+- It uses localStorage for API keys and stats
+- The routing logic scores by: (1) API key availability, (2) cost, (3) speed
+- Clean architecture: just add Ollama to the `ModelProvider` type, add its config to `MODEL_REGISTRY` (zero cost), and the router will automatically prefer it since local models should score highest
+
+**Before I wire Ollama in, one design question:**
+- Should Ollama be **automatic fallback** (try local → fail over to cloud if unavailable)?
+- Or **manual toggle** (user switches between local-only / cloud-only / auto)?
+- Or **both** (automatic primary with a settings override)?
+
+My recommendation: automatic with fallback. If the user is offline or Ollama crashes, seamlessly fall back to cloud. If they want local-only, they flip a toggle in settings.
+
+What's your preference here?

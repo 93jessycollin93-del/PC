@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Database, HardDrive, Download, Settings, Shield, Server, Box, Activity, Zap, FileJson, Hash, Link, Terminal, Layout, Cpu, Network, Lock, Layers, Check, FolderTree, Folder } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Database, HardDrive, Download, Settings, Shield, Server, Box, Activity, Zap, FileJson, Hash, Link, Terminal, Layout, Cpu, Network, Lock, Layers, Check, FolderTree, Folder, Trash2, Cloud, Clock, AlertCircle } from 'lucide-react';
+import { compress, decompress } from 'fflate';
 
 interface DataPod {
     id: string;
@@ -10,7 +11,249 @@ interface DataPod {
     progress: number;
     status: 'idle' | 'downloading' | 'compiling' | 'ready' | 'error';
     contents: string[];
+    rawSizeBytes?: number;
+    compressedSizeBytes?: number;
+    compressionRatio?: number;
+    lastModified?: number;
+    cloudBackups?: { slot: 1 | 2 | 3; timestamp: number }[];
 }
+
+interface PodStorageEntry {
+    id: string;
+    data: Uint8Array;
+    metadata: DataPod;
+    timestamp: number;
+}
+
+interface VaultBackupRotation {
+    slot: 1 | 2 | 3;
+    timestamp: number;
+    totalPodsCount: number;
+    totalCompressedSizeMB: number;
+    checksum: string;
+}
+
+interface LargeChangeDetection {
+    lastSnapshotSize: number;
+    lastSnapshotTime: number;
+    slot3Preserved: boolean;
+    preservedReason?: string;
+}
+
+const DB_NAME = 'SAS_ZERO_VAULT';
+const STORE_NAME = 'pods';
+
+const getIndexedDB = (): IDBDatabase | null => {
+    if (typeof window === 'undefined' || !window.indexedDB) return null;
+    return (window as any).__idbInstance || null;
+};
+
+const initIndexedDB = async (): Promise<IDBDatabase> => {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            (window as any).__idbInstance = req.result;
+            resolve(req.result);
+        };
+        req.onupgradeneeded = (e) => {
+            const db = (e.target as IDBOpenDBRequest).result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+    });
+};
+
+const savePodToIDB = async (pod: DataPod, data: Uint8Array): Promise<void> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const entry: PodStorageEntry = {
+            id: pod.id,
+            data,
+            metadata: { ...pod, progress: 0 },
+            timestamp: Date.now(),
+        };
+        const req = store.put(entry);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve();
+    });
+};
+
+const loadPodFromIDB = async (podId: string): Promise<{ pod: DataPod; data: Uint8Array } | null> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(podId);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (!req.result) return resolve(null);
+            const entry = req.result as PodStorageEntry;
+            resolve({ pod: entry.metadata as DataPod, data: entry.data });
+        };
+    });
+};
+
+const getTotalStorageUsed = async (): Promise<number> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            let total = 0;
+            (req.result as PodStorageEntry[]).forEach(entry => {
+                total += entry.data.length + JSON.stringify(entry.metadata).length;
+            });
+            resolve(total);
+        };
+    });
+};
+
+const deletePodFromIDB = async (podId: string): Promise<void> => {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME], 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.delete(podId);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve();
+    });
+};
+
+// Cloud backup rotation: maintains 3 copies, rotates every 1.5-6 hours
+const getVaultBackupRotation = async (): Promise<VaultBackupRotation | null> => {
+    const stored = localStorage.getItem('vault_backup_rotation');
+    if (!stored) return null;
+    return JSON.parse(stored) as VaultBackupRotation;
+};
+
+// Large-change detection: track significant vault modifications
+const getLargeChangeDetection = (): LargeChangeDetection => {
+    const stored = localStorage.getItem('vault_large_change_detection');
+    if (!stored) {
+        return { lastSnapshotSize: 0, lastSnapshotTime: Date.now(), slot3Preserved: false };
+    }
+    return JSON.parse(stored) as LargeChangeDetection;
+};
+
+const saveLargeChangeDetection = (detection: LargeChangeDetection): void => {
+    localStorage.setItem('vault_large_change_detection', JSON.stringify(detection));
+};
+
+// Detect anomalously large changes (default: 50MB threshold, 25% growth, or 10MB absolute)
+const detectLargeChange = (currentSizeMB: number, largeChangeThreshold = 50): boolean => {
+    const detection = getLargeChangeDetection();
+    const lastSize = detection.lastSnapshotSize || currentSizeMB;
+    const delta = Math.abs(currentSizeMB - lastSize);
+    const percentChange = lastSize > 0 ? (delta / lastSize) * 100 : 0;
+
+    // Large change if: >50MB delta OR >25% growth OR >10MB absolute in small vaults
+    return delta > largeChangeThreshold || percentChange > 25 || (lastSize < 50 && delta > 10);
+};
+
+const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressedSizeMB: number, largeChangeThreshold = 50): Promise<void> => {
+    const lastRotation = await getVaultBackupRotation();
+    const now = Date.now();
+
+    // Tiered backup rotation: Slot 1 every 6h, Slot 2 every 12h, Slot 3 every 3 days
+    const getRotationInterval = (slot: 1 | 2 | 3): number => {
+        switch(slot) {
+            case 1: return 6 * 60 * 60 * 1000; // 6 hours - frequent snapshots
+            case 2: return 12 * 60 * 60 * 1000; // 12 hours - daily backup
+            case 3: return 3 * 24 * 60 * 60 * 1000; // 3 days - archival copy
+            default: return 6 * 60 * 60 * 1000;
+        }
+    };
+
+    const currentSlot = lastRotation?.slot || 1;
+    const rotationInterval = getRotationInterval(currentSlot);
+
+    if (!lastRotation || (now - lastRotation.timestamp) > rotationInterval) {
+        // Check for large changes
+        const isLargeChange = detectLargeChange(totalCompressedSizeMB, largeChangeThreshold);
+        let detection = getLargeChangeDetection();
+
+        // Cycle through slots: 1→2→3→1, but skip 3 if large change detected
+        let nextSlot: 1 | 2 | 3 = (lastRotation?.slot || 0) === 3 ? 1 : ((lastRotation?.slot || 0) + 1) as (1 | 2 | 3);
+
+        // If next slot is 3 and large change detected, preserve slot 3 as failsafe
+        if (nextSlot === 3 && isLargeChange) {
+            // Skip to slot 1, preserving slot 3
+            nextSlot = 1;
+            detection.slot3Preserved = true;
+            detection.preservedReason = `Large change detected: delta=${Math.abs(totalCompressedSizeMB - detection.lastSnapshotSize).toFixed(2)}MB`;
+            console.warn(`[Vault] Slot 3 preserved as failsafe - ${detection.preservedReason}`);
+        } else if (nextSlot === 3) {
+            // Normal slot 3 backup, clear preservation flag
+            detection.slot3Preserved = false;
+        }
+
+        // Update change detection tracking
+        detection.lastSnapshotSize = totalCompressedSizeMB;
+        detection.lastSnapshotTime = now;
+        saveLargeChangeDetection(detection);
+
+        // Generate checksum for integrity
+        const checksum = `v${Date.now().toString(36)}_s${nextSlot}${isLargeChange ? '_LC' : ''}`;
+
+        const rotation: VaultBackupRotation = {
+            slot: nextSlot,
+            timestamp: now,
+            totalPodsCount,
+            totalCompressedSizeMB,
+            checksum,
+        };
+
+        localStorage.setItem('vault_backup_rotation', JSON.stringify(rotation));
+        localStorage.setItem(`vault_backup_slot_${nextSlot}`, JSON.stringify({
+            rotation,
+            podsSnapshot: localStorage.getItem('vault_pods_snapshot'),
+            metadata: {
+                backup_at: new Date().toISOString(),
+                large_change: isLargeChange,
+                slot3_preserved: detection.slot3Preserved,
+            },
+        }));
+
+        // Log rotation event
+        const rotationEvent = {
+            timestamp: now,
+            slot: nextSlot,
+            sizeChangeMB: totalCompressedSizeMB - detection.lastSnapshotSize,
+            largeChangeDetected: isLargeChange,
+            slot3Preserved: detection.slot3Preserved,
+        };
+        const rotationLog = JSON.parse(localStorage.getItem('vault_rotation_log') || '[]') as any[];
+        rotationLog.push(rotationEvent);
+        if (rotationLog.length > 100) rotationLog.shift(); // Keep last 100 rotations
+        localStorage.setItem('vault_rotation_log', JSON.stringify(rotationLog));
+    }
+};
+
+const getVaultBackupSlots = (): { slot: 1 | 2 | 3; timestamp: number; size: number }[] => {
+    const slots: { slot: 1 | 2 | 3; timestamp: number; size: number }[] = [];
+    for (const slot of [1, 2, 3] as const) {
+        const backup = localStorage.getItem(`vault_backup_slot_${slot}`);
+        if (backup) {
+            try {
+                const parsed = JSON.parse(backup);
+                slots.push({
+                    slot,
+                    timestamp: parsed.rotation.timestamp,
+                    size: parsed.rotation.totalCompressedSizeMB,
+                });
+            } catch (e) {
+                console.error(`Failed to parse backup slot ${slot}`, e);
+            }
+        }
+    }
+    return slots.sort((a, b) => b.timestamp - a.timestamp);
+};
 
 const INITIAL_PODS: DataPod[] = [
     { 
@@ -71,17 +314,80 @@ const INITIAL_PODS: DataPod[] = [
 
 export const DataPodsApp: React.FC = () => {
     const [pods, setPods] = useState<DataPod[]>(INITIAL_PODS);
-    const [activeTab, setActiveTab] = useState<'vault' | 'graph' | 'architecture'>('vault');
+    const [activeTab, setActiveTab] = useState<'vault' | 'graph' | 'architecture' | 'backups'>('vault');
     const [expandedPod, setExpandedPod] = useState<string | null>(null);
+    const [storageUsedBytes, setStorageUsedBytes] = useState<number>(0);
+    const [backupSlots, setBackupSlots] = useState<{ slot: 1 | 2 | 3; timestamp: number; size: number }[]>([]);
+    const [currentRotation, setCurrentRotation] = useState<VaultBackupRotation | null>(null);
+    const [largeChangeDetection, setLargeChangeDetection] = useState<LargeChangeDetection | null>(null);
+    const [largeChangeThreshold, setLargeChangeThreshold] = useState<number>(50);
+    const initDoneRef = useRef(false);
 
     const CORE_MB = 50;
     const RESERVED_MB = 600;
     const TOTAL_MB = 950;
     const DATASETS_LIMIT_MB = 300;
 
-    const datasetsUsed = pods.filter(p => p.status === 'ready').reduce((acc, pod) => acc + pod.sizeMB, 0);
+    // Initialize IndexedDB and load persisted pods
+    useEffect(() => {
+        if (initDoneRef.current) return;
+        initDoneRef.current = true;
 
-    const handleAction = (podId: string, e: React.MouseEvent) => {
+        (async () => {
+            try {
+                await initIndexedDB();
+                const usage = await getTotalStorageUsed();
+                setStorageUsedBytes(usage);
+
+                // Load persisted pods from IDB
+                const persistedPods = await Promise.all(
+                    INITIAL_PODS.map(async (pod) => {
+                        const stored = await loadPodFromIDB(pod.id);
+                        if (stored && stored.pod.status === 'ready') {
+                            return stored.pod;
+                        }
+                        return pod;
+                    })
+                );
+                setPods(persistedPods);
+
+                // Initialize cloud backup rotation if needed
+                const readyPods = persistedPods.filter(p => p.status === 'ready');
+                const totalMB = readyPods.reduce((sum, p) => sum + (p.compressedSizeBytes || 0), 0) / 1024 / 1024;
+                await updateVaultBackupRotation(readyPods.length, totalMB, largeChangeThreshold);
+
+                // Initialize large change detection display
+                const detection = getLargeChangeDetection();
+                setLargeChangeDetection(detection);
+            } catch (err) {
+                console.error('Failed to init vault storage:', err);
+            }
+        })();
+    }, [largeChangeThreshold]);
+
+    // Trigger backup rotation whenever pods change
+    useEffect(() => {
+        (async () => {
+            const readyPods = pods.filter(p => p.status === 'ready');
+            if (readyPods.length > 0) {
+                const totalMB = readyPods.reduce((sum, p) => sum + (p.compressedSizeBytes || 0), 0) / 1024 / 1024;
+                await updateVaultBackupRotation(readyPods.length, totalMB, largeChangeThreshold);
+                // Save pod snapshot for recovery
+                localStorage.setItem('vault_pods_snapshot', JSON.stringify(readyPods));
+                // Update current rotation display
+                const rotation = await getVaultBackupRotation();
+                setCurrentRotation(rotation);
+                // Update large change detection display
+                const detection = getLargeChangeDetection();
+                setLargeChangeDetection(detection);
+            }
+        })();
+    }, [pods, largeChangeThreshold]);
+
+    const datasetsUsed = pods.filter(p => p.status === 'ready').reduce((acc, pod) => acc + pod.sizeMB, 0);
+    const storageUsedMB = Math.round(storageUsedBytes / 1024 / 1024 * 100) / 100;
+
+    const handleAction = async (podId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         setPods(prev => prev.map(p => {
             if (p.id === podId && (p.status === 'idle' || p.status === 'error')) {
@@ -89,20 +395,79 @@ export const DataPodsApp: React.FC = () => {
             }
             return p;
         }));
-        
+
         let p = 0;
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
             p += Math.floor(Math.random() * 15) + 5;
             if (p >= 100) {
                 clearInterval(interval);
+
+                // Simulate pod data compression
                 setPods(prev => prev.map(pod => pod.id === podId ? { ...pod, status: 'compiling', progress: 100 } : pod));
-                setTimeout(() => {
-                    setPods(prev => prev.map(pod => pod.id === podId ? { ...pod, status: 'ready' } : pod));
+
+                setTimeout(async () => {
+                    try {
+                        const pod = pods.find(p => p.id === podId);
+                        if (!pod) return;
+
+                        // Generate fake pod data (in real scenario, this would be actual knowledge base)
+                        const rawData = JSON.stringify({
+                            id: pod.id,
+                            content: Array(pod.sizeMB * 10000).fill(pod.name),
+                            metadata: pod.contents,
+                            timestamp: Date.now(),
+                        });
+
+                        const rawBytes = new TextEncoder().encode(rawData);
+
+                        // Compress with fflate
+                        compress(rawBytes, (err, compressed) => {
+                            if (err) {
+                                console.error('Compression failed:', err);
+                                return;
+                            }
+
+                            const ratio = Math.round((1 - compressed.length / rawBytes.length) * 100);
+                            const updatedPod: DataPod = {
+                                ...pod,
+                                status: 'ready',
+                                progress: 0,
+                                rawSizeBytes: rawBytes.length,
+                                compressedSizeBytes: compressed.length,
+                                compressionRatio: ratio,
+                                lastModified: Date.now(),
+                            };
+
+                            // Save to IndexedDB
+                            savePodToIDB(updatedPod, compressed)
+                                .then(async () => {
+                                    const usage = await getTotalStorageUsed();
+                                    setStorageUsedBytes(usage);
+                                    setPods(prev => prev.map(p => p.id === podId ? updatedPod : p));
+                                })
+                                .catch(err => console.error('Failed to save pod:', err));
+                        });
+                    } catch (err) {
+                        console.error('Pod compilation failed:', err);
+                        setPods(prev => prev.map(p => p.id === podId ? { ...p, status: 'error' } : p));
+                    }
                 }, 1500);
             } else {
                 setPods(prev => prev.map(pod => pod.id === podId ? { ...pod, progress: Math.min(100, p) } : pod));
             }
         }, 300);
+    };
+
+    const handleDelete = async (podId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await deletePodFromIDB(podId);
+            const usage = await getTotalStorageUsed();
+            setStorageUsedBytes(usage);
+            setPods(prev => prev.map(p => p.id === podId ? { ...p, status: 'idle', rawSizeBytes: undefined, compressedSizeBytes: undefined, compressionRatio: undefined } : p));
+        } catch (err) {
+            console.error('Failed to delete pod:', err);
+        }
     };
 
     const getCategoryIcon = (cat: string) => {
@@ -128,9 +493,10 @@ export const DataPodsApp: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => setActiveTab('vault')} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTab === 'vault' ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}>Semantic Pods</button>
+                    <button onClick={() => setActiveTab('vault')} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTab === 'vault' ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}>Pods</button>
+                    <button onClick={() => { setActiveTab('backups'); setBackupSlots(getVaultBackupSlots()); }} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 ${activeTab === 'backups' ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}><Cloud size={12} /> Backups</button>
                     <button onClick={() => setActiveTab('architecture')} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTab === 'architecture' ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}>Architecture</button>
-                    <button onClick={() => setActiveTab('graph')} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTab === 'graph' ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}>Graph Relations</button>
+                    <button onClick={() => setActiveTab('graph')} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTab === 'graph' ? 'bg-indigo-600 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}>Graph</button>
                 </div>
             </div>
 
@@ -140,9 +506,10 @@ export const DataPodsApp: React.FC = () => {
                     <div className="p-5 bg-gradient-to-b from-[#0f1115] to-[#09090b] shrink-0 border-b border-zinc-800/50">
                         <div className="flex justify-between items-end mb-3">
                             <div className="space-y-1">
-                                <div className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-1.5"><HardDrive size={12} /> Total Storage Allocation (950 MB)</div>
+                                <div className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-1.5"><HardDrive size={12} /> Vault Storage (IndexedDB)</div>
                                 <div className="text-xl font-black tracking-tight text-white flex gap-4">
-                                    <span className="flex items-baseline gap-1"><span className="text-emerald-400">{datasetsUsed}</span> <span className="text-xs text-zinc-500 font-medium">/ 300 MB Datasets</span></span>
+                                    <span className="flex items-baseline gap-1"><span className="text-emerald-400">{storageUsedMB.toFixed(2)}</span> <span className="text-xs text-zinc-500 font-medium">MB Compressed</span></span>
+                                    <span className="text-xs text-zinc-600">({datasetsUsed} pods ready)</span>
                                 </div>
                             </div>
                         </div>
@@ -218,22 +585,34 @@ export const DataPodsApp: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {pod.status === 'idle' || pod.status === 'error' ? (
-                                            <button 
-                                                onClick={(e) => handleAction(pod.id, e)}
-                                                className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-                                            >
-                                                <Download size={14} />
-                                            </button>
-                                        ) : pod.status === 'ready' ? (
-                                            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
-                                                <Settings size={14} />
-                                            </button>
-                                        ) : (
-                                            <div className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 text-zinc-600">
-                                                <Activity size={14} className="animate-spin" />
-                                            </div>
-                                        )}
+                                        <div className="flex gap-2">
+                                            {pod.status === 'idle' || pod.status === 'error' ? (
+                                                <button
+                                                    onClick={(e) => handleAction(pod.id, e)}
+                                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                                                    title="Download & compress pod"
+                                                >
+                                                    <Download size={14} />
+                                                </button>
+                                            ) : pod.status === 'ready' ? (
+                                                <>
+                                                    <button className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-white transition-colors" title="Pod settings">
+                                                        <Settings size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDelete(pod.id, e)}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 text-zinc-500 hover:bg-red-900 hover:text-red-400 transition-colors"
+                                                        title="Delete pod from vault"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-900 text-zinc-600">
+                                                    <Activity size={14} className="animate-spin" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -257,12 +636,12 @@ export const DataPodsApp: React.FC = () => {
                                             </div>
                                             <div className="space-y-2.5">
                                                 <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Compression Metadata</h4>
-                                                <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-400 space-y-1.5">
-                                                    <div className="flex justify-between"><span>Format:</span> <span className="text-zinc-300">Semantic Graph + Faiss</span></div>
-                                                    <div className="flex justify-between"><span>Raw Size:</span> <span className="text-zinc-300">~{pod.sizeMB * 4} MB</span></div>
-                                                    <div className="flex justify-between"><span>Compression:</span> <span className="text-emerald-400">75% (JSONL Structured)</span></div>
-                                                    <div className="flex justify-between"><span>Embeddings:</span> <span className="text-zinc-300">f16 Quantized</span></div>
-                                                    <div className="mt-2 pt-2 border-t border-zinc-800 text-indigo-400 flex items-center gap-1"><Check size={10} /> Optimized for retrieval</div>
+                                                    <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 text-[11px] font-mono text-zinc-400 space-y-1.5">
+                                                    <div className="flex justify-between"><span>Format:</span> <span className="text-zinc-300">fflate Compressed</span></div>
+                                                    <div className="flex justify-between"><span>Raw Size:</span> <span className="text-zinc-300">{pod.rawSizeBytes ? `${(pod.rawSizeBytes / 1024 / 1024).toFixed(2)} MB` : 'Pending'}</span></div>
+                                                    <div className="flex justify-between"><span>Compressed:</span> <span className="text-emerald-400">{pod.compressedSizeBytes ? `${(pod.compressedSizeBytes / 1024).toFixed(1)} KB` : 'Pending'}</span></div>
+                                                    <div className="flex justify-between"><span>Ratio:</span> <span className={pod.compressionRatio ? 'text-emerald-400' : 'text-zinc-500'}>{pod.compressionRatio ? `${pod.compressionRatio}%` : 'Pending'}</span></div>
+                                                    <div className="mt-2 pt-2 border-t border-zinc-800 text-indigo-400 flex items-center gap-1"><Check size={10} /> Persisted in IndexedDB</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -272,6 +651,138 @@ export const DataPodsApp: React.FC = () => {
                         ))}
                     </div>
                 </>
+            ) : activeTab === 'backups' ? (
+                /* Cloud Backups Tab */
+                <div className="flex-1 flex flex-col p-6 space-y-6 overflow-y-auto bg-[#09090b]">
+                    <div className="space-y-2">
+                        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Cloud size={20} className="text-blue-400" /> Vault Backup Rotation</h2>
+                        <p className="text-sm text-zinc-400 leading-relaxed">
+                            Tiered 3-copy backup system: Slot 1 every 6 hours (frequent), Slot 2 every 12 hours (daily), Slot 3 every 3 days (archival). Slot 3 is preserved during anomalous changes for emergency recovery.
+                        </p>
+                    </div>
+
+                    {/* Backup Intervals Info */}
+                    <div className="bg-zinc-900 border border-blue-800/50 rounded-xl p-4">
+                        <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Clock size={14} /> Backup Intervals</h3>
+                        <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div className="bg-blue-950/30 rounded p-2 border border-blue-900/50">
+                                <div className="font-bold text-blue-300">Slot 1</div>
+                                <div className="text-blue-200/70 text-[11px]">Every 6 hours</div>
+                                <div className="text-blue-100/50 text-[10px] mt-1">Frequent snapshots</div>
+                            </div>
+                            <div className="bg-indigo-950/30 rounded p-2 border border-indigo-900/50">
+                                <div className="font-bold text-indigo-300">Slot 2</div>
+                                <div className="text-indigo-200/70 text-[11px]">Every 12 hours</div>
+                                <div className="text-indigo-100/50 text-[10px] mt-1">Daily backup</div>
+                            </div>
+                            <div className="bg-violet-950/30 rounded p-2 border border-violet-900/50">
+                                <div className="font-bold text-violet-300">Slot 3</div>
+                                <div className="text-violet-200/70 text-[11px]">Every 3 days</div>
+                                <div className="text-violet-100/50 text-[10px] mt-1">Archival copy</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Large Change Detection Threshold Config */}
+                    <div className="bg-zinc-900 border border-amber-800/50 rounded-xl p-4">
+                        <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2"><AlertCircle size={14} /> Large Change Failsafe</h3>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <p className="text-xs font-mono text-zinc-400">Threshold for skipping Slot 3:</p>
+                                    <p className="text-sm text-zinc-300">{largeChangeThreshold} MB or 25% growth</p>
+                                </div>
+                                <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={largeChangeThreshold}
+                                    onChange={(e) => setLargeChangeThreshold(Math.max(10, parseInt(e.target.value) || 50))}
+                                    className="w-16 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs text-white font-mono"
+                                />
+                            </div>
+                            {largeChangeDetection?.slot3Preserved && (
+                                <div className="bg-amber-950/40 border border-amber-700/50 rounded-lg p-2.5 text-xs text-amber-300">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Shield size={12} className="text-amber-400" />
+                                        <span className="font-bold">Slot 3 Currently Preserved</span>
+                                    </div>
+                                    <p className="text-amber-200/70 text-[11px]">{largeChangeDetection.preservedReason}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Current Rotation Status */}
+                    {currentRotation && (
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Clock size={14} /> Active Rotation</h3>
+                            <div className="space-y-2 text-xs font-mono">
+                                <div className="flex justify-between"><span className="text-zinc-400">Slot:</span> <span className="text-blue-400">{currentRotation.slot} of 3</span></div>
+                                <div className="flex justify-between"><span className="text-zinc-400">Last Update:</span> <span className="text-blue-400">{new Date(currentRotation.timestamp).toLocaleTimeString()}</span></div>
+                                <div className="flex justify-between"><span className="text-zinc-400">Pods Stored:</span> <span className="text-emerald-400">{currentRotation.totalPodsCount}</span></div>
+                                <div className="flex justify-between"><span className="text-zinc-400">Compressed:</span> <span className="text-emerald-400">{currentRotation.totalCompressedSizeMB.toFixed(2)} MB</span></div>
+                                <div className="flex justify-between"><span className="text-zinc-400">Checksum:</span> <span className="text-zinc-500 font-mono text-[9px]">{currentRotation.checksum}</span></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Backup Slots */}
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-white">Backup Slots</h3>
+                        {backupSlots.length === 0 ? (
+                            <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 text-center text-zinc-500 text-sm">
+                                <AlertCircle size={16} className="mx-auto mb-2 opacity-50" />
+                                No backups yet. Backups will begin after first pod save.
+                            </div>
+                        ) : (
+                            backupSlots.map(backup => {
+                                const isActive = backup.slot === currentRotation?.slot;
+                                const isPreserved = backup.slot === 3 && largeChangeDetection?.slot3Preserved;
+                                return (
+                                    <div key={backup.slot} className={`border rounded-lg p-4 ${isPreserved ? 'bg-amber-950/30 border-amber-800/50' : 'bg-zinc-900 border-zinc-800'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <div className="text-sm font-bold text-white flex items-center gap-2">
+                                                    Slot {backup.slot}
+                                                    {isPreserved && <span className="px-1.5 py-0.5 bg-amber-900/50 border border-amber-700/50 rounded text-[9px] font-bold text-amber-300">FAILSAFE</span>}
+                                                </div>
+                                                <div className="text-xs text-zinc-500">{new Date(backup.timestamp).toLocaleString()}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs font-mono text-emerald-400">{backup.size.toFixed(2)} MB</div>
+                                                <div className={`text-[10px] font-bold px-2 py-1 rounded ${
+                                                    isActive ? 'bg-blue-600 text-white' :
+                                                    isPreserved ? 'bg-amber-700 text-amber-100' :
+                                                    'bg-zinc-800 text-zinc-400'
+                                                }`}>
+                                                    {isActive ? 'ACTIVE' : isPreserved ? 'PRESERVED' : 'ARCHIVED'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button className={`w-full px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                                            isPreserved
+                                                ? 'bg-amber-900/40 hover:bg-amber-800/40 text-amber-300 border border-amber-700/50'
+                                                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                                        }`}>
+                                            Restore from Slot {backup.slot}
+                                        </button>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Recovery Strategy */}
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2">
+                        <h3 className="text-sm font-bold text-white">Recovery Window</h3>
+                        <p className="text-xs text-zinc-400">
+                            Vault maintains 3 independent copies. Each rotation (1.5 hours) creates a new snapshot. Maximum rollback:
+                            <span className="text-emerald-400 font-mono ml-1">~4.5 hours (3 rotations)</span>
+                        </p>
+                    </div>
+                </div>
             ) : activeTab === 'graph' ? (
                 /* Graph Relations Tab */
                 <div className="flex-1 flex flex-col p-6 items-center justify-center text-center">

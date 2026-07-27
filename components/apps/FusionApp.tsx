@@ -345,7 +345,7 @@ export const FusionApp: React.FC = () => {
         if (!prompt.trim()) return 'No task instruction provided.';
         const id = `t_${Date.now()}_${Math.floor(Math.random() * 999)}`;
         const startTs = Date.now();
-        setTasks(prev => [{ id, prompt, status: 'running', startTs }, ...prev].slice(0, 20));
+        setTasks(prev => [{ id, prompt, status: 'running' as const, startTs }, ...prev].slice(0, 20));
         askModel(TASK_PROMPT(prompt), 0.5)
             .then(({ text: out, brain }) => {
                 const endTs = Date.now();

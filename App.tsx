@@ -7,6 +7,8 @@ import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, File
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
 import { HomeScreen } from './components/apps/HomeScreen';
+import { AuthModal } from './components/AuthModal';
+import { useAuth } from './lib/authContext';
 import { MailApp } from './components/apps/MailApp';
 import { SlidesApp } from './components/apps/SlidesApp';
 import { IronMenArcadeApp } from './components/apps/IronMenArcadeApp';
@@ -24,6 +26,7 @@ import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
 import { FlipperZeroApp } from './components/apps/FlipperZeroApp';
 import { TermStudioApp } from './components/apps/TermStudioApp';
 import { OllamaApp } from './components/apps/OllamaApp';
+import { CloudInfrastructureApp } from './components/apps/CloudInfrastructureApp';
 import { OpenClawApp } from './components/apps/OpenClawApp';
 import { CodeRabbitApp } from './components/apps/CodeRabbitApp';
 import { SemanticScholarApp } from './components/apps/SemanticScholarApp';
@@ -37,12 +40,57 @@ import { SuperSayenApp } from './components/apps/SuperSayenApp';
 import { DataPodsApp } from './components/apps/DataPodsApp';
 import { AiTermApp } from './components/apps/AiTermApp';
 import { JackyV3App } from './components/apps/JackyV3App';
+import FleetAtlasApp from './components/apps/FleetAtlasApp';
+import { LlmEnvironmentApp } from './components/apps/LlmEnvironmentApp';
+import { SmallAgentFleetApp } from './components/apps/SmallAgentFleetApp';
+import { ModelRouterApp } from './components/apps/ModelRouterApp';
+import { AgentBuilderApp } from './components/apps/AgentBuilderApp';
+import { ClaudeAssistantApp } from './components/apps/ClaudeAssistantApp';
+import { CodexApp } from './components/apps/CodexApp';
+import { GrokTerminalApp } from './components/apps/GrokTerminalApp';
+import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
+import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
+import { ArchiverApp } from './components/apps/ArchiverApp';
+import { APIKeysApp } from './components/apps/APIKeysApp';
+import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
+import { MissionControlApp } from './components/apps/MissionControlApp';
+import { AutomationApp } from './components/apps/AutomationApp';
+import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
+import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
+import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
+import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
+import { SecurityCenterApp } from './components/apps/SecurityCenterApp';
+import { SelfAuditScannerApp } from './components/apps/SelfAuditScannerApp';
+import { DependencyCVECheckerApp } from './components/apps/DependencyCVECheckerApp';
+import { SecretsHygieneApp } from './components/apps/SecretsHygieneApp';
+import { SecurityEventLogApp } from './components/apps/SecurityEventLogApp';
+import { DataRedactionApp } from './components/apps/DataRedactionApp';
+import { IntegrityMonitorApp } from './components/apps/IntegrityMonitorApp';
+import { AuditTrailApp } from './components/apps/AuditTrailApp';
+import { DataVaultApp } from './components/apps/DataVaultApp';
+import { AnomalyAlertApp } from './components/apps/AnomalyAlertApp';
+import { SessionRecorderApp } from './components/apps/SessionRecorderApp';
+import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
+import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
+import { StorageStatsApp } from './components/apps/StorageStatsApp';
+import { PromptLibraryApp } from './components/apps/PromptLibraryApp';
+import { AppHealthMonitorApp } from './components/apps/AppHealthMonitorApp';
+import { ActivityCenterApp } from './components/apps/ActivityCenterApp';
+import { VoiceCommandsApp } from './components/apps/VoiceCommandsApp';
+import { ClipboardManagerApp } from './components/apps/ClipboardManagerApp';
+import { TimeMachineApp } from './components/apps/TimeMachineApp';
+import { AgentTeamConsoleApp } from './components/apps/AgentTeamConsoleApp';
+import { MemoryFabricApp } from './components/apps/MemoryFabricApp';
+import { automationEngine } from './lib/automation';
+import { schedulerEngine } from './lib/scheduler';
+import { startNotificationCollector } from './lib/notifications';
+import { BottomBar } from './components/BottomBar';
+import { StickyNotepadWidget } from './components/StickyNotepadWidget';
 import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
-import { LocalAiIndexFinder } from './components/LocalAiIndexFinder';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle, Star, Package } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -50,34 +98,85 @@ import { AiDataResolverApp } from './components/apps/AiDataResolverApp';
 import { FunctionCallKitchenApp } from './components/apps/FunctionCallKitchenApp';
 import { FlashUiApp } from './components/apps/FlashUiApp';
 import { AgenticVisionApp } from './components/apps/AgenticVisionApp';
+import { UniversalAppSimulator } from './components/apps/UniversalAppSimulator';
 import { PodSystemApp } from './components/apps/PodSystemApp';
 import { CloudDeployApp } from './components/apps/CloudDeployApp';
 import { BotStudioApp } from './components/apps/BotStudioApp';
 import { QpdbApp } from './components/apps/QpdbApp';
 import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab';
 import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
-import { FusionApp } from './components/apps/FusionApp';
+import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
+import { Terminal as TerminalApp } from './src/components/apps/Terminal';
+import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { secretsVault } from './lib/secretsVault';
+import { migrateSecretsToVault } from './lib/secretsMigration';
+import { Analytics } from '@vercel/analytics/react';
+import { bus } from './lib/bus';
+import { CommandPalette } from './components/CommandPalette';
+import { ToastProvider } from './lib/toastContext';
+import { MobileStatusBar } from './components/MobileStatusBar';
+import { PodControlPanel } from './components/PodControlPanel';
+import { JackieVibeBackground } from './components/JackieVibeBackground';
+import { EruApp } from './components/apps/EruApp';
+import { JackieShell, type PcMode } from './components/JackieShell';
+import GlobalKeyboard from './src/components/GlobalKeyboard';
+import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
+import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
+import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
+import { FusionApp } from './components/apps/FusionApp';
+import { GlobalTerminal } from './components/GlobalTerminal';
+// PC theme system — scoped to the PC desktop surface only (see src/pc-themes/README.md).
+import { usePCTheme } from './src/pc-themes/PCThemeContext';
+import { PCShell } from './src/pc-themes/components/PCShell';
+import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
     { id: 'consensus_lab', name: 'Consensus Lab', type: 'app', icon: Network, appId: 'consensus_lab', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
     { id: 'cloud_deploy', name: 'Global Deploy', type: 'app', icon: Cloud, appId: 'cloud_deploy', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-800 to-zinc-950 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
-    { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
     { id: 'app_connector', name: 'App Connector', type: 'app', icon: Layers, appId: 'app_connector', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-850 to-zinc-950 border border-indigo-500/30' },
     { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
     { id: 'termstudio', name: 'TermStudio', type: 'app', icon: Terminal, appId: 'termstudio', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
     { id: 'bot_studio', name: 'Offline AI Studio', type: 'app', icon: Bot, appId: 'bot_studio', bgColor: 'bg-gradient-to-br from-emerald-600 to-teal-900 border border-emerald-500/30 shadow-md' },
     { id: 'aiterm', name: 'ai-term', type: 'app', icon: Terminal, appId: 'aiterm', bgColor: 'bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950' },
-    { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md' },
+    { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md', featured: true },
+    { id: 'eru', name: 'Eru', type: 'app', icon: Sparkles, appId: 'eru', bgColor: 'bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-700 border border-indigo-400/30 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
     { id: 'knowledge_compressor', name: 'Knowledge Condenser', type: 'app', icon: Binary, appId: 'knowledge_compressor', bgColor: 'bg-gradient-to-br from-cyan-500 via-indigo-600 to-purple-700' },
     { id: 'supersayen', name: 'SuperSayen AI', type: 'app', icon: Flame, appId: 'supersayen', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-600 to-amber-500' },
     { id: 'ollama', name: 'Local AI (Ollama)', type: 'app', icon: Cpu, appId: 'ollama', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-900' },
+    { id: 'ondevice_models', name: 'Model Store', type: 'app', icon: HardDrive, appId: 'ondevice_models', bgColor: 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-black border border-zinc-500/40 shadow-md' },
+    { id: 'model_router', name: 'Model Router', type: 'app', icon: Network, appId: 'model_router', bgColor: 'bg-gradient-to-br from-lime-500 via-emerald-600 to-teal-900 border border-lime-400/30 shadow-md' },
+    { id: 'agent_builder', name: 'Agent Builder', type: 'app', icon: Bot, appId: 'agent_builder', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-950 border border-purple-400/30 shadow-md' },
+    { id: 'claude_assistant', name: 'Claude Assistant', type: 'app', icon: Bot, appId: 'claude_assistant', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 border border-indigo-400/30 shadow-md' },
+    { id: 'codex', name: 'Codex', type: 'app', icon: Code2, appId: 'codex', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-950 border border-emerald-400/30 shadow-md' },
+    { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
+    { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
+    { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'cost_analytics', name: 'Cost Analytics', type: 'app', icon: DollarSign, appId: 'cost_analytics', bgColor: 'bg-gradient-to-br from-yellow-500 via-orange-600 to-red-600 border border-yellow-400/30 shadow-[0_0_15px_rgba(234,179,8,0.3)]' },
+    { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
+    { id: 'pc_themes', name: 'Themes', type: 'app', icon: Palette, appId: 'pc_themes', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-blue-900 border border-teal-400/30 shadow-md' },
+    { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
+    { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
+    { id: 'secrets_vault', name: 'Secrets Vault', type: 'app', icon: Lock, appId: 'secrets_vault', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
+    { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
+    { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
+    { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
+    { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
+    { id: 'budget_guardian', name: 'Budget Guardian', type: 'app', icon: DollarSign, appId: 'budget_guardian', bgColor: 'bg-gradient-to-br from-amber-600 via-amber-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+    { id: 'workspace_manager', name: 'Workspaces', type: 'app', icon: Grid2X2, appId: 'workspace_manager', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-zinc-950 border border-cyan-400/30 shadow-md' },
+    { id: 'storage_stats', name: 'Storage Stats', type: 'app', icon: HardDrive, appId: 'storage_stats', bgColor: 'bg-gradient-to-br from-blue-600 via-blue-700 to-zinc-950 border border-blue-500/30 shadow-md' },
+    { id: 'prompt_library', name: 'Prompt Library', type: 'app', icon: BookOpen, appId: 'prompt_library', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+    { id: 'app_health_monitor', name: 'App Health', type: 'app', icon: Activity, appId: 'app_health_monitor', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-500/30 shadow-md' },
+    { id: 'activity_center', name: 'Activity Center', type: 'app', icon: Clock, appId: 'activity_center', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-zinc-950 border border-cyan-500/30 shadow-md' },
+    { id: 'voice_commands', name: 'Voice Commands', type: 'app', icon: Mic, appId: 'voice_commands', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-700 to-zinc-950 border border-purple-500/30 shadow-md' },
+    { id: 'clipboard_manager', name: 'Clipboard', type: 'app', icon: Copy, appId: 'clipboard_manager', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-zinc-950 border border-teal-500/30 shadow-md' },
+    { id: 'time_machine', name: 'Time Machine', type: 'app', icon: RotateCcw, appId: 'time_machine', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
+    { id: 'agent_team_console', name: 'Agent Team', type: 'app', icon: Users, appId: 'agent_team_console', bgColor: 'bg-gradient-to-br from-pink-600 via-rose-700 to-zinc-950 border border-pink-500/30 shadow-md' },
+    { id: 'memory_fabric', name: 'Memory Fabric', type: 'app', icon: Brain, appId: 'memory_fabric', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
-    { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
-    { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
     { id: 'papers_with_code', name: 'Papers With Code', type: 'app', icon: Code2, appId: 'papers_with_code', bgColor: 'bg-gradient-to-br from-sky-500 to-sky-800' },
     { id: 'langchain', name: 'LangChain AI', type: 'app', icon: Network, appId: 'langchain', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
     { id: 'unreal_engine', name: 'Unreal Engine AI', type: 'app', icon: Box, appId: 'unreal_engine', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
@@ -85,8 +184,16 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'github_sync', name: 'GitHub Sync', type: 'app', icon: Github, appId: 'github_sync', bgColor: 'bg-gradient-to-br from-zinc-700 to-zinc-900' },
     { id: 'export_os', name: 'Export OS', type: 'app', icon: Share2, appId: 'cybernetic_export', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500' },
     { id: 'mail', name: 'Mail', type: 'app', icon: Mail, appId: 'mail', bgColor: 'bg-gradient-to-br from-blue-400 to-blue-700' },
-    { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
     { id: 'snake', name: 'Game', type: 'app', icon: Gamepad2, appId: 'snake', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
+    { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
+    { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
+    { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
+    { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
+    { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
+    { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
+    { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
+    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
+    { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     
     // --- Jessy's 33 Custom Applications ---
     { id: 'cyber_rulebook', name: 'Cyber Codex', type: 'app', icon: ShieldAlert, appId: 'cyber_rulebook', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-rose-950 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
@@ -101,7 +208,24 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'zenith_chess', name: 'Zenith Chess AI', type: 'app', icon: Trophy, appId: 'chess', bgColor: 'bg-gradient-to-br from-yellow-500 via-amber-600 to-yellow-950 border border-yellow-400/20' },
     { id: 'iron_men_arcade', name: 'Iron Men Arcade', type: 'app', icon: Gamepad2, appId: 'iron-men-arcade', bgColor: 'bg-gradient-to-br from-rose-600 via-red-600 to-yellow-600 border border-rose-500/20' },
     { id: 'laser_tag', name: 'Laser Tag Arcade', type: 'app', icon: Target, appId: 'laser-tag', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-zinc-950 border border-red-500/20' },
-    { 
+    { id: 'cross_ai_lab', name: 'Cross-AI Lab', type: 'app', icon: Bot, appId: 'cross_ai_lab', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-700 to-pink-700 border border-violet-400/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
+    { id: 'terminal', name: 'Opus Terminal', type: 'app', icon: Terminal, appId: 'terminal', bgColor: 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-900 border border-slate-600/50 shadow-[0_0_20px_rgba(51,65,85,0.4)]' },
+    { id: 'ui_studio', name: 'UI Studio', type: 'app', icon: Palette, appId: 'ui_studio', bgColor: 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.35)]' },
+
+    // --- Security Hardening Apps (Phase C & D) ---
+    { id: 'security_center', name: 'Security Center', type: 'app', icon: ShieldAlert, appId: 'security_center', bgColor: 'bg-gradient-to-br from-red-600 via-orange-700 to-zinc-950 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
+    { id: 'self_audit_scanner', name: 'Self-Audit Scanner', type: 'app', icon: AlertTriangle, appId: 'self_audit_scanner', bgColor: 'bg-gradient-to-br from-yellow-600 via-orange-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'dependency_cve_checker', name: 'CVE Checker', type: 'app', icon: Package, appId: 'dependency_cve_checker', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-700 to-zinc-950 border border-blue-500/30 shadow-md' },
+    { id: 'secrets_hygiene', name: 'Secrets Hygiene', type: 'app', icon: Key, appId: 'secrets_hygiene', bgColor: 'bg-gradient-to-br from-cyan-600 via-teal-700 to-zinc-950 border border-cyan-500/30 shadow-md' },
+    { id: 'security_event_log', name: 'Security Log', type: 'app', icon: AlertTriangle, appId: 'security_event_log', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
+    { id: 'integrity_monitor', name: 'Integrity Monitor', type: 'app', icon: Shield, appId: 'integrity_monitor', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-500/30 shadow-md' },
+    { id: 'audit_trail', name: 'Audit Trail', type: 'app', icon: BookOpen, appId: 'audit_trail', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/30 shadow-md' },
+    { id: 'anomaly_alert', name: 'Anomaly Detector', type: 'app', icon: AlertTriangle, appId: 'anomaly_alert', bgColor: 'bg-gradient-to-br from-red-600 via-pink-700 to-zinc-950 border border-red-500/30 shadow-md' },
+    { id: 'data_vault', name: 'Data Vault', type: 'app', icon: Database, appId: 'data_vault', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-500/30 shadow-md' },
+    { id: 'data_redaction', name: 'Data Redaction', type: 'app', icon: Eye, appId: 'data_redaction', bgColor: 'bg-gradient-to-br from-slate-600 via-zinc-700 to-zinc-950 border border-slate-500/30 shadow-md' },
+    { id: 'session_recorder', name: 'Session Recorder', type: 'app', icon: Clock, appId: 'session_recorder', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+
+    {
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
         type: 'app', 
@@ -213,6 +337,7 @@ const INITIAL_EMAILS: Email[] = [
 interface OpenWindow {
     id: string;
     item: DesktopItem;
+    itemId: string;
     zIndex: number;
     pos: { x: number, y: number };
     size?: { width: number, height: number };
@@ -242,8 +367,11 @@ const getMergedDesktopItems = (): (DesktopItem | null)[] => {
 };
 
 export const App: React.FC = () => {
+    // Auth temporarily disabled - will re-enable later
+    // const { user, loading, isAuthenticated } = useAuth();
+
     const globalState = loadGlobalState();
-    
+
     // Process desktop items: merge initial, custom, and apply deletions/explosions
     let initialDesktopItems = getMergedDesktopItems();
     if (globalState?.desktopItemIds) {
@@ -290,26 +418,9 @@ export const App: React.FC = () => {
         }).filter(Boolean);
     }
 
-    // First boot (no persisted state): open Fusion as the default landing app.
-    // On every later load we respect whatever the user left open, so this never
-    // forces itself back once they've closed it.
-    const isFirstBoot = !globalState;
-    if (isFirstBoot) {
-        const fusionItem = initialDesktopItems.find(d => d?.appId === 'fusion');
-        if (fusionItem) {
-            initialWindows = [{
-                id: fusionItem.id,
-                item: fusionItem,
-                zIndex: 100,
-                pos: { x: 90, y: 60 },
-                size: { width: 1040, height: 680 },
-            }];
-        }
-    }
-
     const [openWindows, setOpenWindows] = useState<OpenWindow[]>(initialWindows);
-    const [focusedId, setFocusedId] = useState<string | null>(globalState?.focusedId || (initialWindows[0]?.id ?? null));
-    const [nextZIndex, setNextZIndex] = useState(globalState?.nextZIndex || 101);
+    const [focusedId, setFocusedId] = useState<string | null>(globalState?.focusedId || null);
+    const [nextZIndex, setNextZIndex] = useState(globalState?.nextZIndex || 100);
     const [inkMode, setInkMode] = useState(false);
     const [showInkToolbar, setShowInkToolbar] = useState(false);
     const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -317,7 +428,15 @@ export const App: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [toast, setToast] = useState<{ title?: string; message: React.ReactNode } | null>(null);
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
-    const timeoutRef = useRef<number | null>(null);
+    // Jackie front-page shell: 'closed' = Jackie full screen (front page),
+    // 'half' = PC on top / Jackie below, 'full' = PC full screen.
+    const [pcMode, setPcMode] = useState<PcMode>('full');
+    // PC theme context (provider lives in index.tsx). While the default
+    // cosmic-jackie theme is active this is a pure passthrough: the desktop
+    // renders exactly as before and no themed chrome mounts anywhere.
+    const { isDefault: pcThemeIsDefault, wallpaper: pcWallpaper, scopeProps: pcScopeProps } = usePCTheme();
+    const [vaultUnlockModal, setVaultUnlockModal] = useState<{ visible: boolean; password: string; error?: string }>({ visible: false, password: '' });
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [desktopVisibility, setDesktopVisibility] = useState<Record<string, boolean>>(() => {
         if (globalState?.desktopVisibility) {
@@ -343,6 +462,42 @@ export const App: React.FC = () => {
     useEffect(() => {
         localStorage.setItem('desktop_visibility_v1', JSON.stringify(desktopVisibility));
     }, [desktopVisibility]);
+
+    useEffect(() => {
+        const handleRestoreProfile = (detail: { profile: WorkspaceProfile }) => {
+            const profile = detail.profile;
+            const allItemsMap = new Map<string, DesktopItem>();
+            const populateMap = (items: (DesktopItem | null)[]) => {
+                for (const item of items) {
+                    if (item) {
+                        allItemsMap.set(item.id, item);
+                        if (item.type === 'folder' && item.contents) {
+                            populateMap(item.contents);
+                        }
+                    }
+                }
+            };
+            populateMap(desktopItems);
+
+            const restoredWindows = profile.windows
+                .map((sw): OpenWindow | null => {
+                    const item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
+                    if (!item) return null;
+                    return { id: sw.id, itemId: item.id, item, zIndex: sw.zIndex, pos: sw.pos, size: sw.size };
+                })
+                .filter((w): w is OpenWindow => w !== null);
+
+            setOpenWindows(restoredWindows);
+            if (profile.focusedId) {
+                setFocusedId(profile.focusedId);
+            }
+            if (profile.nextZIndex) {
+                setNextZIndex(profile.nextZIndex);
+            }
+        };
+
+        return bus.on('restore-workspace-profile', handleRestoreProfile);
+    }, [desktopItems]);
 
     useEffect(() => {
         const desktopItemIds = desktopItems.map(item => item ? item.id : null);
@@ -381,6 +536,7 @@ export const App: React.FC = () => {
 
         let initialSize = { width: 960, height: 600 };
         if (item.appId === 'app_connector') initialSize = { width: 950, height: 620 };
+        if (item.appId === 'fusion') initialSize = { width: 1040, height: 680 };
         if (item.url) initialSize = { width: 950, height: 650 };
         if (item.appId === 'mail') initialSize = { width: 800, height: 600 };
         if (item.appId === 'aiterm') initialSize = { width: 450, height: 840 };
@@ -390,8 +546,6 @@ export const App: React.FC = () => {
         if (item.appId === 'ollama') initialSize = { width: 750, height: 550 };
         if (item.appId === 'openclaw') initialSize = { width: 850, height: 600 };
         if (item.appId === 'coderabbit') initialSize = { width: 900, height: 620 };
-        if (item.appId === 'semantic_scholar') initialSize = { width: 900, height: 620 };
-        if (item.appId === 'research_rabbit') initialSize = { width: 800, height: 500 };
         if (item.appId === 'papers_with_code') initialSize = { width: 800, height: 500 };
         if (item.appId === 'langchain') initialSize = { width: 800, height: 500 };
         if (item.appId === 'unreal_engine') initialSize = { width: 800, height: 500 };
@@ -399,11 +553,17 @@ export const App: React.FC = () => {
         if (item.appId === 'knowledge_compressor') initialSize = { width: 1000, height: 680 };
         if (item.appId === 'supersayen') initialSize = { width: 1020, height: 700 };
         if (item.appId === 'jacky') initialSize = { width: 1020, height: 700 };
-        if (item.appId === 'fusion') initialSize = { width: 1040, height: 680 };
+        if (item.appId === 'fleet_atlas') initialSize = { width: 900, height: 640 };
+        if (item.appId === 'llm_environment') initialSize = { width: 440, height: 760 };
+        if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
+        if (item.appId === 'ui_studio') initialSize = { width: 960, height: 620 };
+        if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
+        if (item.appId === 'pc_themes') initialSize = { width: 780, height: 560 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
             item: item,
+            itemId: item.id,
             zIndex: nextZIndex,
             pos: { x: 100 + (prev.length * 30), y: 80 + (prev.length * 30) },
             size: initialSize
@@ -412,31 +572,110 @@ export const App: React.FC = () => {
         setFocusedId(item.id);
     };
 
+    // Boot the always-on platform engines (idempotent — each guards itself).
     useEffect(() => {
-        const handleRefresh = () => {
-            setDesktopItems(getMergedDesktopItems());
+        automationEngine.start();
+        schedulerEngine.start();
+        startNotificationCollector();
+    }, []);
+
+    // Deep-link support: ?pc=full|half|closed picks the shell mode and
+    // ?app=<desktop item id or appId> auto-launches an app on boot. This is
+    // what lets an embedding shell (e.g. Jackie's left menu) open the PC
+    // directly on a specific tool.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const pc = params.get('pc');
+        if (pc === 'full' || pc === 'half' || pc === 'closed') {
+            setPcMode(pc);
+        }
+        const app = params.get('app');
+        if (!app) return;
+        const findItem = (items: (DesktopItem | null)[]): DesktopItem | undefined => {
+            for (const item of items) {
+                if (!item) continue;
+                if (item.id === app || item.appId === app) return item;
+                if (item.type === 'folder' && item.contents) {
+                    const found = findItem(item.contents);
+                    if (found) return found;
+                }
+            }
+            return undefined;
         };
-        window.addEventListener('refresh-desktop', handleRefresh);
-        return () => {
-            window.removeEventListener('refresh-desktop', handleRefresh);
+        const item = findItem(desktopItems);
+        if (item) {
+            if (pc === null) setPcMode('half');
+            handleLaunch(item);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Vault unlock gate: if a vault exists but isn't unlocked, prompt for password
+    useEffect(() => {
+        const checkVault = async () => {
+            // Check if vault exists (was persisted previously)
+            const vaultExists = localStorage.getItem('jackie_secrets_vault_exists') === 'true' ||
+                               (typeof window !== 'undefined' && localStorage.getItem('secrets-vault::vault') !== null);
+
+            if (vaultExists && !secretsVault.isInitialized()) {
+                // Show unlock modal
+                setVaultUnlockModal({ visible: true, password: '' });
+            }
         };
+        checkVault();
     }, []);
 
     useEffect(() => {
-        const handleLaunchAppEvent = (e: Event) => {
-            const customEvent = e as CustomEvent<{ appId: AppId | string }>;
-            if (customEvent.detail && customEvent.detail.appId) {
-                const item = desktopItems.find(d => d && d.appId === customEvent.detail.appId);
-                if (item) {
-                    handleLaunch(item);
-                }
+        return bus.on('refresh-desktop', () => {
+            setDesktopItems(getMergedDesktopItems());
+        });
+    }, []);
+
+    useEffect(() => {
+        return bus.on('launch-app', ({ appId }) => {
+            if (!appId) return;
+            const item = desktopItems.find(d => d && d.appId === appId);
+            if (item) {
+                handleLaunch(item);
+            }
+        });
+    }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
+
+    // Global shell hotkey: backtick (`) opens the ai-term terminal from
+    // anywhere, like a real mini-PC drop-down console — unless the user is
+    // typing into a field.
+    useEffect(() => {
+        const handleHotkey = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            const typing = !!target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable
+            );
+            if (e.key === '`' && !typing) {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('launch-app', { detail: { appId: 'aiterm' } }));
             }
         };
-        window.addEventListener('launch-app', handleLaunchAppEvent);
-        return () => {
-            window.removeEventListener('launch-app', handleLaunchAppEvent);
-        };
-    }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
+        window.addEventListener('keydown', handleHotkey);
+        return () => window.removeEventListener('keydown', handleHotkey);
+    }, []);
+
+    const handleVaultUnlock = async (password: string) => {
+        try {
+            const unlocked = await secretsVault.unlockVault(password);
+            if (unlocked) {
+                // Attempt to migrate plaintext keys to vault
+                await migrateSecretsToVault();
+                setVaultUnlockModal({ visible: false, password: '' });
+            } else {
+                setVaultUnlockModal(prev => ({ ...prev, error: 'Invalid password' }));
+            }
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Unlock failed';
+            setVaultUnlockModal(prev => ({ ...prev, error: msg }));
+        }
+    };
 
     const closeWindow = (id: string) => {
         setOpenWindows(prev => prev.filter(w => w.id !== id));
@@ -801,22 +1040,19 @@ Body: ${emailToSummarize.body}`,
             className="h-full w-full bg-black text-os-text font-sans overflow-hidden relative" 
             onPointerDownCapture={handleGlobalPointerDown}
         >
-            {/* Float-centered on-device AI Index Finder capsule */}
-            <LocalAiIndexFinder 
-                apps={desktopItems.filter(Boolean) as any[]}
-                onLaunchApp={(id) => {
-                    const item = desktopItems.find(d => d && d.id === id);
-                    if (item) handleLaunch(item);
-                }}
+            <MobileStatusBar
+                openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
+                onFocusWindow={focusWindow}
             />
 
-            <div className="absolute top-4 right-4 z-[4000] flex items-center gap-3">
-                <SyncStatusIndicator />
-                <SystemMonitor 
-                    openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))} 
-                    onFocusWindow={focusWindow} 
-                />
-                <FloatingNav 
+            {/* Pod Control Panel — always accessible, in Jackie and PC modes alike */}
+            <PodControlPanel
+                openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
+            />
+
+            {/* The app-library menu lives inside the PC — hidden on Jackie's front page */}
+            {pcMode !== 'closed' && (
+                <FloatingNav
                     apps={desktopItems.filter(Boolean) as DesktopItem[]}
                     onLaunchApp={handleLaunch}
                     inkMode={inkMode}
@@ -834,23 +1070,54 @@ Body: ${emailToSummarize.body}`,
                         }));
                     }}
                 />
-                <AuthButton />
-            </div>
+            )}
 
-            {/* Desktop Area with Dynamic Background */}
-            <div 
-                className="h-full w-full relative overflow-hidden bg-zinc-900 transition-all duration-1000 ease-in-out"
-                style={{
-                    backgroundImage: wallpaperUrl 
-                       ? `url(${wallpaperUrl})` 
-                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.25) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.2) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.2) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 20%)',
+            {/* Jackie — the front page. Sits over the PC (desktop) base layer. */}
+            <JackieShell
+                apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                onLaunchApp={handleLaunch}
+                pcMode={pcMode}
+                setPcMode={setPcMode}
+                onOpenEru={() => {
+                    const eru = (desktopItems.filter(Boolean) as DesktopItem[]).find(d => d.appId === 'eru');
+                    if (eru) handleLaunch(eru);
+                    setPcMode(prev => (prev === 'closed' ? 'half' : prev));
+                }}
+                onOpenSettings={() => {
+                    const settings = (desktopItems.filter(Boolean) as DesktopItem[]).find(d => d.appId === 'system_settings');
+                    if (settings) handleLaunch(settings);
+                    setPcMode(prev => (prev === 'closed' ? 'half' : prev));
+                }}
+            />
+
+            {/* Desktop Area with Dynamic Background — this div is the PC THEME
+                SCOPE: the data-pc-* attributes activate the scoped stylesheet
+                and carry the theme's CSS variables. Cosmic default keeps the
+                original gradient / AI-generated wallpaper pipeline untouched;
+                a Windows theme paints its era wallpaper instead. */}
+            <div
+                data-pc-theme={pcScopeProps['data-pc-theme']}
+                data-pc-family={pcScopeProps['data-pc-family']}
+                className={`h-full w-full relative overflow-hidden transition-all duration-1000 ease-in-out ${pcThemeIsDefault ? 'bg-gradient-to-br from-zinc-900 via-zinc-950 to-black' : ''}`}
+                style={pcThemeIsDefault ? {
+                    backgroundImage: wallpaperUrl
+                       ? `url(${wallpaperUrl})`
+                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.25) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.25) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.15) 0%, transparent 20%)',
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center'
+                    backgroundPosition: 'center',
+                    backgroundAttachment: 'fixed'
+                } : {
+                    ...pcScopeProps.style,
+                    background: pcWallpaper.css || 'var(--pc-desktop-bg, #008080)',
                 }}
             >
-                
+                {/* Animated vibe-coding background (hidden when an AI wallpaper is set) */}
+                {!wallpaperUrl && <JackieVibeBackground />}
+
                 {/* Background Home Screen (Clicking it focuses desktop) */}
-                <div className="h-full w-full" onMouseDown={() => focusWindow(null)}>
+                {!wallpaperUrl && <JackieVibeBackground />}
+
+                <div className="h-full w-full relative" onMouseDown={() => focusWindow(null)}>
                      <HomeScreen 
                          items={desktopItems.filter(item => item && desktopVisibility[item.id] !== false)} 
                          onLaunch={handleLaunch} 
@@ -861,6 +1128,7 @@ Body: ${emailToSummarize.body}`,
                 {openWindows.map(win => {
                     let content = null;
                     if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
+                    else if (win.item.appId === 'fusion') content = <FusionApp />;
                     else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
                     else if (win.item.appId === 'slides') content = <SlidesApp />;
                     else if (win.item.appId === 'snake') content = <SnakeGame />;
@@ -886,6 +1154,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'supersayen') content = <SuperSayenApp />;
                     else if (win.item.appId === 'data_pods') content = <DataPodsApp />;
                     else if (win.item.appId === 'jacky') content = <JackyV3App />;
+                    else if (win.item.appId === 'eru') content = <EruApp />;
                     else if (win.item.appId === 'app_connector') content = <AppConnectorApp />;
                     else if (win.item.appId === 'cybernetic67') content = <Cybernetic67App />;
                     else if (win.item.appId === 'prompt-to-json') content = <PromptToJsonApp />;
@@ -900,21 +1169,66 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
                     else if (win.item.appId === 'bot_studio') content = <BotStudioApp />;
                     else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
-                    else if (win.item.appId === 'fusion') content = <FusionApp />;
+                    else if (win.item.appId === 'fleet_atlas') content = <FleetAtlasApp />;
+                    else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
+                    else if (win.item.appId === 'small_agent_fleet') content = <SmallAgentFleetApp />;
+                    else if (win.item.appId === 'model_router') content = <ModelRouterApp />;
+                    else if (win.item.appId === 'cloud_infrastructure') content = <CloudInfrastructureApp />;
+                    else if (win.item.appId === 'agent_builder') content = <AgentBuilderApp />;
+                    else if (win.item.appId === 'claude_assistant') content = <ClaudeAssistantApp />;
+                    else if (win.item.appId === 'codex') content = <CodexApp />;
+                    else if (win.item.appId === 'grok_terminal') content = <GrokTerminalApp />;
+                    else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
+                    else if (win.item.appId === 'archiver') content = <ArchiverApp />;
+                    else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
+                    else if (win.item.appId === 'cost_analytics') content = <CostAnalyticsApp />;
+
+                    else if (win.item.appId === 'secrets_vault') content = <SecretsVaultApp />;
+                    else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
+                    else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
+                    else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
+                    else if (win.item.appId === 'automation') content = <AutomationApp />;
+                    else if (win.item.appId === 'notification_center') content = <NotificationCenterApp />;
+                    else if (win.item.appId === 'ondevice_models') content = <OnDeviceModelsApp />;
+                    else if (win.item.appId === 'tool_registry') content = <ToolRegistryApp />;
+                    else if (win.item.appId === 'agent_orchestration') content = <AgentOrchestrationDashboard />;
+                    else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
+                    else if (win.item.appId === 'workspace_manager') content = <WorkspaceManagerApp />;
+                    else if (win.item.appId === 'storage_stats') content = <StorageStatsApp />;
+                    else if (win.item.appId === 'prompt_library') content = <PromptLibraryApp />;
+                    else if (win.item.appId === 'app_health_monitor') content = <AppHealthMonitorApp />;
+                    else if (win.item.appId === 'activity_center') content = <ActivityCenterApp />;
+                    else if (win.item.appId === 'voice_commands') content = <VoiceCommandsApp />;
+                    else if (win.item.appId === 'clipboard_manager') content = <ClipboardManagerApp />;
+                    else if (win.item.appId === 'time_machine') content = <TimeMachineApp />;
+                    else if (win.item.appId === 'agent_team_console') content = <AgentTeamConsoleApp />;
+                    else if (win.item.appId === 'memory_fabric') content = <MemoryFabricApp />;
+                    else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
+                    else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
+                    else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
+                    // Security hardening apps
+                    else if (win.item.appId === 'security_center') content = <SecurityCenterApp />;
+                    else if (win.item.appId === 'self_audit_scanner') content = <SelfAuditScannerApp />;
+                    else if (win.item.appId === 'dependency_cve_checker') content = <DependencyCVECheckerApp />;
+                    else if (win.item.appId === 'secrets_hygiene') content = <SecretsHygieneApp />;
+                    else if (win.item.appId === 'security_event_log') content = <SecurityEventLogApp />;
+                    else if (win.item.appId === 'integrity_monitor') content = <IntegrityMonitorApp />;
+                    else if (win.item.appId === 'audit_trail') content = <AuditTrailApp />;
+                    else if (win.item.appId === 'anomaly_alert') content = <AnomalyAlertApp />;
+                    else if (win.item.appId === 'data_vault') content = <DataVaultApp />;
+                    else if (win.item.appId === 'data_redaction') content = <DataRedactionApp />;
+                    else if (win.item.appId === 'session_recorder') content = <SessionRecorderApp />;
+                    // PC shell: theme manager (Display Properties + Update Center)
+                    else if (win.item.appId === 'pc_themes') content = <PCThemeManagerApp />;
+                    else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe
                             src={win.item.url}
                             className="w-full h-full border-none bg-zinc-950"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                            sandbox="allow-scripts allow-forms allow-popups"
                             referrerPolicy="no-referrer"
                             title={win.item.name}
                         />
-                    );
-                    else if (win.item.appId) content = (
-                        <div className="h-full w-full flex flex-col items-center justify-center gap-2 bg-zinc-950 text-zinc-500 select-none">
-                            <div className="text-sm font-semibold text-zinc-300">{win.item.name}</div>
-                            <div className="text-xs text-zinc-600">This app isn't available.</div>
-                        </div>
                     );
 
                     return (
@@ -940,6 +1254,28 @@ Body: ${emailToSummarize.body}`,
                 })}
 
                 <InkLayer active={inkMode} strokes={strokes} setStrokes={setStrokes} isProcessing={isProcessing} />
+
+                {/* Global Terminal — always available, independent of the window manager */}
+                <GlobalTerminal onStateChange={(isActive) => {
+                    showToast(isActive ? '✓ Global Terminal Activated' : '✗ Global Terminal Deactivated', isActive ? 'Terminal' : 'Info', true);
+                }} />
+
+                {/* Era shell bars (taskbar / dock / menubar per theme) — only
+                    with a non-default theme active and the PC full-screen (in
+                    half mode Jackie owns the lower half). Lives inside the
+                    theme scope; launches/focuses via the exact same callbacks
+                    the desktop already uses. */}
+                {!pcThemeIsDefault && pcMode === 'full' && (
+                    <PCShell
+                        apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                        openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name, item: w.item }))}
+                        focusedId={focusedId}
+                        onFocusWindow={focusWindow}
+                        onLaunchApp={handleLaunch}
+                        onLaunchAppId={(appId) => bus.emit('launch-app', { appId })}
+                        onShutDown={() => setPcMode('closed')}
+                    />
+                )}
 
                 {toast && (
                     // Notification Card
@@ -969,6 +1305,55 @@ Body: ${emailToSummarize.body}`,
                     </div>
                 )}
             </div>
+            <BottomBar
+                apps={desktopItems.filter(Boolean) as any[]}
+                onLaunchApp={(id) => {
+                    const item = desktopItems.find(d => d && d.id === id);
+                    if (item) handleLaunch(item);
+                }}
+            />
+
+            <StickyNotepadWidget />
+
+            {/* Vault Unlock Modal */}
+            {vaultUnlockModal.visible && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[99999]">
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-8 w-96 shadow-2xl">
+                        <h2 className="text-2xl font-bold text-white mb-2">Unlock Secrets Vault</h2>
+                        <p className="text-zinc-400 text-sm mb-6">Enter your master password to unlock the vault and access encrypted API keys.</p>
+
+                        <input
+                            type="password"
+                            placeholder="Master password"
+                            value={vaultUnlockModal.password}
+                            onChange={(e) => setVaultUnlockModal(prev => ({ ...prev, password: e.target.value, error: undefined }))}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleVaultUnlock(vaultUnlockModal.password);
+                                }
+                            }}
+                            className="w-full bg-zinc-800 border border-zinc-600 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 mb-4"
+                            autoFocus
+                        />
+
+                        {vaultUnlockModal.error && (
+                            <p className="text-red-400 text-sm mb-4">{vaultUnlockModal.error}</p>
+                        )}
+
+                        <button
+                            onClick={() => handleVaultUnlock(vaultUnlockModal.password)}
+                            className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                        >
+                            Unlock
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
+
+            <GlobalKeyboard />
+            <Analytics />
         </div>
     );
 };

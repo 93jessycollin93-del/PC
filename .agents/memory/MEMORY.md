@@ -1,0 +1,9 @@
+- [50-agent pod chain concept](pod-chain-vision.md) — user's long-term vision for a ring of ~50 tiny expert AIs chained into one answer; not built yet, design-only.
+- [Pod control panel vision](pod-control-panel.md) — user wants a small always-visible dashboard with colored status dots per pod, not a visual redesign of the pods themselves.
+- [Cybernetic67 repo history](cybernetic67-repo-notes.md) — GitHub repo history is unrelated/rewritten vs early clones; treat "pull updates" as a possible full replace, not a fast-forward.
+- [App audit backlog](app-functionality-audit.md) — user wants a future pass checking every app in the OS actually works as advertised, not simulated; flag UI clutter fixes per-instance, not globally.
+- [Two pod task executors kept](pod-task-executors.md) — runPodTask (Conductor) and runPodTaskBudgeted (Claude's PodControlPanel) both kept intentionally, not deduplicated; compare before deleting either.
+- [Mock/simulation removal pass](mock-removal-pass.md) — real-mode-only policy for PC apps, real backend endpoints added, and one deliberate scope cut (AiTerm's virtual FS).
+- [AiTerm real filesystem + Jackie gating](aiterm-real-fs.md) — sandboxed real disk FS behind a user toggle + shared token; only AiTerm + Jackie (when global mode on) can use it.
+- [Sticky notepad widget](sticky-notepad-widget.md) — global floating/resizable/fullscreen notepad with voice "take note"/"save that" commands, archives into the shared DataPods IndexedDB vault.
+- [Flipper Zero firmware update](flipper-firmware-update.md) — real GitHub release fetch + WebUSB DFU flashing with source picker; iOS browsers can't do WebUSB, so use Flipper's official mobile app there instead.

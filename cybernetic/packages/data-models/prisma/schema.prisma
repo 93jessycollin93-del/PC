@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== CORE ORCHESTRATION =====
+
+model Agent {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  description       String?
+  model             String   // e.g., "mistral-7b", "llama-2-13b"
+  podSizeMb         Int      @default(100)
+  confidenceThreshold Int    @default(65)
+  keywords          String[] @default([])
+  escalateTo        String[] @default([])
+  status            String   @default("dormant") // dormant, active, paused
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tasks Task[]
+  deployments BotDeployment[]
+  metrics AgentMetric[]
+
+  @@index([status])
+  @@index([name])
+}
+
+model Task {
+  id                String   @id @default(cuid())
+  title             String
+  description       String?
+  input             String   // user query or task input
+  agentId           String
+  agent             Agent    @relation(fields: [agentId], references: [id])
+  status            String   @default("pending") // pending, assigned, in_progress, completed, failed
+  confidence        Int?     // 0-100, confidence score from routing
+  escalatedFrom     String?  // parent task id if escalated
+  result            String?  // output/response
+  errorMessage      String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BotDeployment {
+  id                String   @id @default(cuid())
+  agentId           String
+  agent             Agent    @relation(fields: [agentId], references: [id])
+  environment       String   // "local", "cloud", "phone"
+  deploymentPath    String   // where the model is loaded from
+  ramUsageMb        Int?     // actual measured RAM usage
+  status            String   @default("staged") // staged, deployed, active, paused, failed
+  deployedAt        DateTime?
+  decommissionedAt  DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([environment])
+  @@index([status])
+}
+
+// ===== MONITORING & METRICS =====
+
+model SystemMetric {
+  id                String   @id @default(cuid())
+  gpuTempC          Float?   // GPU temperature
+  cpuTempC          Float?   // CPU temperature
+  cpuUsagePercent   Float?   // 0-100
+  memoryUsageMb     Int?     // actual memory used
+  memoryAvailableMb Int?     // available memory
+  batteryPercent    Int?     // 0-100
+  batteryDrain      Float?   // mW per minute
+  timestamp         DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+model AgentMetric {
+  id                String   @id @default(cuid())
+  agentId           String
+  agent             Agent    @relation(fields: [agentId], references: [id])
+  executionTimeMs   Int?     // how long the agent took
+  tokensUsed        Int?     // LLM tokens consumed
+  successCount      Int      @default(0) // tasks completed
+  failureCount      Int      @default(0) // tasks failed
+  avgConfidence     Int?     // average confidence of tasks
+  timestamp         DateTime @default(now())
+
+  @@index([agentId])
+  @@index([timestamp])
+}
+
+// ===== USER & PREFERENCES =====
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String?
+  role              String   @default("user") // user, admin
+  mfaEnabled        Boolean  @default(false)
+  lastLoginAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  preferences UserPreference?
+  auditLogs   AuditLog[]
+
+  @@index([email])
+}
+
+model UserPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  theme             String   @default("dark") // dark, light
+  language          String   @default("en-US")
+  notificationsEnabled Boolean @default(true)
+  modelTimeoutMs    Int      @default(30000)
+  maxAgentHops      Int      @default(3) // max escalation depth
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ===== SECURITY & AUDIT =====
+
+model AuditLog {
+  id                String   @id @default(cuid())
+  userId            String?
+  user              User?     @relation(fields: [userId], references: [id])
+  action            String    // agent_escalate, task_create, deployment_update, etc.
+  resourceType      String?   // Agent, Task, BotDeployment
+  resourceId        String?
+  changes           Json?     // what changed (for updates)
+  ipAddress         String?
+  userAgent         String?
+  status            String    @default("success") // success, failure
+  errorMessage      String?
+  timestamp         DateTime  @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+}
+
+model RateLimit {
+  id                String   @id @default(cuid())
+  key               String   @unique // action:identifier
+  action            String   // login, api_call, agent_route
+  identifier        String   // user_id or ip
+  count             Int      @default(0)
+  resetAt           DateTime
+  createdAt         DateTime @default(now())
+
+  @@index([action])
+  @@index([identifier])
+}
+
+// ===== PRESERVATION & BACKUP =====
+
+model PreservationArchive {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  archiveType       String   // github, qr, distributed
+  contentHash       String   // sha256 of contents
+  size              Int      // bytes
+  locations         String[] // where it's stored (GitHub URL, QR grid ref, etc.)
+  verified          Boolean  @default(false)
+  lastVerifiedAt    DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([name])
+  @@index([archiveType])
+}

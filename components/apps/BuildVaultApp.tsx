@@ -11,12 +11,20 @@ interface Build {
     logs: string;
 }
 
+const BUILDS_STORAGE_KEY = 'build_vault_history';
+
 export const BuildVaultApp: React.FC = () => {
-    const [builds, setBuilds] = useState<Build[]>([
-        { id: 'b1', name: 'v2.5.1-prod', size: '4.2 MB', status: 'deployed', date: 'Just now', logs: '[00:00:01] Starting build pipeline...\n[00:00:04] Compiling assets...\n[00:00:10] Optimizing images...\n[00:00:15] Build successful. Deployed to edge network.' },
-        { id: 'b2', name: 'v2.5.0-rc3', size: '4.1 MB', status: 'compiled', date: '10 mins ago', logs: '[00:00:01] Starting build pipeline...\n[00:00:05] Build successful. Awaiting manual deployment.' },
-        { id: 'b3', name: 'v2.4.9-hotfix', size: '0.0 MB', status: 'failed', date: '1 hour ago', logs: '[00:00:01] Starting build pipeline...\n[00:00:03] ERR: Module not found: "crypto".\n[00:00:03] Build aborted.' },
-    ]);
+    const [builds, setBuilds] = useState<Build[]>(() => {
+        try {
+            const saved = localStorage.getItem(BUILDS_STORAGE_KEY);
+            if (saved) return JSON.parse(saved);
+        } catch { /* ignore */ }
+        return [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem(BUILDS_STORAGE_KEY, JSON.stringify(builds));
+    }, [builds]);
     const [selectedBuild, setSelectedBuild] = useState<Build | null>(builds[0]);
     const [analysis, setAnalysis] = useState<string>('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -48,25 +56,33 @@ export const BuildVaultApp: React.FC = () => {
         }
     };
 
-    const triggerNewBuild = () => {
+    const triggerNewBuild = async () => {
         const newBuild: Build = {
             id: `b${Date.now()}`,
             name: `v2.5.${builds.length}-beta`,
             size: '---',
             status: 'building',
             date: 'Right now',
-            logs: '[00:00:01] Initiating new build instance...'
+            logs: '[real] Running `npm run build` in this container...'
         };
-        setBuilds([newBuild, ...builds]);
+        setBuilds(prev => [newBuild, ...prev]);
         setSelectedBuild(newBuild);
-        
-        // Simulate build process
-        setTimeout(() => {
-            setBuilds(prev => prev.map(b => b.id === newBuild.id ? { ...b, status: 'compiled', size: '4.3 MB', logs: b.logs + '\n[00:00:05] Build successful.' } : b));
-            if (selectedBuild?.id === newBuild.id) {
-                setSelectedBuild(prev => prev ? { ...prev, status: 'compiled', size: '4.3 MB', logs: prev.logs + '\n[00:00:05] Build successful.' } : null);
-            }
-        }, 5000);
+
+        try {
+            // Real build: actually invokes the project's build command server-side
+            // and reports its real stdout/stderr and outcome — no fabricated timer.
+            const resp = await fetch('/api/build/run', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            const data = await resp.json();
+            const finished: Partial<Build> = data.success
+                ? { status: 'compiled', logs: `${newBuild.logs}\n${data.stdout}\n${data.stderr || ''}\n[real] Build succeeded in ${(data.durationMs / 1000).toFixed(1)}s.` }
+                : { status: 'failed', size: '0.0 MB', logs: `${newBuild.logs}\n${data.stdout || ''}\n${data.stderr || ''}\n[real] Build failed after ${(data.durationMs / 1000).toFixed(1)}s.` };
+            setBuilds(prev => prev.map(b => b.id === newBuild.id ? { ...b, ...finished } : b));
+            setSelectedBuild(prev => prev?.id === newBuild.id ? { ...prev, ...finished } as Build : prev);
+        } catch (err: any) {
+            const failed: Partial<Build> = { status: 'failed', size: '0.0 MB', logs: `${newBuild.logs}\n[real] Build request failed: ${err.message}` };
+            setBuilds(prev => prev.map(b => b.id === newBuild.id ? { ...b, ...failed } : b));
+            setSelectedBuild(prev => prev?.id === newBuild.id ? { ...prev, ...failed } as Build : prev);
+        }
     };
 
     return (
