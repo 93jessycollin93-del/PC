@@ -12,6 +12,7 @@
  *   - fires a short haptic tick on devices that support it
  */
 import { useCallback, useEffect, useRef } from 'react';
+import { haptic } from './haptics';
 
 /** Hold duration before the menu opens.
  *
@@ -94,9 +95,10 @@ export function useLongPress(
       timer.current = window.setTimeout(() => {
         timer.current = null;
         justFired.current = true;
-        // A short tick confirms the hold registered, so the user lets go
-        // instead of holding longer and wondering.
-        navigator.vibrate?.(12);
+        // A tick confirms the hold registered, so the user lets go instead
+        // of holding longer and wondering. Its character comes from the
+        // active theme (see haptics.ts).
+        haptic('longPress');
         onRequest({ x, y, source: 'touch' });
       }, LONG_PRESS_MS);
     },

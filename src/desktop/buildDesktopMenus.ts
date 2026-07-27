@@ -14,7 +14,7 @@ import {
   FolderPlus, FileText, ArrowUpDown, RefreshCw, ClipboardPaste, Scissors,
   Copy, Image, Monitor, Palette, Terminal, Trash2, Pencil, FolderInput,
   Info, Star, StarOff, ExternalLink, SortAsc, Shapes, CopyPlus,
-  Maximize2, Minus, SendToBack, XSquare,
+  Maximize2, Minus, SendToBack, XSquare, Upload, Download,
 } from 'lucide-react';
 import { DesktopItem } from '../../types';
 import { MenuEntry } from './ContextMenu';
@@ -34,6 +34,8 @@ export interface DesktopMenuActions {
   openDisplaySettings: () => void;
   openPersonalize: () => void;
   openTerminal: () => void;
+  /** Bring an item in from an exported .pcapp.json file. */
+  importItem: () => void;
 }
 
 export interface ItemMenuActions {
@@ -45,6 +47,7 @@ export interface ItemMenuActions {
   duplicate: (item: DesktopItem) => void;
   moveToFolder: (item: DesktopItem) => void;
   toggleFeatured: (item: DesktopItem) => void;
+  exportItem: (item: DesktopItem) => void;
   remove: (item: DesktopItem) => void;
   properties: (item: DesktopItem) => void;
   /** Folders that exist to move into; empty disables the entry. */
@@ -81,6 +84,7 @@ export function buildDesktopMenu(a: DesktopMenuActions): MenuEntry[] {
       separatorBefore: true,
       onSelect: a.paste,
     },
+    { id: 'import', label: 'Import item…', icon: Upload, onSelect: a.importItem },
     { id: 'wallpaper', label: 'Change wallpaper', icon: Image, separatorBefore: true, onSelect: a.changeWallpaper },
     { id: 'personalize', label: 'Personalize (themes)', icon: Palette, onSelect: a.openPersonalize },
     { id: 'display', label: 'Display settings', icon: Monitor, onSelect: a.openDisplaySettings },
@@ -131,6 +135,7 @@ export function buildItemMenu(item: DesktopItem, a: ItemMenuActions): MenuEntry[
       separatorBefore: true,
       onSelect: () => a.toggleFeatured(item),
     },
+    { id: 'export', label: 'Export…', icon: Download, onSelect: () => a.exportItem(item) },
     { id: 'properties', label: 'Properties', icon: Info, onSelect: () => a.properties(item) },
     {
       id: 'delete',
