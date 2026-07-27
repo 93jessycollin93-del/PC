@@ -907,4 +907,23 @@
     overflow-x: auto;
     border-radius: 18px;
   }
+  /* Window caption buttons (close/min/max): every open window is forced
+     fullscreen on mobile (see DraggableWindow's isMobile), so these are
+     the only way to close or minimize an app. Grow the tap target to a
+     real finger-sized hit area without touching each theme's visual size
+     — glyphs stay era-authentic, only the surrounding box grows. Themes
+     set these dimensions as inline style/custom-property values, which
+     beat a plain CSS rule regardless of selector specificity, so the
+     override needs !important here (same as the docks/startmenu above). */
+  [data-pc-family] {
+    --pc-titlebar-height: 40px !important;
+  }
+  [data-pc-family] .pc-title-btn {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+  [data-pc-family] .pc-tl {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
 }
