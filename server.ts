@@ -99,6 +99,7 @@ async function startServer() {
   const buildRunLimiter = new RateLimiter(300000, 5); // 5 calls per 5 minutes per IP
   const termFsLimiter = new RateLimiter(60000, 50); // 50 calls per minute per IP
   const telegramLimiter = new RateLimiter(60000, 20); // 20 calls per minute per IP
+  const jackyRelayLimiter = new RateLimiter(60000, 30); // 30 calls per minute per IP — /api/ask and squads hit paid tiers upstream
 
   function getClientIp(req: express.Request): string {
     return (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
@@ -282,9 +283,15 @@ async function startServer() {
 
   const handleJackyRelay = async (req: express.Request, res: express.Response) => {
     // The engine's /api/control flips a master switch and /api/ask can spend
-    // money on paid tiers, so this relay sits behind the same guard as the other
-    // privileged routes.
+    // money on paid tiers, so this relay sits behind the same guards as the
+    // other privileged routes: auth, lockdown, and a rate limit.
     if (!requireAuth(req, res)) return;
+    if (!checkLockdown(req, res)) return;
+
+    const clientIp = getClientIp(req);
+    if (!jackyRelayLimiter.check(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded for the Jacky relay' });
+    }
 
     const base = process.env.JACKY_API_BASE?.replace(/\/+$/, '');
     if (!base) {
@@ -331,6 +338,12 @@ async function startServer() {
       typeof envelope.path === 'string'
         ? envelope.method === 'POST' ? 'POST' : 'GET'
         : req.method === 'POST' ? 'POST' : 'GET';
+
+    // /api/control flips the engine's master switch for every user of it —
+    // worth the same audit trail as the server's other state-changing routes.
+    if (enginePath === '/api/control' && method === 'POST') {
+      logSecurityEvent('jacky-control-write', { enginePath }, clientIp);
+    }
 
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (process.env.JACKY_API_TOKEN) {

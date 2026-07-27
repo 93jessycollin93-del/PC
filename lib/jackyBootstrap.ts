@@ -53,10 +53,12 @@ export function bootstrapJacky() {
     });
 
     const data = await res.json().catch(() => ({ error: `Relay returned HTTP ${res.status}` }));
-    // The relay reports engine-level failures in the payload; surface them as
-    // thrown errors so jackyClient flips the link state rather than handing a
-    // bad payload to a dashboard.
-    if (!res.ok || (data && typeof data === 'object' && 'error' in data && data.error)) {
+    // Only a non-2xx from the relay itself is a transport failure. Several
+    // engine payloads (JackyAskResponse, JackyEcpsSeed, JackySquadReply, …)
+    // carry an optional `error` field *alongside* real data on a legitimate
+    // 200 — e.g. a squad reply that partly failed. Throwing on that would
+    // discard working data and flip the link to offline over nothing.
+    if (!res.ok) {
       throw new Error(String((data as { error?: unknown })?.error ?? `HTTP ${res.status}`));
     }
     return data;
