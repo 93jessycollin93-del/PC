@@ -134,7 +134,7 @@ import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp'
 // Desktop context menu (right-click on a PC, press-and-hold on a phone).
 import { ContextMenu, MenuEntry } from './src/desktop/ContextMenu';
 import { ContextRequest } from './src/desktop/useLongPress';
-import { buildDesktopMenu, buildItemMenu } from './src/desktop/buildDesktopMenus';
+import { buildDesktopMenu, buildItemMenu, buildWindowMenu } from './src/desktop/buildDesktopMenus';
 import * as ops from './src/desktop/desktopOps';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
@@ -348,6 +348,9 @@ interface OpenWindow {
     zIndex: number;
     pos: { x: number, y: number };
     size?: { width: number, height: number };
+    /** Hidden from the desktop but still open — restored from the taskbar,
+     *  the way a real PC does it. */
+    minimized?: boolean;
 }
 
 const getMergedDesktopItems = (): (DesktopItem | null)[] => {
@@ -715,6 +718,21 @@ export const App: React.FC = () => {
     const openItemMenu = (item: DesktopItem, req: ContextRequest) =>
         setMenu({ ...req, entries: buildItemMenu(item, itemMenuActions), title: item.name });
 
+    const openWindowMenu = (win: { id: string; title: string }, req: ContextRequest) => {
+        const target = openWindows.find((w) => w.id === win.id);
+        setMenu({
+            ...req,
+            title: win.title,
+            entries: buildWindowMenu({
+                minimized: !!target?.minimized,
+                restore: () => focusWindow(win.id),
+                minimize: () => minimizeWindow(win.id),
+                sendToBack: () => sendWindowToBack(win.id),
+                close: () => closeWindow(win.id),
+            }),
+        });
+    };
+
 
     // Boot the always-on platform engines (idempotent — each guards itself).
     useEffect(() => {
@@ -832,8 +850,25 @@ export const App: React.FC = () => {
             return;
         }
         setFocusedId(id);
-        setOpenWindows(prev => prev.map(w => w.id === id ? { ...w, zIndex: nextZIndex } : w));
+        // Focusing a minimized window restores it — clicking its taskbar
+        // button is how you get it back, same as any desktop OS.
+        setOpenWindows(prev => prev.map(w =>
+            w.id === id ? { ...w, zIndex: nextZIndex, minimized: false } : w));
         setNextZIndex(prev => prev + 1);
+    };
+
+    const minimizeWindow = (id: string) => {
+        setOpenWindows(prev => prev.map(w => w.id === id ? { ...w, minimized: true } : w));
+        if (focusedId === id) setFocusedId(null);
+    };
+
+    /** Drop a window behind all the others without closing or hiding it. */
+    const sendWindowToBack = (id: string) => {
+        setOpenWindows(prev => {
+            const lowest = Math.min(...prev.map(w => w.zIndex));
+            return prev.map(w => w.id === id ? { ...w, zIndex: lowest - 1 } : w);
+        });
+        if (focusedId === id) setFocusedId(null);
     };
 
     const handleGlobalBack = () => {
@@ -1271,7 +1306,7 @@ Body: ${emailToSummarize.body}`,
                 </div>
 
                 {/* Windows */}
-                {openWindows.map(win => {
+                {openWindows.filter(w => !w.minimized).map(win => {
                     let content = null;
                     if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
                     else if (win.item.appId === 'fusion') content = <FusionApp />;
@@ -1389,6 +1424,7 @@ Body: ${emailToSummarize.body}`,
                             zIndex={win.zIndex}
                             isActive={focusedId === win.id}
                             onClose={() => closeWindow(win.id)}
+                            onMinimize={() => minimizeWindow(win.id)}
                             onFocus={() => focusWindow(win.id)}
                             onBoundsChange={(pos, size) => {
                                 setOpenWindows(prev => prev.map(w => w.id === win.id ? { ...w, pos, size } : w));
@@ -1421,6 +1457,7 @@ Body: ${emailToSummarize.body}`,
                         onLaunchApp={handleLaunch}
                         onLaunchAppId={(appId) => bus.emit('launch-app', { appId })}
                         onShutDown={() => setPcMode('closed')}
+                        onWindowContext={openWindowMenu}
                     />
                 )}
 

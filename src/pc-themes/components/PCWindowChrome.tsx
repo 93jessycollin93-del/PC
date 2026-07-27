@@ -54,12 +54,15 @@ interface PCWindowControlsProps {
   hideMaximize?: boolean;
   onToggleMaximize: () => void;
   onClose: () => void;
+  /** Optional so a caller that can't minimize just gets an inert button. */
+  onMinimize?: () => void;
 }
 
 export const PCWindowControls: React.FC<PCWindowControlsProps> = ({
-  controls, url, hideMaximize, onToggleMaximize, onClose,
+  controls, url, hideMaximize, onToggleMaximize, onClose, onMinimize,
 }) => {
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const minimize = (e: React.SyntheticEvent) => { stop(e); onMinimize?.(); };
 
   const urlBtn = url && (
     <button
@@ -107,7 +110,7 @@ export const PCWindowControls: React.FC<PCWindowControlsProps> = ({
         {mk('close', (e) => { stop(e); onClose(); }, 'Close',
           controls === 'gnome' ? 'var(--pc-tl-close, rgba(127,127,127,0.25))'
             : 'var(--pc-tl-close, linear-gradient(180deg,#ff726a,#e0443e))')}
-        {mk('min', stop, 'Minimize',
+        {mk('min', minimize, 'Minimize',
           controls === 'gnome' ? 'rgba(127,127,127,0.18)'
             : 'var(--pc-tl-min, linear-gradient(180deg,#ffc12f,#dfa023))')}
         {!hideMaximize && mk('max', (e) => { stop(e); onToggleMaximize(); }, 'Zoom',
@@ -123,7 +126,7 @@ export const PCWindowControls: React.FC<PCWindowControlsProps> = ({
     return (
       <div className="flex items-center" style={{ gap: 2 }}>
         {urlBtn}
-        <button className="pc-title-btn" onPointerDown={stop} title="To back">
+        <button className="pc-title-btn" onClick={minimize} onPointerDown={stop} title="To back">
           {controls === 'amiga' ? (
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
               <rect x="1" y="1" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.4" />
@@ -158,7 +161,7 @@ export const PCWindowControls: React.FC<PCWindowControlsProps> = ({
       }}
     >
       {urlBtn}
-      <button className="pc-title-btn" onPointerDown={stop} title="Minimize">
+      <button className="pc-title-btn" onClick={minimize} onPointerDown={stop} title="Minimize">
         <Glyph kind="min" bold={bold} />
       </button>
       {!hideMaximize && (

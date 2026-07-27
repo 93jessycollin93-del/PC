@@ -20,6 +20,9 @@ interface DraggableWindowProps {
     onBoundsChange?: (pos: {x: number, y: number}, size: {width: number, height: number}) => void;
     isActive?: boolean;
     url?: string;
+    /** Hide the window without closing it; restored from the taskbar.
+     *  Without this the titlebar's minimize button does nothing. */
+    onMinimize?: () => void;
 }
 
 export const DraggableWindow: React.FC<DraggableWindowProps> = ({
@@ -34,7 +37,8 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
     onFocus,
     onBoundsChange,
     isActive = false,
-    url
+    url,
+    onMinimize
 }) => {
     const [pos, setPos] = useState(initialPos);
     const [size, setSize] = useState(initialSize);
@@ -195,6 +199,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                             controls={pcControls}
                             url={url}
                             hideMaximize={isMobile}
+                            onMinimize={onMinimize}
                             onToggleMaximize={toggleMaximize}
                             onClose={onClose}
                         />
@@ -208,6 +213,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                             controls={pcControls}
                             url={url}
                             hideMaximize={isMobile}
+                            onMinimize={onMinimize}
                             onToggleMaximize={toggleMaximize}
                             onClose={onClose}
                         />
@@ -237,7 +243,12 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                             <ExternalLink size={12} />
                         </button>
                      )}
-                     <button className={`flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors ${isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-1'}`}>
+                     <button
+                        onClick={(e) => { e.stopPropagation(); onMinimize?.(); }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        title="Minimize"
+                        className={`flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors ${isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-1'}`}
+                    >
                         <Minus size={12} />
                     </button>
                     <button onClick={toggleMaximize} className={`flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors ${isMobile ? 'hidden' : 'p-1'}`}>

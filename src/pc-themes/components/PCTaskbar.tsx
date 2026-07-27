@@ -3,6 +3,7 @@ import { Power, Search, Settings as SettingsIcon } from 'lucide-react';
 import type { DesktopItem } from '../../../types';
 import { usePCTheme } from '../PCThemeContext';
 import { PCAppIcon, StartLogo } from '../icons/PCIcon';
+import { useLongPress, ContextRequest } from '../../desktop/useLongPress';
 
 /**
  * PCTaskbar — the themed taskbar + Start menu for the PC shell.
@@ -31,6 +32,35 @@ interface PCTaskbarProps {
   onLaunchAppId: (appId: string) => void;
   /** "Shut Down…" — closes the PC surface and returns to Jackie. */
   onShutDown: () => void;
+  /** Right-click / press-and-hold a task button: the window menu a real
+   *  taskbar has (restore, minimize, send to back, close). */
+  onWindowContext?: (win: PCTaskbarWindow, req: ContextRequest) => void;
+}
+
+/**
+ * One running-window button. Its own component so it can own a long-press
+ * hook — hooks can't be called from inside the render loop.
+ */
+const TaskButton: React.FC<{
+  win: PCTaskbarWindow;
+  active: boolean;
+  iconPack: any;
+  onFocus: () => void;
+  onContext?: (win: PCTaskbarWindow, req: ContextRequest) => void;
+}> = ({ win, active, iconPack, onFocus, onContext }) => {
+  const press = useLongPress((req) => onContext?.(win, req), !!onContext);
+  return (
+    <button
+      className={`pc-task-btn ${active ? 'pc-task-active' : ''}`}
+      onClick={onFocus}
+      {...press}
+      style={{ WebkitTouchCallout: 'none' }}
+      title={win.title}
+    >
+      <PCAppIcon item={win.item} pack={iconPack} size={16} />
+      <span className="truncate">{win.title}</span>
+    </button>
+  );
 }
 
 function useClock(): string {
@@ -44,6 +74,7 @@ function useClock(): string {
 
 export const PCTaskbar: React.FC<PCTaskbarProps> = ({
   apps, openWindows, focusedId, onFocusWindow, onLaunchApp, onLaunchAppId, onShutDown,
+  onWindowContext,
 }) => {
   const { theme } = usePCTheme();
   const [startOpen, setStartOpen] = useState(false);
@@ -98,15 +129,14 @@ export const PCTaskbar: React.FC<PCTaskbarProps> = ({
         {/* Running windows */}
         <div className="flex items-center gap-[3px] min-w-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           {openWindows.map(w => (
-            <button
+            <TaskButton
               key={w.id}
-              className={`pc-task-btn ${focusedId === w.id ? 'pc-task-active' : ''}`}
-              onClick={() => onFocusWindow(w.id)}
-              title={w.title}
-            >
-              <PCAppIcon item={w.item} pack={theme.iconPack} size={16} />
-              <span className="truncate">{w.title}</span>
-            </button>
+              win={w}
+              active={focusedId === w.id}
+              iconPack={theme.iconPack}
+              onFocus={() => onFocusWindow(w.id)}
+              onContext={onWindowContext}
+            />
           ))}
         </div>
 
