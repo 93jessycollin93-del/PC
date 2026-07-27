@@ -243,9 +243,19 @@ async function startServer() {
   // the engine needs no CORS headers and JACKY_API_TOKEN never ships to the
   // client.
   //
-  //   GET  /api/jacky?path=/api/status
-  //   POST /api/jacky?path=/api/ask     with the forwarded JSON body
-  //   POST /api/jacky  { path, method, body }   (envelope form)
+  // Three equivalent request shapes, because two callers grew up independently
+  // before either had a shared contract to agree on:
+  //
+  //   1. Path-suffix — what App Commander's "same-origin proxy" link mode sends
+  //      (public/app-commander.html rewrites /api/status -> /api/jacky/status):
+  //        GET/POST /api/jacky/status
+  //
+  //   2. Query form — plain fetch:
+  //        GET /api/jacky?path=/api/status
+  //
+  //   3. Envelope form — what lib/jackyClient.ts sends, matching the Base44 and
+  //      Supabase proxies so all three platforms share one client:
+  //        POST /api/jacky  { path: '/api/status', method: 'GET' }
   //
   // Config: JACKY_API_BASE (required), JACKY_API_TOKEN (optional).
   // ---------------------------------------------------------------------------
@@ -259,6 +269,8 @@ async function startServer() {
     '/api/assessment',
     '/api/ask',
     '/api/control',
+    '/api/models',
+    '/api/bots',
     '/api/squads',
     '/api/ecps/compress',
     '/api/ecps/decompress',
@@ -283,18 +295,25 @@ async function startServer() {
     }
 
     const envelope = (req.body ?? {}) as { path?: unknown; method?: unknown; body?: unknown };
+    // `req.url` is whatever followed the `/api/jacky` mount point (path-suffix
+    // form). `req.path` strips the query string; an empty/`/` suffix means the
+    // caller used the query or envelope form instead.
+    const suffix = req.path.replace(/\/+$/, '');
+    const suffixPath = suffix && suffix !== '' ? `/api${suffix}` : '';
+
     // Named `enginePath` rather than `path` so it can't shadow the `path` module
-    // imported at the top of this file.
+    // imported at the top of this file. Envelope form wins, then query, then the
+    // path suffix App Commander's proxy mode sends.
     const enginePath =
       typeof envelope.path === 'string' && envelope.path
         ? envelope.path
         : typeof req.query.path === 'string'
           ? req.query.path
-          : '';
+          : suffixPath;
 
     if (!enginePath) {
       return res.status(400).json({
-        error: 'Missing engine path — pass ?path=/api/status or { "path": "/api/status" }.',
+        error: 'Missing engine path — pass /api/jacky/status, ?path=/api/status, or { "path": "/api/status" }.',
       });
     }
     if (!enginePath.startsWith('/api/')) {
@@ -305,8 +324,13 @@ async function startServer() {
     }
 
     // The method the ENGINE should see, which is not always this request's own.
+    // Path-suffix and query forms pass the caller's own method straight through;
+    // only the envelope form (which is always a POST transport-wise) needs to
+    // declare the engine method separately.
     const method =
-      envelope.method === 'POST' || (!envelope.path && req.method === 'POST') ? 'POST' : 'GET';
+      typeof envelope.path === 'string'
+        ? envelope.method === 'POST' ? 'POST' : 'GET'
+        : req.method === 'POST' ? 'POST' : 'GET';
 
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (process.env.JACKY_API_TOKEN) {
@@ -316,8 +340,9 @@ async function startServer() {
     let body: string | undefined;
     if (method === 'POST') {
       headers['Content-Type'] = 'application/json';
-      // Envelope form nests the engine payload; fetch form sends it whole.
-      body = JSON.stringify(envelope.path ? (envelope.body ?? {}) : envelope);
+      // Envelope form nests the engine payload under `body`; the other two
+      // forms send it as the whole request body.
+      body = JSON.stringify(typeof envelope.path === 'string' ? (envelope.body ?? {}) : envelope);
     }
 
     // Reads should fail fast; inference needs room to think.
@@ -331,7 +356,10 @@ async function startServer() {
       try {
         payload = JSON.parse(text);
       } catch {
-        payload = { error: 'Engine returned a non-JSON response', raw: text.slice(0, 2000) };
+        // Don't echo the upstream body back. A misconfigured tunnel typically
+        // answers with someone else's HTML error page, and the status code is
+        // enough to diagnose from.
+        payload = { error: 'Engine returned a non-JSON response' };
       }
       // Pass the engine's status through, so a broken tunnel and an engine that
       // answered with an error are distinguishable.
@@ -349,8 +377,9 @@ async function startServer() {
     }
   };
 
-  app.get('/api/jacky', handleJackyRelay);
-  app.post('/api/jacky', handleJackyRelay);
+  // app.use (not app.get/post) so /api/jacky/<subpath> matches too — that's
+  // the form App Commander's proxy mode sends.
+  app.use('/api/jacky', handleJackyRelay);
 
   // Real model download. Proxies Ollama's streaming /api/pull so the frontend
   // can render true progress (completed/total bytes per layer). NDJSON lines
