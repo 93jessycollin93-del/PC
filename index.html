@@ -87,6 +87,10 @@
   }
 }
 </script>
+<!-- Shared eYe design system, identical in all four fleet repos. Loaded first so
+     app styles below can override it. Defines tokens only — no layout changes
+     until a component opts into .eye-ground / .eye-panel / etc. -->
+<link rel="stylesheet" href="/src/fleet-ui/eye-theme.css">
 <link rel="stylesheet" href="/index.css">
 <!-- PC theme system: styles are scoped under [data-pc-family] on the PC
      desktop container only — inert while the cosmic default is active. -->

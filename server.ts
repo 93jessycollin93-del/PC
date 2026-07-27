@@ -99,6 +99,7 @@ async function startServer() {
   const buildRunLimiter = new RateLimiter(300000, 5); // 5 calls per 5 minutes per IP
   const termFsLimiter = new RateLimiter(60000, 50); // 50 calls per minute per IP
   const telegramLimiter = new RateLimiter(60000, 20); // 20 calls per minute per IP
+  const jackyRelayLimiter = new RateLimiter(60000, 30); // 30 calls per minute per IP — /api/ask and squads hit paid tiers upstream
 
   function getClientIp(req: express.Request): string {
     return (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
@@ -232,6 +233,166 @@ async function startServer() {
     // No real local Ollama configured — say so, don't fabricate a model list.
     res.json({ models: [], error: 'No OLLAMA_ENDPOINT configured — no local models available.' });
   });
+
+  // ---------------------------------------------------------------------------
+  // Jacky engine relay. PC's half of the fleet-wide proxy trio, alongside
+  // eru's base44/functions/jackyProxy and ocd-jacky-777's supabase
+  // functions/jacky-proxy. All three speak one contract so a single
+  // lib/jackyClient.ts serves every app.
+  //
+  // Relaying here rather than letting the browser call the engine direct means
+  // the engine needs no CORS headers and JACKY_API_TOKEN never ships to the
+  // client.
+  //
+  // Three equivalent request shapes, because two callers grew up independently
+  // before either had a shared contract to agree on:
+  //
+  //   1. Path-suffix — what App Commander's "same-origin proxy" link mode sends
+  //      (public/app-commander.html rewrites /api/status -> /api/jacky/status):
+  //        GET/POST /api/jacky/status
+  //
+  //   2. Query form — plain fetch:
+  //        GET /api/jacky?path=/api/status
+  //
+  //   3. Envelope form — what lib/jackyClient.ts sends, matching the Base44 and
+  //      Supabase proxies so all three platforms share one client:
+  //        POST /api/jacky  { path: '/api/status', method: 'GET' }
+  //
+  // Config: JACKY_API_BASE (required), JACKY_API_TOKEN (optional).
+  // ---------------------------------------------------------------------------
+
+  // Engine paths the relay will forward. An allowlist, not open forwarding: the
+  // engine exposes /api/shell for whitelisted PowerShell, and this route must
+  // not become a tunnel to it.
+  const JACKY_ALLOWED_EXACT = new Set([
+    '/api/status',
+    '/api/metrics',
+    '/api/assessment',
+    '/api/ask',
+    '/api/control',
+    '/api/models',
+    '/api/bots',
+    '/api/squads',
+    '/api/ecps/compress',
+    '/api/ecps/decompress',
+    '/api/ecps/benchmark',
+  ]);
+  const JACKY_ALLOWED_PATTERNS = [/^\/api\/squads\/[A-Za-z0-9_-]{1,64}\/(ask|discuss)$/];
+  const jackyPathAllowed = (p: string) =>
+    JACKY_ALLOWED_EXACT.has(p) || JACKY_ALLOWED_PATTERNS.some(re => re.test(p));
+
+  const handleJackyRelay = async (req: express.Request, res: express.Response) => {
+    // The engine's /api/control flips a master switch and /api/ask can spend
+    // money on paid tiers, so this relay sits behind the same guards as the
+    // other privileged routes: auth, lockdown, and a rate limit.
+    if (!requireAuth(req, res)) return;
+    if (!checkLockdown(req, res)) return;
+
+    const clientIp = getClientIp(req);
+    if (!jackyRelayLimiter.check(clientIp)) {
+      return res.status(429).json({ error: 'Rate limit exceeded for the Jacky relay' });
+    }
+
+    const base = process.env.JACKY_API_BASE?.replace(/\/+$/, '');
+    if (!base) {
+      return res.status(503).json({
+        error: 'JACKY_API_BASE is not configured — set it to your Jacky engine URL to get real telemetry.',
+        needs_env: 'JACKY_API_BASE',
+      });
+    }
+
+    const envelope = (req.body ?? {}) as { path?: unknown; method?: unknown; body?: unknown };
+    // `req.url` is whatever followed the `/api/jacky` mount point (path-suffix
+    // form). `req.path` strips the query string; an empty/`/` suffix means the
+    // caller used the query or envelope form instead.
+    const suffix = req.path.replace(/\/+$/, '');
+    const suffixPath = suffix && suffix !== '' ? `/api${suffix}` : '';
+
+    // Named `enginePath` rather than `path` so it can't shadow the `path` module
+    // imported at the top of this file. Envelope form wins, then query, then the
+    // path suffix App Commander's proxy mode sends.
+    const enginePath =
+      typeof envelope.path === 'string' && envelope.path
+        ? envelope.path
+        : typeof req.query.path === 'string'
+          ? req.query.path
+          : suffixPath;
+
+    if (!enginePath) {
+      return res.status(400).json({
+        error: 'Missing engine path — pass /api/jacky/status, ?path=/api/status, or { "path": "/api/status" }.',
+      });
+    }
+    if (!enginePath.startsWith('/api/')) {
+      return res.status(400).json({ error: 'path must start with /api/' });
+    }
+    if (!jackyPathAllowed(enginePath)) {
+      return res.status(403).json({ error: `Path not allowlisted by the Jacky relay: ${enginePath}` });
+    }
+
+    // The method the ENGINE should see, which is not always this request's own.
+    // Path-suffix and query forms pass the caller's own method straight through;
+    // only the envelope form (which is always a POST transport-wise) needs to
+    // declare the engine method separately.
+    const method =
+      typeof envelope.path === 'string'
+        ? envelope.method === 'POST' ? 'POST' : 'GET'
+        : req.method === 'POST' ? 'POST' : 'GET';
+
+    // /api/control flips the engine's master switch for every user of it —
+    // worth the same audit trail as the server's other state-changing routes.
+    if (enginePath === '/api/control' && method === 'POST') {
+      logSecurityEvent('jacky-control-write', { enginePath }, clientIp);
+    }
+
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (process.env.JACKY_API_TOKEN) {
+      headers['Authorization'] = `Bearer ${process.env.JACKY_API_TOKEN}`;
+    }
+
+    let body: string | undefined;
+    if (method === 'POST') {
+      headers['Content-Type'] = 'application/json';
+      // Envelope form nests the engine payload under `body`; the other two
+      // forms send it as the whole request body.
+      body = JSON.stringify(typeof envelope.path === 'string' ? (envelope.body ?? {}) : envelope);
+    }
+
+    // Reads should fail fast; inference needs room to think.
+    const timeoutMs = method === 'POST' ? 60_000 : 8_000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const upstream = await fetch(base + enginePath, { method, headers, body, signal: controller.signal });
+      const text = await upstream.text();
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        // Don't echo the upstream body back. A misconfigured tunnel typically
+        // answers with someone else's HTML error page, and the status code is
+        // enough to diagnose from.
+        payload = { error: 'Engine returned a non-JSON response' };
+      }
+      // Pass the engine's status through, so a broken tunnel and an engine that
+      // answered with an error are distinguishable.
+      return res.status(upstream.ok ? 200 : upstream.status).json(payload);
+    } catch (err) {
+      const aborted = err instanceof Error && err.name === 'AbortError';
+      return res.status(504).json({
+        error: aborted
+          ? `Jacky engine timed out after ${timeoutMs}ms`
+          : `Jacky engine unreachable: ${String(err)}`,
+        offline: true,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  // app.use (not app.get/post) so /api/jacky/<subpath> matches too — that's
+  // the form App Commander's proxy mode sends.
+  app.use('/api/jacky', handleJackyRelay);
 
   // Real model download. Proxies Ollama's streaming /api/pull so the frontend
   // can render true progress (completed/total bytes per layer). NDJSON lines
@@ -716,47 +877,6 @@ async function startServer() {
       }
     }
     res.json(results);
-  });
-
-  // ── eYe Wave 1: same-origin proxy to the jacky Flask engine ───────────────
-  // Browser apps call /api/jacky/<path>; we forward to JACKY_API_BASE/api/<path>
-  // server-side so the token never reaches the client and CORS is a non-issue.
-  // Gated by requireAuth like the other sensitive endpoints. When
-  // JACKY_API_BASE is unset the client gets a 503 and falls back to demo mode.
-  const JACKY_API_BASE = (process.env.JACKY_API_BASE || '').replace(/\/+$/, '');
-  const JACKY_API_TOKEN = process.env.JACKY_API_TOKEN || '';
-  app.use('/api/jacky', async (req, res) => {
-    if (!requireAuth(req, res)) return;
-    if (!JACKY_API_BASE) {
-      res.status(503).json({
-        error: 'jacky link not configured',
-        detail: 'Set JACKY_API_BASE (jacky host root) and optionally JACKY_API_TOKEN.',
-      });
-      return;
-    }
-    // req.url is the path after the mount point, query string included.
-    const target = `${JACKY_API_BASE}/api${req.url}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (JACKY_API_TOKEN) headers['Authorization'] = `Bearer ${JACKY_API_TOKEN}`;
-      const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
-      const upstream = await fetch(target, {
-        method: req.method,
-        headers,
-        body: hasBody ? JSON.stringify(req.body ?? {}) : undefined,
-        signal: controller.signal,
-      });
-      const body = await upstream.text();
-      res.status(upstream.status);
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
-      res.send(body);
-    } catch (e: any) {
-      res.status(502).json({ error: 'jacky upstream unreachable', detail: String(e?.message || e) });
-    } finally {
-      clearTimeout(timer);
-    }
   });
 
   if (process.env.NODE_ENV !== 'production') {
