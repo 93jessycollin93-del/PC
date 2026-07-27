@@ -2,8 +2,8 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useState, useRef, useEffect } from 'react';
-import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser, Terminal, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser, Terminal, X, Monitor } from 'lucide-react';
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
 import { HomeScreen } from './components/apps/HomeScreen';
@@ -131,6 +131,11 @@ import { GlobalTerminal } from './components/GlobalTerminal';
 import { usePCTheme } from './src/pc-themes/PCThemeContext';
 import { PCShell } from './src/pc-themes/components/PCShell';
 import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp';
+// Desktop context menu (right-click on a PC, press-and-hold on a phone).
+import { ContextMenu, MenuEntry } from './src/desktop/ContextMenu';
+import { ContextRequest } from './src/desktop/useLongPress';
+import { buildDesktopMenu, buildItemMenu } from './src/desktop/buildDesktopMenus';
+import * as ops from './src/desktop/desktopOps';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
@@ -365,7 +370,10 @@ const getMergedDesktopItems = (): (DesktopItem | null)[] => {
             console.error("Failed to parse custom apps", e);
         }
     }
-    return [...INITIAL_DESKTOP_ITEMS, ...customList];
+    // Folders and documents the user made via the desktop context menu.
+    // Same icon-by-name contract as custom apps above.
+    const userItems = ops.loadUserItems((name) => iconMap[name] || Folder);
+    return [...INITIAL_DESKTOP_ITEMS, ...customList, ...userItems];
 };
 
 export const App: React.FC = () => {
@@ -573,6 +581,140 @@ export const App: React.FC = () => {
         setNextZIndex(prev => prev + 1);
         setFocusedId(item.id);
     };
+
+    /* ── Desktop context menu ───────────────────────────────────────────
+       Right-click on a PC, press-and-hold on a phone (see
+       src/desktop/useLongPress.ts). State lives here because the desktop
+       list lives here; the menu itself is dumb presentation and the rules
+       are pure functions in src/desktop/desktopOps.ts. */
+    const [menu, setMenu] = useState<
+        { x: number; y: number; source: ContextRequest['source']; entries: MenuEntry[]; title?: string } | null
+    >(null);
+    // Internal clipboard: a real one can't hold app icons, and the system
+    // clipboard has no concept of a desktop item.
+    const [clipboard, setClipboard] = useState<{ item: DesktopItem; cut: boolean } | null>(null);
+    const wallpaperInputRef = useRef<HTMLInputElement>(null);
+
+    // Anything the user created is written back whenever the desktop changes,
+    // so folders survive a reload. Built-in items are re-merged from source
+    // and deliberately excluded.
+    useEffect(() => {
+        ops.saveUserItems(desktopItems);
+    }, [desktopItems]);
+
+    const closeMenu = useCallback(() => setMenu(null), []);
+
+    /** Open an app that may not have a desktop icon (settings, terminal). */
+    const launchByAppId = (appId: string, fallbackName: string) => {
+        const existing = desktopItems.find((d) => d && d.appId === appId);
+        if (existing) { handleLaunch(existing); return; }
+        handleLaunch({ id: `ad-hoc-${appId}`, name: fallbackName, type: 'app', icon: Monitor, appId });
+    };
+
+    const desktopMenuActions = {
+        newFolder: () => {
+            const { items, created } = ops.createFolder(desktopItems, Folder);
+            setDesktopItems(items);
+            showToast(`Created "${created.name}".`, 'New folder');
+        },
+        newDocument: () => {
+            const { items, created } = ops.createTextDocument(desktopItems, FileText);
+            setDesktopItems(items);
+            showToast(`Created "${created.name}".`, 'New document');
+        },
+        sortBy: (key: ops.SortKey) => {
+            setDesktopItems(ops.sortItems(desktopItems, key));
+            showToast(`Sorted by ${key}.`, 'Desktop');
+        },
+        refresh: () => {
+            setDesktopItems(getMergedDesktopItems());
+            showToast('Desktop refreshed.', 'Desktop');
+        },
+        paste: () => {
+            if (!clipboard) return;
+            const { items, created } = ops.duplicateItem(desktopItems, clipboard.item);
+            const next = clipboard.cut ? ops.deleteItem(items, clipboard.item.id) : items;
+            setDesktopItems(next);
+            if (clipboard.cut) setClipboard(null);
+            showToast(`Pasted "${created.name}".`, 'Desktop');
+        },
+        clipboardName: clipboard?.item.name ?? null,
+        changeWallpaper: () => wallpaperInputRef.current?.click(),
+        openDisplaySettings: () => launchByAppId('system_settings', 'System Settings'),
+        openPersonalize: () => launchByAppId('pc_themes', 'Themes'),
+        openTerminal: () => launchByAppId('termstudio', 'TermStudio'),
+    };
+
+    const itemMenuActions = {
+        open: (item: DesktopItem) => handleLaunch(item),
+        // handleLaunch keys windows by item id, so a fresh id is what makes
+        // a genuinely separate second window rather than refocusing the first.
+        openInNewWindow: (item: DesktopItem) =>
+            handleLaunch({ ...item, id: `${item.id}-w${Date.now().toString(36)}` }),
+        rename: (item: DesktopItem) => {
+            const next = window.prompt(`Rename "${item.name}" to:`, item.name);
+            if (next === null) return;
+            if (!next.trim()) { showToast('Name cannot be empty.', 'Rename'); return; }
+            setDesktopItems(ops.renameItem(desktopItems, item.id, next));
+        },
+        cut: (item: DesktopItem) => {
+            setClipboard({ item, cut: true });
+            showToast(`Cut "${item.name}".`, 'Clipboard');
+        },
+        copy: (item: DesktopItem) => {
+            setClipboard({ item, cut: false });
+            showToast(`Copied "${item.name}".`, 'Clipboard');
+        },
+        duplicate: (item: DesktopItem) => {
+            const { items, created } = ops.duplicateItem(desktopItems, item);
+            setDesktopItems(items);
+            showToast(`Created "${created.name}".`, 'Duplicate');
+        },
+        moveToFolder: (item: DesktopItem) => {
+            const folders = desktopItems.filter(
+                (d): d is DesktopItem => !!d && d.type === 'folder' && d.id !== item.id,
+            );
+            if (!folders.length) return;
+            const choice = window.prompt(
+                `Move "${item.name}" into which folder?\n\n${folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}\n\nEnter a number:`,
+                '1',
+            );
+            if (choice === null) return;
+            const target = folders[Number(choice) - 1];
+            if (!target) { showToast('No folder with that number.', 'Move'); return; }
+            setDesktopItems(ops.moveIntoFolder(desktopItems, item.id, target.id));
+            showToast(`Moved "${item.name}" into "${target.name}".`, 'Move');
+        },
+        toggleFeatured: (item: DesktopItem) => {
+            setDesktopItems(desktopItems.map((d) =>
+                d && d.id === item.id ? { ...d, featured: !d.featured } : d));
+        },
+        remove: (item: DesktopItem) => {
+            if (!window.confirm(`Remove "${item.name}" from the desktop?`)) return;
+            setDesktopItems(ops.deleteItem(desktopItems, item.id));
+            showToast(`Removed "${item.name}".`, 'Desktop');
+        },
+        properties: (item: DesktopItem) => {
+            const lines = [
+                `Name:  ${item.name}`,
+                `Type:  ${item.type === 'folder' ? 'Folder' : 'Application'}`,
+                item.appId ? `App id: ${item.appId}` : null,
+                item.type === 'folder' ? `Contains: ${item.contents?.length ?? 0} item(s)` : null,
+                item.url ? `URL: ${item.url}` : null,
+                `Origin: ${ops.isUserCreated(item) ? 'Created by you' : 'Built in'}`,
+                item.featured ? 'Pinned as featured' : null,
+            ].filter(Boolean).join('\n');
+            showToast(<pre className="whitespace-pre-wrap text-xs leading-relaxed">{lines}</pre>, `Properties — ${item.name}`, false);
+        },
+        folderCount: desktopItems.filter((d) => d && d.type === 'folder').length,
+    };
+
+    const openDesktopMenu = (req: ContextRequest) =>
+        setMenu({ ...req, entries: buildDesktopMenu(desktopMenuActions) });
+
+    const openItemMenu = (item: DesktopItem, req: ContextRequest) =>
+        setMenu({ ...req, entries: buildItemMenu(item, itemMenuActions), title: item.name });
+
 
     // Boot the always-on platform engines (idempotent — each guards itself).
     useEffect(() => {
@@ -1120,9 +1262,11 @@ Body: ${emailToSummarize.body}`,
                 {!wallpaperUrl && <JackieVibeBackground />}
 
                 <div className="h-full w-full relative" onMouseDown={() => focusWindow(null)}>
-                     <HomeScreen 
-                         items={desktopItems.filter(item => item && desktopVisibility[item.id] !== false)} 
-                         onLaunch={handleLaunch} 
+                     <HomeScreen
+                         items={desktopItems.filter(item => item && desktopVisibility[item.id] !== false)}
+                         onLaunch={handleLaunch}
+                         onItemContext={openItemMenu}
+                         onDesktopContext={openDesktopMenu}
                      />
                 </div>
 
@@ -1354,6 +1498,39 @@ Body: ${emailToSummarize.body}`,
             )}
 
             <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
+
+            {/* Desktop context menu + the picker its "Change wallpaper" entry
+                drives. The input stays mounted and hidden so the click that
+                opens it is a direct result of the user's own tap (browsers
+                reject file dialogs opened any other way). */}
+            <input
+                ref={wallpaperInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        setWallpaperUrl(String(reader.result));
+                        showToast('Wallpaper updated.', 'Desktop');
+                    };
+                    reader.onerror = () => showToast('Could not read that image.', 'Wallpaper');
+                    reader.readAsDataURL(file);
+                }}
+            />
+            {menu && (
+                <ContextMenu
+                    x={menu.x}
+                    y={menu.y}
+                    source={menu.source}
+                    entries={menu.entries}
+                    title={menu.title}
+                    onClose={closeMenu}
+                />
+            )}
 
             <GlobalKeyboard />
             <Analytics />
