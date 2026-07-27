@@ -224,27 +224,29 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
                     <span className="text-xs">{title}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                     {/* Window Controls */}
+                     {/* Window Controls. Touch targets grow to a real tappable
+                         size on mobile (isMobile forces every window fullscreen,
+                         so these buttons are the only way to close/minimize). */}
                      {url && (
                         <button
                             onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }}
                             onPointerDown={(e) => e.stopPropagation()}
-                            className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors mr-1"
+                            className={`flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors mr-1 ${isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-1'}`}
                             title="Open in new tab"
                         >
                             <ExternalLink size={12} />
                         </button>
                      )}
-                     <button className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors">
+                     <button className={`flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors ${isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-1'}`}>
                         <Minus size={12} />
                     </button>
-                    <button onClick={toggleMaximize} className={`p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors ${isMobile ? 'hidden' : ''}`}>
+                    <button onClick={toggleMaximize} className={`flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors ${isMobile ? 'hidden' : 'p-1'}`}>
                         <Square size={10} />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onClose(); }}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="p-1 hover:bg-red-500 rounded text-zinc-400 hover:text-white transition-colors"
+                        className={`flex items-center justify-center rounded text-zinc-400 hover:bg-red-500 hover:text-white transition-colors ${isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-1'}`}
                     >
                         <X size={14} />
                     </button>
