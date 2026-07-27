@@ -14,6 +14,7 @@ import {
   FolderPlus, FileText, ArrowUpDown, RefreshCw, ClipboardPaste, Scissors,
   Copy, Image, Monitor, Palette, Terminal, Trash2, Pencil, FolderInput,
   Info, Star, StarOff, ExternalLink, SortAsc, Shapes, CopyPlus,
+  Maximize2, Minus, SendToBack, XSquare,
 } from 'lucide-react';
 import { DesktopItem } from '../../types';
 import { MenuEntry } from './ContextMenu';
@@ -84,6 +85,26 @@ export function buildDesktopMenu(a: DesktopMenuActions): MenuEntry[] {
     { id: 'personalize', label: 'Personalize (themes)', icon: Palette, onSelect: a.openPersonalize },
     { id: 'display', label: 'Display settings', icon: Monitor, onSelect: a.openDisplaySettings },
     { id: 'terminal', label: 'Open Terminal', icon: Terminal, separatorBefore: true, onSelect: a.openTerminal },
+  ];
+}
+
+/** Window management, from a taskbar button — the menu a real taskbar has. */
+export interface WindowMenuActions {
+  restore: () => void;
+  minimize: () => void;
+  sendToBack: () => void;
+  close: () => void;
+  minimized: boolean;
+}
+
+export function buildWindowMenu(a: WindowMenuActions): MenuEntry[] {
+  return [
+    a.minimized
+      ? { id: 'restore', label: 'Restore', icon: Maximize2, onSelect: a.restore }
+      : { id: 'bring-front', label: 'Bring to front', icon: Maximize2, onSelect: a.restore },
+    { id: 'minimize', label: 'Minimize', icon: Minus, disabled: a.minimized, onSelect: a.minimize },
+    { id: 'send-back', label: 'Send to back', icon: SendToBack, disabled: a.minimized, onSelect: a.sendToBack },
+    { id: 'close-win', label: 'Close window', icon: XSquare, danger: true, separatorBefore: true, onSelect: a.close },
   ];
 }
 

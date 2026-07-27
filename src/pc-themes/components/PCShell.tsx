@@ -27,6 +27,8 @@ export interface PCShellProps {
   onLaunchApp: (item: DesktopItem) => void;
   onLaunchAppId: (appId: string) => void;
   onShutDown: () => void;
+  /** Passed straight through to the taskbar's per-window context menu. */
+  onWindowContext?: (win: PCTaskbarWindow, req: { x: number; y: number; source: 'mouse' | 'touch' }) => void;
 }
 
 export const PCShell: React.FC<PCShellProps> = (props) => {
