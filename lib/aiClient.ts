@@ -8,6 +8,8 @@ import { permissions } from './permissions';
 import { budgetGuardian } from './budgetGuardian';
 import { fallbackOrchestrator } from './fallbackOrchestrator';
 import { secretsVault } from './secretsVault';
+import { quotaLedger } from '../src/ai/quotaLedger';
+import { buildBriefing } from '../src/ai/handoffBriefing';
 
 /** Providers that cost money — gated behind the `spend` capability. */
 const PAID_PROVIDERS: ModelProvider[] = ['grok', 'deepseek', 'anthropic'];
@@ -82,12 +84,51 @@ class AIClient {
       throw new Error(`Auto-stop active for "${scope}" — monthly budget exceeded.`);
     }
 
+    // Predictive handoff. The catch block below is the REACTIVE path — it
+    // only learns a provider is spent by failing a request first. quotaLedger
+    // forecasts from the recent consumption rate, so this switches while
+    // headroom still remains and the user never eats the failed call.
+    let handoffBriefing: string | null = null;
+    if ((routing.provider as string) !== 'ollama' &&
+        quotaLedger.shouldPreemptivelySwitch(routing.provider as ModelProvider)) {
+      // Cost tiers, mirroring fallbackOrchestrator.getFallback: spend nothing
+      // if a free provider can take the work. Ranking purely by headroom would
+      // hand off to a paid provider first, since "unlimited" always wins.
+      const TIERS: ModelProvider[][] = [['groq', 'gemini'], ['deepseek'], ['anthropic', 'grok']];
+      let target: ModelProvider | undefined;
+      for (const tier of TIERS) {
+        const healthy = tier.filter(p => p !== routing.provider && fallbackOrchestrator.isProviderHealthy(p));
+        // Within a tier, the one with the most room to spare wins.
+        const ranked = quotaLedger.nextInLine(routing.provider as ModelProvider, healthy)
+          .filter(p => !quotaLedger.shouldPreemptivelySwitch(p));
+        if (ranked.length) { target = ranked[0]; break; }
+      }
+      if (target) {
+        // Tell the incoming model it is taking over and why, so it continues
+        // the work rather than starting cold.
+        handoffBriefing = buildBriefing({
+          messages,
+          fromProvider: routing.provider as ModelProvider,
+          toProvider: target,
+          reason: 'quota_approaching',
+        });
+        console.log(`[AIClient] Pre-emptive handoff ${routing.provider} -> ${target} (quota forecast)`);
+        routing.provider = target;
+        // Only the groq branch reads routing.model; keep it valid for the new
+        // provider, using the same default the reactive fallback path uses.
+        if (target === 'groq') routing.model = 'mixtral-8x7b-32768';
+      }
+    }
+
     console.log(`[AIClient] Routing to ${routing.provider}/${routing.model}: ${routing.reason}`);
 
     // Build the full message list
     const allMessages: AIMessage[] = [];
     if (options.systemPrompt) {
       allMessages.push({ role: 'system', content: options.systemPrompt });
+    }
+    if (handoffBriefing) {
+      allMessages.push({ role: 'system', content: handoffBriefing });
     }
     allMessages.push(...messages);
 
@@ -110,6 +151,12 @@ class AIClient {
 
       // Track usage
       modelRouter.recordUsage(routing.provider, response.tokensUsed, response.cost);
+
+      // Feed the forecast. Without this the predictive check above has no
+      // consumption history to reason about and never fires.
+      if ((routing.provider as string) !== 'ollama') {
+        quotaLedger.record(routing.provider as ModelProvider, { tokens: response.tokensUsed });
+      }
 
       // Track budget spend
       budgetGuardian.recordSpend(scope, routing.provider, response.cost);
