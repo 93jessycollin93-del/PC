@@ -442,11 +442,14 @@ export const JackieShell: React.FC<JackieShellProps> = ({
         </button>
       </div>
 
-      {/* When PC is full, a small chip to bring Jackie back */}
+      {/* When PC is full, a small chip to bring Jackie back.
+          bottom-11 (44px) clears BottomBar's fixed h-8 (32px) strip with
+          room to spare — bottom-3 used to sit underneath it, clipped by
+          BottomBar's higher z-index. */}
       {pcMode === 'full' && (
         <button
           onClick={() => setPcMode('half')}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[3500] flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-medium shadow-[0_0_20px_rgba(99,102,241,0.5)] hover:brightness-110 transition-all pointer-events-auto"
+          className="absolute bottom-11 left-1/2 -translate-x-1/2 z-[3500] flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-medium shadow-[0_0_20px_rgba(99,102,241,0.5)] hover:brightness-110 transition-all pointer-events-auto"
         >
           <Sparkles className="w-4 h-4" /> Bring Jackie back
         </button>
