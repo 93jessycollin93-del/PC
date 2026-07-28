@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { SystemMonitor } from './SystemMonitor';
+import { useViewport } from '../src/desktop/useViewport';
 
 interface MobileStatusBarProps {
     openWindows: Array<{ id: string; title: string }>;
@@ -10,25 +11,10 @@ interface MobileStatusBarProps {
 
 export const MobileStatusBar: React.FC<MobileStatusBarProps> = ({ openWindows, onFocusWindow }) => {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [screenSize, setScreenSize] = useState({
-        width: typeof window !== 'undefined' ? window.innerWidth : 1024,
-        height: typeof window !== 'undefined' ? window.innerHeight : 768,
-    });
-
-    React.useEffect(() => {
-        const handleResize = () => {
-            setScreenSize({
-                width: window.innerWidth,
-                height: window.innerHeight,
-            });
-        };
-
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    const isMobile = screenSize.width < 768;
-    const isLandscape = screenSize.width > screenSize.height;
+    // Shared with the window chrome, so both agree on where mobile begins.
+    // This used to compute its own `< 768` while DraggableWindow used
+    // `<= 768`, and at exactly 768px the two rendered contradictory UIs.
+    const { isMobile, isLandscape } = useViewport();
 
     if (!isMobile && !isLandscape) {
         // Desktop view: show all status indicators

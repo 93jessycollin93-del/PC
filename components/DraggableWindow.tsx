@@ -6,6 +6,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Minus, Square, Grip, ExternalLink } from 'lucide-react';
 import { usePCThemeOptional } from '../src/pc-themes/PCThemeContext';
 import { PCWindowControls } from '../src/pc-themes/components/PCWindowChrome';
+import { useIsMobile } from '../src/desktop/useViewport';
 
 interface DraggableWindowProps {
     id: string;
@@ -53,13 +54,7 @@ export const DraggableWindow: React.FC<DraggableWindowProps> = ({
     const [isMaximized, setIsMaximized] = useState(false);
     const preMaximizeState = useRef({ pos, size });
     
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-
-    useEffect(() => {
-        const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+    const isMobile = useIsMobile();
 
     const effectiveMaximized = isMaximized || isMobile;
 
