@@ -14,7 +14,7 @@ import {
   FolderPlus, FileText, ArrowUpDown, RefreshCw, ClipboardPaste, Scissors,
   Copy, Image, Monitor, Palette, Terminal, Trash2, Pencil, FolderInput,
   Info, Star, StarOff, ExternalLink, SortAsc, Shapes, CopyPlus,
-  Maximize2, Minus, SendToBack, XSquare, Upload, Download,
+  Maximize2, Minus, SendToBack, XSquare, Upload, Download, Link,
 } from 'lucide-react';
 import { DesktopItem } from '../../types';
 import { MenuEntry } from './ContextMenu';
@@ -48,6 +48,8 @@ export interface ItemMenuActions {
   moveToFolder: (item: DesktopItem) => void;
   toggleFeatured: (item: DesktopItem) => void;
   exportItem: (item: DesktopItem) => void;
+  /** Copy a short code that reopens this app anywhere. */
+  copyCode: (item: DesktopItem) => void;
   remove: (item: DesktopItem) => void;
   properties: (item: DesktopItem) => void;
   /** Folders that exist to move into; empty disables the entry. */
@@ -135,6 +137,7 @@ export function buildItemMenu(item: DesktopItem, a: ItemMenuActions): MenuEntry[
       separatorBefore: true,
       onSelect: () => a.toggleFeatured(item),
     },
+    { id: 'copy-code', label: 'Copy app code', icon: Link, onSelect: () => a.copyCode(item) },
     { id: 'export', label: 'Export…', icon: Download, onSelect: () => a.exportItem(item) },
     { id: 'properties', label: 'Properties', icon: Info, onSelect: () => a.properties(item) },
     {

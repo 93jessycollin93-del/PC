@@ -136,6 +136,7 @@ import { ContextMenu, MenuEntry } from './src/desktop/ContextMenu';
 import { ContextRequest } from './src/desktop/useLongPress';
 import { buildDesktopMenu, buildItemMenu, buildWindowMenu } from './src/desktop/buildDesktopMenus';
 import * as ops from './src/desktop/desktopOps';
+import { encodeCode, decodeCode } from './src/codes/appCode';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
@@ -608,6 +609,32 @@ export const App: React.FC = () => {
 
     const closeMenu = useCallback(() => setMenu(null), []);
 
+    // A code in the URL hash opens the app it addresses, which is what makes
+    // a copied code shareable rather than decorative. Runs on load and on
+    // every hash change, so pasting a new code while open still works.
+    useEffect(() => {
+        const openFromHash = () => {
+            const raw = window.location.hash.slice(1);
+            if (!raw) return;
+            const result = decodeCode(decodeURIComponent(raw));
+            if (!result.ok || !result.target) return;   // not a code; leave other hash uses alone
+            const { app } = result.target;
+            const match = desktopItems.find(d => d && (d.appId === app || d.id === app));
+            if (match) {
+                handleLaunch(match);
+            } else {
+                showToast(`No app here answers to "${app}".`, 'App code');
+            }
+            // Clear it so a refresh does not reopen the same window forever.
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        };
+        openFromHash();
+        window.addEventListener('hashchange', openFromHash);
+        return () => window.removeEventListener('hashchange', openFromHash);
+        // desktopItems is intentionally the only dependency: the handler is
+        // rebuilt when the app list changes so it can resolve new items.
+    }, [desktopItems]);
+
     /** Open an app that may not have a desktop icon (settings, terminal). */
     const launchByAppId = (appId: string, fallbackName: string) => {
         const existing = desktopItems.find((d) => d && d.appId === appId);
@@ -689,6 +716,17 @@ export const App: React.FC = () => {
             if (!target) { showToast('No folder with that number.', 'Move'); return; }
             setDesktopItems(ops.moveIntoFolder(desktopItems, item.id, target.id));
             showToast(`Moved "${item.name}" into "${target.name}".`, 'Move');
+        },
+        copyCode: (item: DesktopItem) => {
+            const code = encodeCode({ app: item.appId || item.id });
+            // The clipboard API needs a secure context and can be denied, so
+            // the code is shown either way rather than silently lost.
+            navigator.clipboard?.writeText(code).catch(() => {});
+            showToast(
+                <span>Code <code className="text-emerald-300">{code}</code> copied. Open it anywhere with <code className="text-emerald-300">#{code}</code> on the URL.</span>,
+                'App code',
+                false,
+            );
         },
         exportItem: (item: DesktopItem) => {
             // Blob + object URL: keeps the whole thing local, no upload,
