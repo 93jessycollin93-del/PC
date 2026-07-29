@@ -112,7 +112,6 @@ import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
 import { secretsVault } from './lib/secretsVault';
 import { migrateSecretsToVault } from './lib/secretsMigration';
-import { Analytics } from '@vercel/analytics/react';
 import { bus } from './lib/bus';
 import { safeSetJSON } from './lib/safeStorage';
 import { startOnlineSupervision } from './src/supervision/onlineTrigger';
@@ -2027,7 +2026,6 @@ Body: ${emailToSummarize.body}`,
             )}
 
             <GlobalKeyboard />
-            <Analytics />
         </div>
     );
 };

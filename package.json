@@ -15,7 +15,6 @@
   "dependencies": {
     "@google/genai": "^1.27.0",
     "@huggingface/transformers": "^3.8.1",
-    "@vercel/analytics": "^2.0.1",
     "chess.js": "^1.4.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
