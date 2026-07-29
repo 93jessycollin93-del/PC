@@ -46,6 +46,11 @@ export interface AppDefinition {
 }
 
 export const APP_REGISTRY: Partial<Record<AppId, AppDefinition>> = {
+    fleet: {
+        defaultSize: { width: 520, height: 640 },
+        Component: lazy(() => import('../components/apps/FleetApp').then(m => ({ default: m.FleetApp }))),
+        props: () => ({}),
+    },
     knowledge: {
         defaultSize: { width: 560, height: 640 },
         Component: lazy(() => import('../components/apps/KnowledgeApp').then(m => ({ default: m.KnowledgeApp }))),
