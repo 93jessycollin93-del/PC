@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  uniqueName, createFolder, createTextDocument, renameItem, deleteItem,
+  uniqueName, createFolder, createTextDocument, createGeneratedApp, renameItem, deleteItem,
   sortItems, moveIntoFolder, duplicateItem, serializeForExport, exportFilename,
   parseImport, saveUserItems, loadUserItems, isUserCreated, USER_ITEMS_KEY,
   EXPORT_FORMAT,
@@ -68,6 +68,23 @@ describe('createFolder / createTextDocument', () => {
 
   it('honors an explicit name', () => {
     expect(createFolder([], Icon, '  Projects  ').created.name).toBe('Projects');
+  });
+});
+
+describe('createGeneratedApp', () => {
+  it('installs a real item carrying the generated spec', () => {
+    const { items, created } = createGeneratedApp([], 'a click counter', Icon);
+    expect(created.type).toBe('app');
+    expect(created.generatedSpec?.kind).toBe('counter');
+    expect(created.appId).toBe(created.generatedSpec!.id);
+    expect(items).toHaveLength(1);
+    expect(isUserCreated(created)).toBe(true);
+  });
+
+  it('disambiguates the name the same way any other new item does', () => {
+    const first = createGeneratedApp([], 'packing list', Icon);
+    const second = createGeneratedApp(first.items, 'packing list', Icon);
+    expect(second.created.name).not.toBe(first.created.name);
   });
 });
 
@@ -199,6 +216,24 @@ describe('export / import round trip', () => {
     const result = parseImport(future, [], () => PlainIcon);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/99/);
+  });
+
+  it('carries a generated app\'s spec through export and back — the actual point of idea #04', () => {
+    const { created } = createGeneratedApp([], 'checklist: milk, eggs', Icon);
+    const result = parseImport(serializeForExport(created), [], () => PlainIcon);
+    expect(result.ok).toBe(true);
+    expect(result.item!.generatedSpec).toEqual(created.generatedSpec);
+  });
+
+  it('attaches an optional provenance record to the envelope when the caller supplies one', () => {
+    const record = { v: 1, signature: 'fake' };
+    const parsed = JSON.parse(serializeForExport(app('a', 'Mail'), record));
+    expect(parsed.provenance).toEqual(record);
+  });
+
+  it('omits the provenance field entirely when the caller supplies none', () => {
+    const parsed = JSON.parse(serializeForExport(app('a', 'Mail')));
+    expect('provenance' in parsed).toBe(false);
   });
 });
 

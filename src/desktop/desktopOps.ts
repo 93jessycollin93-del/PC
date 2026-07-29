@@ -11,6 +11,8 @@
  * for custom apps.
  */
 import { DesktopItem } from '../../types';
+import type { GeneratedAppSpec } from '../generative/appSpec';
+import { generateAppSpec } from '../generative/generateAppSpec';
 
 export type DesktopList = (DesktopItem | null)[];
 
@@ -26,6 +28,7 @@ export interface StoredItem {
   bgColor?: string;
   appId?: string;
   notepadInitialContent?: string;
+  generatedSpec?: GeneratedAppSpec;
   contents?: StoredItem[];
 }
 
@@ -51,6 +54,7 @@ export const toStored = (item: DesktopItem): StoredItem => ({
   bgColor: item.bgColor,
   appId: item.appId,
   notepadInitialContent: item.notepadInitialContent,
+  generatedSpec: item.generatedSpec,
   contents: item.contents?.map(toStored),
 });
 
@@ -66,6 +70,7 @@ const fromStored = (
   bgColor: stored.bgColor,
   appId: stored.appId,
   notepadInitialContent: stored.notepadInitialContent,
+  generatedSpec: stored.generatedSpec,
   contents: stored.contents?.map((c) => fromStored(c, resolveIcon)),
 });
 
@@ -157,6 +162,37 @@ export function createTextDocument(
     iconName: 'Layers',
     bgColor: 'bg-gradient-to-br from-sky-600 via-blue-700 to-zinc-900 border border-sky-500/30',
     notepadInitialContent: '',
+  };
+  return { items: [...items, created], created };
+}
+
+/**
+ * Turn a plain-language description into a real installed desktop item —
+ * idea #04, "an OS that writes its own apps". `appId` gets the generated
+ * spec's own id so each generated app is independently addressable (the
+ * code router in src/codes/appCode.ts already resolves by appId, so a
+ * generated app is shareable via a code the same way any other app is).
+ * `iconName: 'Sparkles'` is shared across every kind rather than picked
+ * per-archetype — the built-in iconMap (components/apps/AppConnectorApp.tsx)
+ * is a small fixed set, and Sparkles is both in it and already the runner's
+ * own in-window icon, so a generated app's identity stays visually
+ * consistent between the desktop and the window it opens.
+ */
+export function createGeneratedApp(
+  items: DesktopList,
+  description: string,
+  icon: DesktopItem['icon'],
+): { items: DesktopList; created: DesktopItem } {
+  const spec = generateAppSpec(description);
+  const created: DesktopItem = {
+    id: newId('genapp'),
+    name: uniqueName(spec.name, items),
+    type: 'app',
+    appId: spec.id,
+    icon,
+    iconName: 'Sparkles',
+    bgColor: 'bg-gradient-to-br from-amber-500 via-orange-600 to-zinc-900 border border-amber-400/30',
+    generatedSpec: spec,
   };
   return { items: [...items, created], created };
 }

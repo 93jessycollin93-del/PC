@@ -142,6 +142,7 @@ import type { Commit as TimeTravelCommit, Branch as TimeTravelBranch } from './s
 import { TimeTravelScrubber } from './components/TimeTravelScrubber';
 import { signArtifact } from './src/provenance/provenance';
 import type { ProvenanceRecord } from './src/provenance/provenance';
+import { GeneratedAppRunner } from './components/apps/GeneratedAppRunner';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
@@ -801,6 +802,15 @@ export const App: React.FC = () => {
             const { items, created } = ops.createTextDocument(desktopItems, FileText);
             setDesktopItems(items);
             showToast(`Created "${created.name}".`, 'New document');
+        },
+        newGeneratedApp: () => {
+            const description = window.prompt(
+                'Describe the app you want (e.g. "packing list: passport, charger, meds" or "25 minute timer"):',
+            );
+            if (!description || !description.trim()) return;
+            const { items, created } = ops.createGeneratedApp(desktopItems, description, Sparkles);
+            setDesktopItems(items);
+            showToast(`Installed "${created.name}".`, 'App generated');
         },
         sortBy: (key: ops.SortKey) => {
             setDesktopItems(ops.sortItems(desktopItems, key));
@@ -1625,6 +1635,11 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'session_recorder') content = <SessionRecorderApp />;
                     // PC shell: theme manager (Display Properties + Update Center)
                     else if (win.item.appId === 'pc_themes') content = <PCThemeManagerApp />;
+                    // Checked before the UniversalAppSimulator fallback below: a
+                    // generated app has a unique appId that will never match a
+                    // known case, and the simulator is a decorative placeholder —
+                    // exactly the outcome idea #04 exists to avoid.
+                    else if (win.item.generatedSpec) content = <GeneratedAppRunner itemId={win.item.id} spec={win.item.generatedSpec} />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe

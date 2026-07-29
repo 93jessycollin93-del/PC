@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import { LucideIcon } from 'lucide-react';
+import type { GeneratedAppSpec } from './src/generative/appSpec';
 
 declare global {
     var html2canvas: (element: HTMLElement, options?: any) => Promise<HTMLCanvasElement>;
@@ -22,6 +23,10 @@ export interface DesktopItem {
     url?: string;
     iconName?: string;
     featured?: boolean;
+    /** Present for an app the desktop generated from a plain-language
+     *  description (src/generative/) — the portable definition a
+     *  GeneratedAppRunner renders. Absent for every other item type. */
+    generatedSpec?: GeneratedAppSpec;
 }
 
 export interface Point {
