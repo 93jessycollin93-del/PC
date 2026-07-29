@@ -298,6 +298,30 @@ export class TimeTravel {
     for (const id of toDrop) delete this.state.commits[id];
   }
 
+  /** The whole log, verbatim — for idea #06's whole-desktop export, which
+   *  bundles this alongside the desktop items so a restored machine's
+   *  history is the real history, not a fresh log starting from nothing. */
+  public async exportState(): Promise<string> {
+    await this.ensureLoaded();
+    return JSON.stringify(this.state);
+  }
+
+  /** Replace the entire log with a previously exported one. Same shape
+   *  validation as boot-time loading — a bad import starts this log fresh
+   *  rather than trusting a shape it does not recognise. */
+  public async importState(raw: string): Promise<void> {
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || parsed.v !== 1) throw new Error('unrecognized time-travel log');
+      if (!parsed.branches || !parsed.commits || !parsed.currentBranchId) throw new Error('unrecognized time-travel log');
+      this.state = parsed;
+    } catch {
+      this.state = this.emptyState();
+    }
+    this.loaded = true;
+    this.persist();
+  }
+
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     this.loaded = true;

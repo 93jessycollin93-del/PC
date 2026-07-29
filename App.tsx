@@ -143,6 +143,9 @@ import { TimeTravelScrubber } from './components/TimeTravelScrubber';
 import { signArtifact } from './src/provenance/provenance';
 import type { ProvenanceRecord } from './src/provenance/provenance';
 import { GeneratedAppRunner } from './components/apps/GeneratedAppRunner';
+import { sealWholeDesktop, unsealWholeDesktop } from './src/whole-desktop/wholeDesktopCodec';
+import type { WholeDesktopSnapshot } from './src/whole-desktop/wholeDesktopSnapshot';
+import { PC_THEME_STORAGE_KEY } from './src/pc-themes/types';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
@@ -674,6 +677,7 @@ export const App: React.FC = () => {
     const [clipboard, setClipboard] = useState<{ item: DesktopItem; cut: boolean } | null>(null);
     const wallpaperInputRef = useRef<HTMLInputElement>(null);
     const importInputRef = useRef<HTMLInputElement>(null);
+    const wholeDesktopInputRef = useRef<HTMLInputElement>(null);
 
     // Anything the user created is written back whenever the desktop changes,
     // so folders survive a reload. Built-in items are re-merged from source
@@ -759,6 +763,93 @@ export const App: React.FC = () => {
         refreshHistory();
     }, [refreshHistory]);
 
+    /** Idea #06: everything (items, layout, wallpaper, theme, history) as
+     *  one file, sealed by the Sovereign Engine and verified round-trip.
+     *  See src/whole-desktop/wholeDesktopSnapshot.ts for what is and is not
+     *  included, and why. */
+    const exportWholeDesktop = useCallback(async () => {
+        try {
+            const snapshot: WholeDesktopSnapshot = {
+                v: 1,
+                exportedAt: new Date().toISOString(),
+                desktopItems: desktopItems.filter((i): i is DesktopItem => !!i).map(ops.toStored),
+                desktopVisibility,
+                wallpaperUrl,
+                pcTheme: (() => {
+                    try {
+                        const raw = localStorage.getItem(PC_THEME_STORAGE_KEY);
+                        return raw ? JSON.parse(raw) : null;
+                    } catch { return null; }
+                })(),
+                timeTravelLog: await timeTravel.exportState(),
+            };
+            const file = await sealWholeDesktop(snapshot);
+            // Signed the same way any other export is (idea #01) — the
+            // artifact hashed is the exact bytes the file carries.
+            let provenance: ProvenanceRecord | undefined;
+            try {
+                provenance = await signArtifact(JSON.stringify(file), { app: 'pc-whole-desktop-export' });
+            } catch (err) {
+                console.warn('[provenance] could not sign whole-desktop export', err);
+            }
+
+            const blob = new Blob([JSON.stringify({ ...file, provenance }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pc-desktop-${new Date().toISOString().slice(0, 10)}.pcsnapshot.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+            showToast('Whole desktop exported — sealed, hashed, and ready to hand off.', 'Export');
+        } catch (err) {
+            showToast(`Could not export the desktop: ${(err as Error)?.message || err}`, 'Export failed');
+        }
+    }, [desktopItems, desktopVisibility, wallpaperUrl]);
+
+    const importWholeDesktop = useCallback(async (text: string) => {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(text);
+        } catch {
+            showToast('That file is not valid JSON.', 'Import failed');
+            return;
+        }
+        const result = await unsealWholeDesktop(parsed);
+        if (!result.ok || !result.snapshot) {
+            showToast(result.error || 'That file could not be imported.', 'Import failed');
+            return;
+        }
+        const snapshot = result.snapshot;
+        const resolvedItems = snapshot.desktopItems.map(s => ops.fromStored(s, (n) => iconMap[n] || Folder));
+
+        setDesktopItemsRaw(resolvedItems);
+        setDesktopVisibility(snapshot.desktopVisibility);
+        setWallpaperUrl(snapshot.wallpaperUrl);
+        desktopItemsRef.current = resolvedItems;
+        desktopVisibilityRef.current = snapshot.desktopVisibility;
+        wallpaperUrlRef.current = snapshot.wallpaperUrl;
+
+        if (snapshot.pcTheme) {
+            try { localStorage.setItem(PC_THEME_STORAGE_KEY, JSON.stringify(snapshot.pcTheme)); } catch { /* ignore */ }
+        }
+        await timeTravel.importState(snapshot.timeTravelLog);
+        await timeTravel.commit('Restored from whole-desktop import', {
+            desktopItemIds: resolvedItems.map(i => i.id),
+            desktopVisibility: snapshot.desktopVisibility,
+            wallpaperUrl: snapshot.wallpaperUrl,
+        });
+        await refreshHistory();
+
+        showToast(
+            snapshot.pcTheme
+                ? 'Desktop restored. Reload to see the restored theme applied.'
+                : 'Desktop restored.',
+            'Import',
+        );
+    }, [refreshHistory]);
+
     // A code in the URL hash opens the app it addresses, which is what makes
     // a copied code shareable rather than decorative. Runs on load and on
     // every hash change, so pasting a new code while open still works.
@@ -835,6 +926,8 @@ export const App: React.FC = () => {
         openTerminal: () => launchByAppId('termstudio', 'TermStudio'),
         importItem: () => importInputRef.current?.click(),
         openHistory,
+        exportWholeDesktop,
+        importWholeDesktopFile: () => wholeDesktopInputRef.current?.click(),
     };
 
     const itemMenuActions = {
@@ -1816,6 +1909,20 @@ Body: ${emailToSummarize.body}`,
                     }
                     setDesktopItems([...desktopItems, result.item]);
                     showToast(`Imported "${result.item.name}".`, 'Import');
+                }}
+            />
+            <input
+                ref={wholeDesktopInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    const text = await file.text().catch(() => null);
+                    if (text === null) { showToast('Could not read that file.', 'Import'); return; }
+                    await importWholeDesktop(text);
                 }}
             />
             {menu && (

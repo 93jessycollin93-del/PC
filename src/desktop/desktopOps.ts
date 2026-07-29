@@ -58,7 +58,10 @@ export const toStored = (item: DesktopItem): StoredItem => ({
   contents: item.contents?.map(toStored),
 });
 
-const fromStored = (
+/** Exported so a whole-desktop restore (idea #06) can resolve a full item
+ *  list back the same way a single-item import already does — one
+ *  StoredItem -> DesktopItem contract, not two. */
+export const fromStored = (
   stored: StoredItem,
   resolveIcon: (name: string) => DesktopItem['icon'],
 ): DesktopItem => ({
