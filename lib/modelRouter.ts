@@ -134,6 +134,25 @@ class ModelRouter {
     this.localAvailable = probe;
   }
 
+  /**
+   * Who leads on code / agent work.
+   *
+   * Local-first is the right default for ordinary chat: it costs nothing and
+   * works off-grid. Code and agent tasks are the exception — quality matters
+   * more than cost there, so Claude leads by default. Setting this to 'local'
+   * hands that work back to the user's own box (or whatever free provider they
+   * have configured), which is the whole point of owning the hardware.
+   */
+  private agentPreference: 'claude' | 'local' = 'claude';
+
+  public setAgentPreference(preference: 'claude' | 'local'): void {
+    this.agentPreference = preference;
+  }
+
+  public getAgentPreference(): 'claude' | 'local' {
+    return this.agentPreference;
+  }
+
   /** Is a local route currently possible? Read by the UI and by route(). */
   public isLocalAvailable(): boolean {
     try {
@@ -212,10 +231,19 @@ class ModelRouter {
         // An unreachable one is pushed under all cloud options rather than
         // merely deprioritised — routing at a dead box would fail the call.
         const localScore = local ? (localUp ? 10_000 : -10_000) : 0;
+        // Code/agent work leads with Claude unless the user has handed it to
+        // their own box. Outranks the local bonus deliberately: this is the
+        // one class of task where capability is worth more than free.
+        const agentScore =
+          capabilities.includes('code') &&
+          this.agentPreference === 'claude' &&
+          model.provider === 'anthropic'
+            ? 20_000
+            : 0;
         const score = hasKey ? 100 : -100; // API key availability is critical
         const costScore = -estimatedCost * 1000; // Prefer cheaper
         const speedScore = model.speedRating * 5; // Prefer faster
-        return { model, score: localScore + score + costScore + speedScore, estimatedCost };
+        return { model, score: agentScore + localScore + score + costScore + speedScore, estimatedCost };
       })
       .sort((a, b) => b.score - a.score);
 
