@@ -46,7 +46,10 @@ describe('local-first routing', () => {
     // permanently benched the box, since it has no key to hold.
     modelRouter.setLocalAvailabilityProbe(() => true);
 
-    const decision = modelRouter.route('write a function', ['chat', 'code'], 2000);
+    // 'chat' only: code-capability work now leads with Claude by design
+    // (see the agent-preference tests below), so this asserts the no-key rule
+    // on a task where local-first is still the policy.
+    const decision = modelRouter.route('write a function', ['chat'], 2000);
 
     expect(decision.provider).toBe('ollama');
     expect(decision.reason).toContain('your own hardware');
@@ -75,5 +78,26 @@ describe('local-first routing', () => {
   it('identifies which providers run on the user hardware', () => {
     expect(isLocalProvider('ollama')).toBe(true);
     expect(isLocalProvider('groq')).toBe(false);
+  });
+});
+
+describe('agent/code routing preference', () => {
+  it('leads code work with Claude by default, even when the local box is up', () => {
+    modelRouter.setAgentPreference('claude');
+    modelRouter.setLocalAvailabilityProbe(() => true);
+    expect(modelRouter.route('refactor this', ['chat', 'code'], 2000).provider).toBe('anthropic');
+  });
+
+  it('hands code work back to the local box when the user chooses local', () => {
+    modelRouter.setAgentPreference('local');
+    modelRouter.setLocalAvailabilityProbe(() => true);
+    expect(modelRouter.route('refactor this', ['chat', 'code'], 2000).provider).toBe('ollama');
+    modelRouter.setAgentPreference('claude');
+  });
+
+  it('leaves ordinary chat local-first regardless of the agent preference', () => {
+    modelRouter.setAgentPreference('claude');
+    modelRouter.setLocalAvailabilityProbe(() => true);
+    expect(modelRouter.route('hello', ['chat'], 2000).provider).toBe('ollama');
   });
 });
