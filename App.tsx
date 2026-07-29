@@ -140,6 +140,8 @@ import { encodeCode, decodeCode } from './src/codes/appCode';
 import { timeTravel } from './src/desktop/timeTravelInstance';
 import type { Commit as TimeTravelCommit, Branch as TimeTravelBranch } from './src/desktop/timeTravel';
 import { TimeTravelScrubber } from './components/TimeTravelScrubber';
+import { signArtifact } from './src/provenance/provenance';
+import type { ProvenanceRecord } from './src/provenance/provenance';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
@@ -876,10 +878,23 @@ export const App: React.FC = () => {
                 false,
             );
         },
-        exportItem: (item: DesktopItem) => {
+        exportItem: async (item: DesktopItem) => {
+            // The provenance record hashes the exact bytes serializeForExport
+            // will embed, so a verifier checking it against the same file
+            // later is checking the real artifact, not an approximation of it.
+            let provenance: ProvenanceRecord | undefined;
+            try {
+                const stored = ops.toStored(item);
+                provenance = await signArtifact(JSON.stringify(stored), { app: 'pc-desktop-export' });
+            } catch (err) {
+                // Signing is best-effort: an export with no provenance record
+                // is still a valid, useful export (matches the pre-existing
+                // behavior), so a Web Crypto failure never blocks the download.
+                console.warn('[provenance] could not sign export', err);
+            }
             // Blob + object URL: keeps the whole thing local, no upload,
             // and works the same in every browser that can download a file.
-            const blob = new Blob([ops.serializeForExport(item)], { type: 'application/json' });
+            const blob = new Blob([ops.serializeForExport(item, provenance)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -889,7 +904,12 @@ export const App: React.FC = () => {
             document.body.removeChild(a);
             // Revoking immediately can cancel the download in some browsers.
             setTimeout(() => URL.revokeObjectURL(url), 10_000);
-            showToast(`Exported "${item.name}".`, 'Export');
+            showToast(
+                provenance
+                    ? <span>Exported "{item.name}" with a signed provenance record. Verify it anytime at <code className="text-emerald-300">/verify-provenance.html</code>.</span>
+                    : `Exported "${item.name}".`,
+                'Export',
+            );
         },
         toggleFeatured: (item: DesktopItem) => {
             setDesktopItems(desktopItems.map((d) =>
