@@ -1150,7 +1150,11 @@ export const App: React.FC = () => {
             // no desktop icon — so a registry-backed app reachable only from
             // the command menu could never open, and nothing said why. One
             // intent must not have two different behaviours.
-            if (!getAppDefinition(appId as AppId)) return;
+            // No registry gate here: most apps are dispatched by App.tsx's own
+            // appId switch rather than through APP_REGISTRY, so gating on the
+            // registry would refuse to open the majority of the OS. This
+            // matches launchByAppId exactly, which is the point — one intent,
+            // one behaviour.
             handleLaunch({
                 id: `ad-hoc-${appId}`,
                 name: appId.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),

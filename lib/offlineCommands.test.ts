@@ -6,6 +6,7 @@
  * that some matcher was consulted.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   OFFLINE_COMMANDS,
   searchCommands,
@@ -32,7 +33,7 @@ describe('offline command catalog', () => {
 
   it('surfaces diagnostics for a plain-language failure question', () => {
     const ids = searchCommands('why is this broken').map(c => c.id);
-    expect(ids).toContain('open-health');
+    expect(ids).toContain('open-app_health_monitor');
   });
 
   it('ranks an exact label above a mere keyword hit', () => {
@@ -67,5 +68,37 @@ describe('offline command catalog', () => {
       expect(command.channel).toBeTruthy();
       expect(command.label.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('every command points at something real', () => {
+  // The bug this guards: 13 of the original catalog entries used invented
+  // appIds ('files', 'health', 'storage'…) that no dispatch branch handles,
+  // so they rendered as clickable menu items that opened nothing. A menu of
+  // dead ends is worse than no menu, and it is invisible without this check.
+  const APP_TSX = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
+  const TYPES = readFileSync(new URL('../types.ts', import.meta.url), 'utf8');
+
+  const dispatchable = new Set<string>([
+    ...[...APP_TSX.matchAll(/appId === '([a-z_0-9]+)'/g)].map(m => m[1]),
+    ...[...(TYPES.match(/export type AppId[^;]+;/)?.[0] ?? '').matchAll(/'([a-z_0-9]+)'/g)].map(
+      m => m[1]
+    ),
+  ]);
+
+  it('resolves every launch-app command to an appId the OS can actually open', () => {
+    const unresolved = OFFLINE_COMMANDS.filter(c => {
+      if (c.channel !== 'launch-app') return false;
+      const appId = (c.payload as { appId?: string } | undefined)?.appId;
+      return !appId || !dispatchable.has(appId);
+    }).map(c => c.id);
+
+    expect(unresolved).toEqual([]);
+  });
+
+  it('found a non-trivial number of dispatchable apps (guards a broken scrape)', () => {
+    // If the regex above ever stops matching, the test above would pass
+    // vacuously. This makes that failure loud instead of silent.
+    expect(dispatchable.size).toBeGreaterThan(30);
   });
 });

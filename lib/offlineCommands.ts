@@ -72,8 +72,7 @@ export const OFFLINE_COMMANDS: readonly OfflineCommand[] = [
   launch('notepad', 'Open Notepad', ['note', 'text', 'write', 'document']),
   launch('slides', 'Open Slides', ['presentation', 'deck']),
   launch('terminal', 'Open Terminal', ['term', 'shell', 'console', 'command line']),
-  launch('settings', 'Open System Settings', ['preferences', 'config', 'options']),
-  launch('files', 'Open Files', ['finder', 'explorer', 'folder', 'browse']),
+  launch('system_settings', 'Open System Settings', ['preferences', 'config', 'options']),
   launch('jacky', 'Open Jacky', ['assistant', 'ai', 'chat', 'agent']),
   launch('ollama', 'Open Local Models', ['ollama', 'local ai', 'gpu', 'offline model']),
   launch('knowledge', 'Search my documents', [
@@ -85,10 +84,10 @@ export const OFFLINE_COMMANDS: readonly OfflineCommand[] = [
     'what did i write',
     'rag',
   ], 'Keyword search over your own documents — no network, no model'),
-  launch('pods', 'Open Pods', ['pod', 'workspace']),
-  launch('security', 'Open Security Center', ['secure', 'safety', 'audit']),
-  launch('vault', 'Open Vault', ['secrets', 'keys', 'password']),
-  launch('monitor', 'Open System Monitor', ['cpu', 'ram', 'memory', 'performance', 'usage']),
+  launch('pod_system', 'Open Pods', ['pod', 'workspace']),
+  launch('security_center', 'Open Security Center', ['secure', 'safety', 'audit']),
+  launch('secrets_vault', 'Open Vault', ['secrets', 'keys', 'password']),
+  launch('mission_control', 'Open Mission Control', ['cpu', 'ram', 'memory', 'performance', 'usage']),
 
   // ---- Windows ------------------------------------------------------------
   {
@@ -127,25 +126,37 @@ export const OFFLINE_COMMANDS: readonly OfflineCommand[] = [
   },
 
   // ---- Local AI -----------------------------------------------------------
-  launch('ollama-status', 'Check if my GPU box is up', [
-    'is jacky up',
-    'gpu status',
-    'local ai status',
-    'brain dead',
-    'is the box up',
-  ]),
+  {
+    // Same app as "Open Local Models", different intent and phrasing, so it
+    // needs its own id — `launch()` derives the id from the appId and would
+    // collide.
+    id: 'local-ai-status',
+    label: 'Check if my GPU box is up',
+    category: 'Local AI',
+    keywords: [
+      'is jacky up',
+      'gpu status',
+      'local ai status',
+      'brain dead',
+      'is the box up',
+      'offline model',
+    ],
+    channel: 'launch-app',
+    payload: { appId: 'ollama' },
+    hint: 'Local models run first; cloud only when the box is unreachable',
+  },
 
   // ---- Diagnostics --------------------------------------------------------
-  launch('activity', 'Show recent activity', ['activity', 'history', 'what happened', 'log']),
-  launch('notifications', 'Show notifications', ['alerts', 'warnings', 'messages']),
-  launch('health', 'Show app health', [
+  launch('activity_center', 'Show recent activity', ['activity', 'history', 'what happened', 'log']),
+  launch('notification_center', 'Show notifications', ['alerts', 'warnings', 'messages']),
+  launch('app_health_monitor', 'Show app health', [
     'why is this broken',
     'what failed',
     'errors',
     'diagnostics',
     'something is wrong',
   ]),
-  launch('storage', 'Show storage usage', ['space', 'disk', 'how much room', 'full']),
+  launch('storage_stats', 'Show storage usage', ['space', 'disk', 'how much room', 'full']),
 
   // ---- Appearance ---------------------------------------------------------
   launch('pc_themes', 'Change the OS theme', [
