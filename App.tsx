@@ -137,6 +137,9 @@ import { ContextRequest } from './src/desktop/useLongPress';
 import { buildDesktopMenu, buildItemMenu, buildWindowMenu } from './src/desktop/buildDesktopMenus';
 import * as ops from './src/desktop/desktopOps';
 import { encodeCode, decodeCode } from './src/codes/appCode';
+import { timeTravel } from './src/desktop/timeTravelInstance';
+import type { Commit as TimeTravelCommit, Branch as TimeTravelBranch } from './src/desktop/timeTravel';
+import { TimeTravelScrubber } from './components/TimeTravelScrubber';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
@@ -380,6 +383,28 @@ const getMergedDesktopItems = (): (DesktopItem | null)[] => {
     return [...INITIAL_DESKTOP_ITEMS, ...customList, ...userItems];
 };
 
+/**
+ * Resolve a time-travel snapshot's id list back into real DesktopItem
+ * objects. Same lookup shape the boot-time restore already does for
+ * globalState.desktopItemIds, pulled out so a historical commit resolves
+ * exactly the same way a fresh load does — one id-to-item contract, not two.
+ */
+function resolveSnapshotItems(
+    ids: (string | null)[],
+    catalogItems: (DesktopItem | null)[],
+): (DesktopItem | null)[] {
+    const map = new Map<string, DesktopItem>();
+    const populate = (items: (DesktopItem | null)[]) => {
+        for (const item of items) {
+            if (!item) continue;
+            map.set(item.id, item);
+            if (item.type === 'folder' && item.contents) populate(item.contents);
+        }
+    };
+    populate(catalogItems);
+    return ids.map(id => (id ? map.get(id) || null : null));
+}
+
 export const App: React.FC = () => {
     // Auth temporarily disabled - will re-enable later
     // const { user, loading, isAuthenticated } = useAuth();
@@ -409,7 +434,7 @@ export const App: React.FC = () => {
         initialDesktopItems = [...restoredItems, ...newRootItems];
     }
 
-    const [desktopItems, setDesktopItems] = useState<(DesktopItem | null)[]>(initialDesktopItems);
+    const [desktopItems, setDesktopItemsRaw] = useState<(DesktopItem | null)[]>(initialDesktopItems);
     
     // Process open windows
     let initialWindows: OpenWindow[] = [];
@@ -476,6 +501,53 @@ export const App: React.FC = () => {
     useEffect(() => {
         localStorage.setItem('desktop_visibility_v1', JSON.stringify(desktopVisibility));
     }, [desktopVisibility]);
+
+    // Kept current via refs, not read from closures, so a commit fired from
+    // setDesktopItems always captures the wallpaper/visibility as they are
+    // right now rather than whatever they were when that render started.
+    const wallpaperUrlRef = useRef(wallpaperUrl);
+    useEffect(() => { wallpaperUrlRef.current = wallpaperUrl; }, [wallpaperUrl]);
+    const desktopVisibilityRef = useRef(desktopVisibility);
+    useEffect(() => { desktopVisibilityRef.current = desktopVisibility; }, [desktopVisibility]);
+    const desktopItemsRef = useRef(desktopItems);
+    useEffect(() => { desktopItemsRef.current = desktopItems; }, [desktopItems]);
+
+    /** Wallpaper is part of a time-travel snapshot but does not go through
+     *  setDesktopItems, so it gets its own single commit point. */
+    const commitWallpaper = useCallback((url: string | null) => {
+        timeTravel.commit('Changed wallpaper', {
+            desktopItemIds: desktopItemsRef.current.map(i => i ? i.id : null),
+            desktopVisibility: desktopVisibilityRef.current,
+            wallpaperUrl: url,
+        }).catch(err => console.warn('[timeTravel] commit failed', err));
+    }, []);
+
+    /**
+     * Every desktop-content mutation goes through here, which is what lets
+     * time-travel commit history without touching the 13 call sites that
+     * actually change the desktop — one interception point instead of
+     * threading a commit call through each of them individually, so a
+     * future mutation can never be added while forgetting to record it.
+     *
+     * Window furniture (open/close/position/focus) deliberately does NOT
+     * commit here — see src/desktop/timeTravel.ts for why.
+     */
+    const setDesktopItems = useCallback((
+        next: (DesktopItem | null)[] | ((prev: (DesktopItem | null)[]) => (DesktopItem | null)[]),
+        label?: string,
+    ) => {
+        setDesktopItemsRaw(prev => {
+            const resolved = typeof next === 'function'
+                ? (next as (p: (DesktopItem | null)[]) => (DesktopItem | null)[])(prev)
+                : next;
+            timeTravel.commit(label || 'Desktop updated', {
+                desktopItemIds: resolved.map(i => i ? i.id : null),
+                desktopVisibility: desktopVisibilityRef.current,
+                wallpaperUrl: wallpaperUrlRef.current,
+            }).catch(err => console.warn('[timeTravel] commit failed', err));
+            return resolved;
+        });
+    }, []);
 
     useEffect(() => {
         const handleRestoreProfile = (detail: { profile: WorkspaceProfile }) => {
@@ -609,6 +681,81 @@ export const App: React.FC = () => {
 
     const closeMenu = useCallback(() => setMenu(null), []);
 
+    /* ── Desktop history (time travel) ──────────────────────────────────
+       The scrubber only ever displays what these hold; it never talks to
+       `timeTravel` directly, so there is exactly one place that decides
+       what "checking out" a point in history does to the live desktop. */
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyCommits, setHistoryCommits] = useState<TimeTravelCommit[]>([]);
+    const [historyBranches, setHistoryBranches] = useState<TimeTravelBranch[]>([]);
+    const [historyBranchId, setHistoryBranchId] = useState('main');
+    const [historyIntegrityOk, setHistoryIntegrityOk] = useState<boolean | null>(null);
+
+    const refreshHistory = useCallback(async (branchId?: string) => {
+        setHistoryIntegrityOk(null);
+        const id = branchId || (await timeTravel.currentBranch()).id;
+        const [commits, branches, integrity] = await Promise.all([
+            timeTravel.getHistory(id),
+            timeTravel.listBranches(),
+            timeTravel.verifyIntegrity(id),
+        ]);
+        setHistoryCommits(commits);
+        setHistoryBranches(branches);
+        setHistoryBranchId(id);
+        setHistoryIntegrityOk(integrity.ok);
+    }, []);
+
+    /** Apply a snapshot to the live desktop AND keep the refs in sync
+     *  synchronously — the refs' own useEffects run after this render, which
+     *  would otherwise let a commit fired right after this call read stale
+     *  values (the exact race setDesktopItems is built to avoid for normal
+     *  edits; checkout needs the same guarantee). */
+    const applySnapshot = useCallback((snapshot: { desktopItemIds: (string | null)[]; desktopVisibility: Record<string, boolean>; wallpaperUrl: string | null }) => {
+        const resolved = resolveSnapshotItems(snapshot.desktopItemIds, getMergedDesktopItems());
+        setDesktopItemsRaw(resolved);
+        setDesktopVisibility(snapshot.desktopVisibility);
+        setWallpaperUrl(snapshot.wallpaperUrl);
+        desktopItemsRef.current = resolved;
+        desktopVisibilityRef.current = snapshot.desktopVisibility;
+        wallpaperUrlRef.current = snapshot.wallpaperUrl;
+        return resolved;
+    }, []);
+
+    const handleRestoreCommit = useCallback(async (commit: TimeTravelCommit) => {
+        const resolved = applySnapshot(commit.snapshot);
+        await timeTravel.commit(`Restored "${commit.label}"`, {
+            desktopItemIds: resolved.map(i => i ? i.id : null),
+            desktopVisibility: commit.snapshot.desktopVisibility,
+            wallpaperUrl: commit.snapshot.wallpaperUrl,
+        });
+        await refreshHistory();
+        showToast(`Desktop restored to "${commit.label}".`, 'History');
+    }, [applySnapshot, refreshHistory]);
+
+    const handleForkCommit = useCallback(async (commit: TimeTravelCommit) => {
+        const name = window.prompt('Name this new timeline:', `Fork of "${commit.label}"`);
+        if (name === null) return;
+        await timeTravel.fork(commit.id, name || `Fork of "${commit.label}"`);
+        applySnapshot(commit.snapshot);
+        await refreshHistory();
+        showToast(`Forked a new timeline from "${commit.label}".`, 'History');
+    }, [applySnapshot, refreshHistory]);
+
+    const handleSwitchHistoryBranch = useCallback(async (branchId: string) => {
+        await timeTravel.switchBranch(branchId);
+        const branch = await timeTravel.currentBranch();
+        if (branch.headCommitId) {
+            const snapshot = await timeTravel.replayTo(branch.headCommitId);
+            if (snapshot) applySnapshot(snapshot);
+        }
+        await refreshHistory(branchId);
+    }, [applySnapshot, refreshHistory]);
+
+    const openHistory = useCallback(() => {
+        setHistoryOpen(true);
+        refreshHistory();
+    }, [refreshHistory]);
+
     // A code in the URL hash opens the app it addresses, which is what makes
     // a copied code shareable rather than decorative. Runs on load and on
     // every hash change, so pasting a new code while open still works.
@@ -675,6 +822,7 @@ export const App: React.FC = () => {
         openPersonalize: () => launchByAppId('pc_themes', 'Themes'),
         openTerminal: () => launchByAppId('termstudio', 'TermStudio'),
         importItem: () => importInputRef.current?.click(),
+        openHistory,
     };
 
     const itemMenuActions = {
@@ -1606,7 +1754,9 @@ Body: ${emailToSummarize.body}`,
                     if (!file) return;
                     const reader = new FileReader();
                     reader.onload = () => {
-                        setWallpaperUrl(String(reader.result));
+                        const url = String(reader.result);
+                        setWallpaperUrl(url);
+                        commitWallpaper(url);
                         showToast('Wallpaper updated.', 'Desktop');
                     };
                     reader.onerror = () => showToast('Could not read that image.', 'Wallpaper');
@@ -1641,6 +1791,19 @@ Body: ${emailToSummarize.body}`,
                     entries={menu.entries}
                     title={menu.title}
                     onClose={closeMenu}
+                />
+            )}
+
+            {historyOpen && (
+                <TimeTravelScrubber
+                    history={historyCommits}
+                    branches={historyBranches}
+                    currentBranchId={historyBranchId}
+                    integrityOk={historyIntegrityOk}
+                    onSwitchBranch={handleSwitchHistoryBranch}
+                    onRestore={handleRestoreCommit}
+                    onFork={handleForkCommit}
+                    onClose={() => setHistoryOpen(false)}
                 />
             )}
 
