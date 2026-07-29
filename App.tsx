@@ -1143,7 +1143,21 @@ export const App: React.FC = () => {
             const item = desktopItems.find(d => d && d.appId === appId);
             if (item) {
                 handleLaunch(item);
+                return;
             }
+            // Fall back to an ad-hoc window, exactly as launchByAppId does.
+            // Without this the bus silently dropped any launch for an app with
+            // no desktop icon — so a registry-backed app reachable only from
+            // the command menu could never open, and nothing said why. One
+            // intent must not have two different behaviours.
+            if (!getAppDefinition(appId as AppId)) return;
+            handleLaunch({
+                id: `ad-hoc-${appId}`,
+                name: appId.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                type: 'app',
+                icon: Monitor,
+                appId: appId as AppId,
+            });
         });
     }, [openWindows, nextZIndex, focusedId, inkMode, desktopItems]);
 
