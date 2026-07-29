@@ -14,7 +14,7 @@ import {
   FolderPlus, FileText, ArrowUpDown, RefreshCw, ClipboardPaste, Scissors,
   Copy, Image, Monitor, Palette, Terminal, Trash2, Pencil, FolderInput,
   Info, Star, StarOff, ExternalLink, SortAsc, Shapes, CopyPlus,
-  Maximize2, Minus, SendToBack, XSquare, Upload, Download, Link,
+  Maximize2, Minus, SendToBack, XSquare, Upload, Download, Link, Clock,
 } from 'lucide-react';
 import { DesktopItem } from '../../types';
 import { MenuEntry } from './ContextMenu';
@@ -36,6 +36,8 @@ export interface DesktopMenuActions {
   openTerminal: () => void;
   /** Bring an item in from an exported .pcapp.json file. */
   importItem: () => void;
+  /** Open the desktop history scrubber. */
+  openHistory: () => void;
 }
 
 export interface ItemMenuActions {
@@ -91,6 +93,7 @@ export function buildDesktopMenu(a: DesktopMenuActions): MenuEntry[] {
     { id: 'personalize', label: 'Personalize (themes)', icon: Palette, onSelect: a.openPersonalize },
     { id: 'display', label: 'Display settings', icon: Monitor, onSelect: a.openDisplaySettings },
     { id: 'terminal', label: 'Open Terminal', icon: Terminal, separatorBefore: true, onSelect: a.openTerminal },
+    { id: 'history', label: 'History…', icon: Clock, separatorBefore: true, onSelect: a.openHistory },
   ];
 }
 
