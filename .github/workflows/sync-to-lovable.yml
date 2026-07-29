@@ -1,0 +1,104 @@
+# Send this repository's code to the GitHub repo that Lovable syncs with.
+#
+# Lovable will not import a repo you point it at. It creates its own repo,
+# pushes its edits up, and pulls commits back down. Only that last direction is
+# usable from outside, so the way to get an existing app into Lovable is to put
+# the code into the repo Lovable already made and let it pull.
+#
+# Doing that by hand needs a machine with git and access to both repos. This
+# does it from the Actions tab instead, which works from a phone.
+#
+# One-time setup:
+#   1. Create a fine-grained personal access token with "Contents: Read and
+#      write" on the destination repo only.
+#   2. Add it to THIS repo under Settings -> Secrets and variables -> Actions
+#      as a secret named LOVABLE_SYNC_TOKEN.
+#
+# Then: Actions -> "Send code to Lovable" -> Run workflow.
+#
+# It pushes to a branch by default, so nothing in the destination is
+# overwritten and you can read the result before deciding. Overwriting the
+# destination's default branch is possible but has to be asked for explicitly.
+
+name: Send code to Lovable
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: "Destination repo (owner/repo) that Lovable syncs with"
+        required: true
+        default: "yyb84ycgt6-oss/my-pc-companion"
+      destination_branch:
+        description: "Branch to create or update over there"
+        required: true
+        default: "pc-import"
+      overwrite:
+        description: >-
+          Force-push, discarding whatever that branch currently holds. Leave
+          false unless the destination branch is scaffolding you mean to replace.
+        type: boolean
+        required: true
+        default: false
+
+# Only ever reads this repo. Writing to the destination uses the PAT.
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the full history
+        uses: actions/checkout@v4
+        with:
+          # A shallow clone cannot be pushed to a repo with unrelated history,
+          # which the destination always has.
+          fetch-depth: 0
+
+      - name: Confirm the token is present
+        env:
+          TOKEN: ${{ secrets.LOVABLE_SYNC_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::LOVABLE_SYNC_TOKEN is not set on this repository."
+            echo "Add it under Settings -> Secrets and variables -> Actions."
+            echo "It needs Contents: Read and write on ${{ inputs.destination }}."
+            exit 1
+          fi
+          echo "Token present."
+
+      - name: Push to the Lovable repo
+        env:
+          TOKEN: ${{ secrets.LOVABLE_SYNC_TOKEN }}
+          DESTINATION: ${{ inputs.destination }}
+          BRANCH: ${{ inputs.destination_branch }}
+          OVERWRITE: ${{ inputs.overwrite }}
+        run: |
+          set -euo pipefail
+
+          # The token goes in the remote URL, never on a command line or in a
+          # log line, so it cannot land in the run output.
+          git remote add lovable "https://x-access-token:${TOKEN}@github.com/${DESTINATION}.git"
+
+          echo "Sending $(git rev-parse --short HEAD) to ${DESTINATION}:${BRANCH}"
+
+          if [ "$OVERWRITE" = "true" ]; then
+            echo "Force-push requested: ${BRANCH} will be replaced."
+            git push --force lovable "HEAD:refs/heads/${BRANCH}"
+          else
+            # Fails rather than clobbers if that branch already holds something
+            # this history does not contain.
+            git push lovable "HEAD:refs/heads/${BRANCH}"
+          fi
+
+      - name: Say what to do next
+        env:
+          DESTINATION: ${{ inputs.destination }}
+          BRANCH: ${{ inputs.destination_branch }}
+        run: |
+          echo "Done. The code is now at https://github.com/${DESTINATION}/tree/${BRANCH}"
+          echo ""
+          echo "Lovable pulls from the destination's default branch, so the last"
+          echo "step is to merge ${BRANCH} into it over there. Open:"
+          echo "  https://github.com/${DESTINATION}/compare/${BRANCH}?expand=1"
