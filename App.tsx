@@ -114,6 +114,9 @@ import { secretsVault } from './lib/secretsVault';
 import { migrateSecretsToVault } from './lib/secretsMigration';
 import { Analytics } from '@vercel/analytics/react';
 import { bus } from './lib/bus';
+import { startOnlineSupervision } from './src/supervision/onlineTrigger';
+import demoRouterFixture from './src/router/router-fixture-v1.json';
+import type { RouterArtifact } from './src/router/types';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
@@ -1135,6 +1138,22 @@ export const App: React.FC = () => {
         return bus.on('refresh-desktop', () => {
             setDesktopItems(getMergedDesktopItems());
         });
+    }, []);
+
+    // Router supervision: when the account comes back online, audit the fleet
+    // and surface anything that would silently drop questions. The audit is
+    // offline and deterministic; coming online is simply when a reviewer
+    // becomes reachable. It stays quiet unless the verdict actually changed.
+    useEffect(() => {
+        return startOnlineSupervision(() => ({
+            artifacts: [{
+                id: 'demo',
+                artifact: demoRouterFixture.artifacts.nano as unknown as RouterArtifact,
+                labelRouting: { cook: 'spec-cooking', tech: 'spec-physics' },
+            }],
+            members: [],
+            budgetMB: 120,
+        }));
     }, []);
 
     useEffect(() => {

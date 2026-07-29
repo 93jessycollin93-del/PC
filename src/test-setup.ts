@@ -35,6 +35,30 @@ Object.defineProperty(g, 'navigator', {
   value: { vibrate: () => true },
 });
 
-g.window = {
-  matchMedia: () => ({ matches: false }),
-};
+/**
+ * A real EventTarget for `window`, so the Jackie Bus works under test.
+ *
+ * The bus is plain `window` CustomEvents, so anything that emits or subscribes
+ * needs dispatch to genuinely deliver — a stub that swallows events would let a
+ * broken subscription pass as green, which is the exact false-positive this
+ * suite exists to avoid. Node's built-in EventTarget covers it without pulling
+ * in jsdom, keeping the reasoning in the config header intact.
+ */
+class WindowShim extends EventTarget {
+  matchMedia() {
+    return { matches: false };
+  }
+}
+
+g.window = new WindowShim();
+
+// CustomEvent is not global in older Node; the bus constructs it directly.
+if (typeof g.CustomEvent !== 'function') {
+  g.CustomEvent = class CustomEvent extends Event {
+    detail: unknown;
+    constructor(type: string, init?: { detail?: unknown }) {
+      super(type);
+      this.detail = init?.detail;
+    }
+  };
+}
