@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { RepoSessionService, parseRepoInput, describeAge, type RecentRepo } from '../../src/github/repoSession';
+import { PodService, createIndexedDeepStore } from '../../src/storage/podService';
 import { Github, Folder, File, Download, Search, AlertCircle } from 'lucide-react';
 
 interface GitHubNode {
@@ -13,8 +15,15 @@ interface GitHubNode {
   type: 'file' | 'dir';
 }
 
+/** Sessions and cached trees live in the pods, so a large repo listing lands
+ *  in the deep pod instead of consuming the small synchronous one. */
+const sessions = new RepoSessionService(new PodService(createIndexedDeepStore()));
+
 export const GitHubSyncApp: React.FC = () => {
     const [repoInput, setRepoInput] = useState('');
+    const [recent, setRecent] = useState<RecentRepo[]>([]);
+    /** Set when what is on screen came from cache rather than the network. */
+    const [servedFrom, setServedFrom] = useState<{ at: number; reason: 'resumed' | 'offline' } | null>(null);
     const [currentPath, setCurrentPath] = useState('');
     const [files, setFiles] = useState<GitHubNode[]>([]);
     const [loading, setLoading] = useState(false);
@@ -22,11 +31,42 @@ export const GitHubSyncApp: React.FC = () => {
     const [token, setToken] = useState('');
     const [viewingFile, setViewingFile] = useState<{name: string, content: string} | null>(null);
 
+    /** Resume exactly where the app was closed, and load the recent list.
+     *  Without this, reopening drops you at an empty box even though the work
+     *  of getting there was already done. */
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            const [session, recents] = await Promise.all([
+                sessions.loadSession(),
+                sessions.recentRepos(),
+            ]);
+            if (cancelled) return;
+            setRecent(recents);
+            if (!session) return;
+            setRepoInput(session.repo);
+            const cached = await sessions.readListing(session.repo, session.path);
+            if (cancelled || !cached) return;
+            setFiles(cached.nodes as GitHubNode[]);
+            setCurrentPath(session.path);
+            setServedFrom({ at: cached.fetchedAt, reason: 'resumed' });
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
     const fetchRepo = async (path: string = '') => {
         if (!repoInput) return;
+        // Accepts a pasted URL, a deep link, or owner/repo — all resolved in
+        // one place rather than by an inline replace that misses the cases.
+        const ownerRepo = parseRepoInput(repoInput);
+        if (!ownerRepo) {
+            setError('Invalid format. Use owner/repo (e.g., octocat/Hello-World)');
+            return;
+        }
         setLoading(true);
         setError(null);
         setViewingFile(null);
+        setServedFrom(null);
         try {
             const headers: Record<string, string> = {
                 'Accept': 'application/vnd.github.v3+json'
@@ -34,19 +74,11 @@ export const GitHubSyncApp: React.FC = () => {
             if (token) {
                 headers['Authorization'] = `token ${token}`;
             }
-            
-            // Handle parsing owner/repo
-            let ownerRepo = repoInput.replace('https://github.com/', '').replace(/\/$/, '');
-            const parts = ownerRepo.split('/');
-            if (parts.length < 2) {
-                 throw new Error("Invalid format. Use owner/repo (e.g., octocat/Hello-World)");
-            }
-            ownerRepo = `${parts[0]}/${parts[1]}`;
 
             const response = await fetch(`https://api.github.com/repos/${ownerRepo}/contents/${path}`, {
                 headers
             });
-            
+
             if (!response.ok) {
                 if (response.status === 404) throw new Error("Repository or path not found.");
                 if (response.status === 403) throw new Error("API rate limit exceeded. Try adding a personal access token.");
@@ -54,11 +86,29 @@ export const GitHubSyncApp: React.FC = () => {
             }
 
             const data = await response.json();
-            setFiles(Array.isArray(data) ? data : [data]);
+            const nodes = Array.isArray(data) ? data : [data];
+            setFiles(nodes);
             setCurrentPath(path);
+            // Cache and record on every successful navigation, so closing at
+            // any moment loses nothing and this path stays readable offline.
+            await sessions.cacheListing(ownerRepo, path, nodes);
+            await sessions.noteRepoOpened(ownerRepo);
+            await sessions.saveSession({ repo: ownerRepo, path, openFile: null });
+            setRecent(await sessions.recentRepos());
         } catch (err: any) {
-            setError(err.message);
-            setFiles([]);
+            // The network failing is exactly when a cache earns its keep. Fall
+            // back to what was last seen and SAY it is cached, rather than
+            // showing old contents as if they were current.
+            const cached = await sessions.readListing(ownerRepo, path);
+            if (cached) {
+                setFiles(cached.nodes as GitHubNode[]);
+                setCurrentPath(path);
+                setServedFrom({ at: cached.fetchedAt, reason: 'offline' });
+                setError(null);
+            } else {
+                setError(err.message);
+                setFiles([]);
+            }
         } finally {
             setLoading(false);
         }
@@ -83,8 +133,23 @@ export const GitHubSyncApp: React.FC = () => {
                  if (!res.ok) throw new Error("Failed to fetch file content");
                  const text = await res.text();
                  setViewingFile({ name: file.name, content: text });
+                 const repo = parseRepoInput(repoInput);
+                 if (repo) {
+                     await sessions.cacheFile(repo, file.path, file.name, text);
+                     await sessions.saveSession({ repo, path: currentPath, openFile: file.path });
+                 }
              } catch (err: any) {
-                 setError(err.message);
+                 // Same rule as directories: serve what was last seen and label
+                 // it, rather than failing on a file already read once.
+                 const repo = parseRepoInput(repoInput);
+                 const cached = repo ? await sessions.readFile(repo, file.path) : null;
+                 if (cached) {
+                     setViewingFile({ name: cached.name, content: cached.content });
+                     setServedFrom({ at: cached.fetchedAt, reason: 'offline' });
+                     setError(null);
+                 } else {
+                     setError(err.message);
+                 }
              } finally {
                  setLoading(false);
              }
@@ -135,6 +200,35 @@ export const GitHubSyncApp: React.FC = () => {
                      />
                  </div>
              </div>
+
+             {servedFrom && (
+                 <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-300/90">
+                     {servedFrom.reason === 'resumed'
+                         ? `Restored from your last session — fetched ${describeAge(servedFrom.at)}. Pull to refresh.`
+                         : `No network. Showing what was last fetched ${describeAge(servedFrom.at)}.`}
+                 </div>
+             )}
+
+             {recent.length > 0 && (
+                 <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-900/30">
+                     <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5">Recent</div>
+                     <div className="flex flex-wrap gap-1.5">
+                         {recent.slice(0, 8).map(r => (
+                             <button
+                                 key={r.repo}
+                                 onClick={() => { setRepoInput(r.repo); void fetchRepo(''); }}
+                                 title={`${r.cachedPaths} folder(s) available offline`}
+                                 className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px] text-zinc-300"
+                             >
+                                 {r.repo}
+                                 {r.cachedPaths > 0 && (
+                                     <span className="ml-1 text-zinc-600">{r.cachedPaths}</span>
+                                 )}
+                             </button>
+                         ))}
+                     </div>
+                 </div>
+             )}
 
              {/* Content Area */}
              <div className="flex-1 overflow-hidden relative flex flex-col bg-zinc-900">
