@@ -3,6 +3,8 @@ import { Cpu, Moon, Zap, AlertTriangle } from 'lucide-react';
 import { FleetService } from '../../src/fleet/fleetService';
 import type { AskOutcome } from '../../src/fleet/fleetService';
 import type { FleetTier } from '../../src/fleet/types';
+import { SpecialistRouterRegistry } from '../../src/fleet/specialistRouter';
+import demoArtifact from '../../src/router/router-fixture-v1.json';
 
 /**
  * Fleet — see what is thinking and what it costs.
@@ -38,16 +40,46 @@ const TIER_LABEL: Record<FleetTier, string> = {
 
 export const FleetApp: React.FC = () => {
   const fleet = useMemo(seedFleet, []);
+  // A real Router Forge artifact, trained by the Python forge and verified
+  // byte-identical against it by the parity fixture. It labels text
+  // cook/tech, so those map onto the matching specialists.
+  const routers = useMemo(() => {
+    const reg = new SpecialistRouterRegistry();
+    try {
+      reg.attach('demo', demoArtifact.artifacts.nano, {
+        cook: 'spec-cooking',
+        tech: 'spec-physics',
+      });
+    } catch {
+      // A bad artifact must not take the app down; the fleet still works by
+      // declared domain, it just cannot classify free text.
+    }
+    return reg;
+  }, []);
   const [tick, setTick] = useState(0);
-  const [question, setQuestion] = useState('physics');
+  const [question, setQuestion] = useState('my gpu driver keeps crashing');
   const [outcome, setOutcome] = useState<AskOutcome | null>(null);
+  const [classified, setClassified] = useState<{ label: string; confidence: number } | null>(null);
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
   const members = useMemo(() => fleet.list(), [fleet, tick]);
   const currentMB = useMemo(() => fleet.currentMB(), [fleet, tick]);
 
   const ask = () => {
-    setOutcome(fleet.ask(question.trim().toLowerCase(), { assistants: 2 }));
+    const text = question.trim();
+    // Classify the actual question rather than trusting a typed domain name.
+    // The artifact is woken only for this call and slept immediately, which is
+    // the same dormancy rule the fleet members follow.
+    routers.wake('demo');
+    const routed = routers.route('demo', text);
+    const result = routers.classify('demo', text);
+    routers.sleep('demo');
+
+    setClassified(result ? { label: result.label, confidence: result.confidence } : null);
+    const target = routed
+      ? fleet.list().find(m => m.id === routed.memberId)?.domain
+      : undefined;
+    setOutcome(fleet.ask((target ?? text).toLowerCase(), { assistants: 2 }));
     refresh();
   };
 
@@ -75,7 +107,7 @@ export const FleetApp: React.FC = () => {
           value={question}
           onChange={e => setQuestion(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && ask()}
-          placeholder="Domain to route (physics, calculus…)"
+          placeholder="Ask anything — a router artifact classifies it"
           className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-sm outline-none placeholder-zinc-600"
         />
         <button onClick={ask} className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm">
@@ -92,6 +124,15 @@ export const FleetApp: React.FC = () => {
             </div>
           ) : (
             <>
+              {classified && (
+                <div className="text-zinc-400 mb-1">
+                  Router artifact says{' '}
+                  <span className="text-emerald-400">{classified.label}</span>{' '}
+                  <span className="text-zinc-600">
+                    ({Math.round(classified.confidence * 100)}% confident)
+                  </span>
+                </div>
+              )}
               <div className="text-zinc-500 mb-1">
                 Peak {outcome.peakMB} MB across {outcome.steps.length} hops
               </div>
