@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildBriefing, attachBriefing, analyzeHandoff, DEFAULT_MAX_CHARS } from './handoffBriefing';
-import type { AIMessage } from '../../lib/aiClient';
+import type { AIMessage } from './types';
 
 const convo = (n: number): AIMessage[] =>
   Array.from({ length: n }, (_, i) => ({

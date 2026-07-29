@@ -8,8 +8,13 @@ import { permissions } from './permissions';
 import { budgetGuardian } from './budgetGuardian';
 import { fallbackOrchestrator } from './fallbackOrchestrator';
 import { secretsVault } from './secretsVault';
-import { quotaLedger } from '../src/ai/quotaLedger';
-import { buildBriefing } from '../src/ai/handoffBriefing';
+import { QuotaLedger, buildBriefing } from '../packages/predictive-router/src';
+import { PC_PROVIDER_LIMITS } from './providerLimits';
+
+// This app's configured instance of the standalone package. The package
+// ships no opinion about provider names or limits — PC_PROVIDER_LIMITS is
+// where this specific app states what it knows.
+const quotaLedger = new QuotaLedger({ limits: PC_PROVIDER_LIMITS });
 
 /** Providers that cost money — gated behind the `spend` capability. */
 const PAID_PROVIDERS: ModelProvider[] = ['grok', 'deepseek', 'anthropic'];
@@ -99,8 +104,10 @@ class AIClient {
       for (const tier of TIERS) {
         const healthy = tier.filter(p => p !== routing.provider && fallbackOrchestrator.isProviderHealthy(p));
         // Within a tier, the one with the most room to spare wins.
+        // The package works over generic string providers; this is the
+        // boundary where its result narrows back to PC's own provider type.
         const ranked = quotaLedger.nextInLine(routing.provider as ModelProvider, healthy)
-          .filter(p => !quotaLedger.shouldPreemptivelySwitch(p));
+          .filter(p => !quotaLedger.shouldPreemptivelySwitch(p)) as ModelProvider[];
         if (ranked.length) { target = ranked[0]; break; }
       }
       if (target) {

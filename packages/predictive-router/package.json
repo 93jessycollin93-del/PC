@@ -1,0 +1,12 @@
+{
+  "name": "@offgrid/predictive-router",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Provider-agnostic predictive quota forecasting and handoff briefing for multi-provider AI routing. Switch providers before a rate limit hits, not after, and hand the incoming model a briefing instead of raw history.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "keywords": ["ai", "llm", "router", "rate-limit", "quota", "failover"],
+  "license": "UNLICENSED"
+}
