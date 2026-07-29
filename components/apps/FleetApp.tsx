@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Cpu, Moon, Zap, AlertTriangle } from 'lucide-react';
-import { FleetService } from '../../src/fleet/fleetService';
 import type { AskOutcome } from '../../src/fleet/fleetService';
+import { defaultFleet, fleetAuditSnapshot } from '../../src/fleet/defaultFleet';
 import type { FleetTier } from '../../src/fleet/types';
 import { SpecialistRouterRegistry } from '../../src/fleet/specialistRouter';
 import demoArtifact from '../../src/router/router-fixture-v1.json';
@@ -18,23 +18,6 @@ import type { RouterArtifact } from '../../src/router/types';
  * members costing zero.
  */
 
-/** A starter fleet, so the app shows something real rather than an empty shell. */
-function seedFleet(): FleetService {
-  const fleet = new FleetService();
-  fleet.register({ id: 'jacky', domain: 'general', tier: 'coordinator' });
-  const domains = [
-    'physics', 'calculus', 'chemistry', 'biology', 'history', 'geography',
-    'music', 'metaphor', 'law', 'finance', 'medicine', 'cooking',
-  ];
-  for (const d of domains) {
-    fleet.register({ id: `spec-${d}`, domain: d, tier: 'specialist' });
-  }
-  for (let i = 1; i <= 5; i++) {
-    fleet.register({ id: `assistant-${i}`, domain: 'reasoning', tier: 'assistant' });
-  }
-  return fleet;
-}
-
 const TIER_LABEL: Record<FleetTier, string> = {
   coordinator: 'Coordinator',
   assistant: 'Assistant',
@@ -42,7 +25,9 @@ const TIER_LABEL: Record<FleetTier, string> = {
 };
 
 export const FleetApp: React.FC = () => {
-  const fleet = useMemo(seedFleet, []);
+  // The shared fleet, so what this shows and what supervision audits are
+  // the same thing rather than two drifting copies.
+  const fleet = defaultFleet;
   // A real Router Forge artifact, trained by the Python forge and verified
   // byte-identical against it by the parity fixture. It labels text
   // cook/tech, so those map onto the matching specialists.
@@ -91,18 +76,7 @@ export const FleetApp: React.FC = () => {
   const runAudit = () => {
     // Deterministic and offline: no model has to be reachable for the user to
     // learn their fleet is dropping questions.
-    const report = auditFleet({
-      artifacts: [
-        {
-          id: 'demo',
-          artifact: demoArtifact.artifacts.nano as unknown as RouterArtifact,
-          labelRouting: { cook: 'spec-cooking', tech: 'spec-physics' },
-        },
-      ],
-      members: fleet.list(),
-      budgetMB: 120,
-    });
-    setAudit(report);
+    setAudit(auditFleet(fleetAuditSnapshot(fleet)));
   };
 
   const copyBriefing = async () => {

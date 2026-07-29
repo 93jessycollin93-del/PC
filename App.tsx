@@ -115,8 +115,7 @@ import { migrateSecretsToVault } from './lib/secretsMigration';
 import { Analytics } from '@vercel/analytics/react';
 import { bus } from './lib/bus';
 import { startOnlineSupervision } from './src/supervision/onlineTrigger';
-import demoRouterFixture from './src/router/router-fixture-v1.json';
-import type { RouterArtifact } from './src/router/types';
+import { fleetAuditSnapshot } from './src/fleet/defaultFleet';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
@@ -1145,15 +1144,10 @@ export const App: React.FC = () => {
     // offline and deterministic; coming online is simply when a reviewer
     // becomes reachable. It stays quiet unless the verdict actually changed.
     useEffect(() => {
-        return startOnlineSupervision(() => ({
-            artifacts: [{
-                id: 'demo',
-                artifact: demoRouterFixture.artifacts.nano as unknown as RouterArtifact,
-                labelRouting: { cook: 'spec-cooking', tech: 'spec-physics' },
-            }],
-            members: [],
-            budgetMB: 120,
-        }));
+        // Audits the LIVE fleet. Auditing a separate empty one reported every
+        // label as dangling — a false alarm on first run, which is the fastest
+        // way to teach someone to ignore a monitor.
+        return startOnlineSupervision(fleetAuditSnapshot);
     }, []);
 
     useEffect(() => {

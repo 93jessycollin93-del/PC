@@ -180,3 +180,31 @@ describe('fleet service', () => {
     expect(big.currentMB()).toBe(1);
   });
 });
+
+describe('the app fleet and the audit see the same thing', () => {
+  it('audits the LIVE fleet, so a real member list is checked', async () => {
+    // Regression: the supervision trigger audited a separate, empty fleet, so
+    // every router label read as dangling — two criticals that were artefacts
+    // of the split rather than real defects. A monitor whose first act is a
+    // false alarm teaches the user to ignore it.
+    const { fleetAuditSnapshot, defaultFleet, DEMO_LABEL_ROUTING } = await import('./defaultFleet');
+    const snapshot = fleetAuditSnapshot();
+
+    expect(snapshot.members.length).toBeGreaterThan(0);
+    expect(snapshot.members).toEqual(defaultFleet.list());
+
+    // Every label the demo artifact can emit resolves to a registered member.
+    const ids = new Set(snapshot.members.map(m => m.id));
+    for (const target of Object.values(DEMO_LABEL_ROUTING)) {
+      expect(ids.has(target)).toBe(true);
+    }
+  });
+
+  it('reports the seeded fleet as free of critical findings', async () => {
+    const { fleetAuditSnapshot } = await import('./defaultFleet');
+    const { auditFleet } = await import('../supervision/routerAudit');
+    const report = auditFleet(fleetAuditSnapshot());
+    expect(report.findings.filter(f => f.severity === 'critical')).toEqual([]);
+    expect(report.healthy).toBe(true);
+  });
+});
