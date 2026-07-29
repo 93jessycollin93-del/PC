@@ -77,6 +77,7 @@ const SUB_ROUTERS: MenuEntry[] = [
 ];
 
 const APPS: MenuEntry[] = [
+  app('bypass', 'Bypass — see every connection', ['bypass', 'connections', 'channels', 'how is this wired', 'spine', 'graph']),
   app('activity_center', 'Activity Center', ['history', 'what happened', 'log', 'activity', 'recent']),
   app('agent_builder', 'Agent Builder', ['agent', 'builder']),
   app('agent_orchestration', 'Agent Orchestration', ['agent', 'orchestration']),

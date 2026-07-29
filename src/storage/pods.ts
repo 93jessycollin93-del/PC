@@ -56,8 +56,10 @@ export const POD_2: PodIdentity = {
   ordinal: 2,
   overflowsFrom: 'pod-1-local',
   backing: 'indexedDB',
-  // Deliberately conservative: browsers grant far more, but promising a
-  // number we cannot guarantee would be worse than under-promising.
+  // A FLOOR, not the ceiling. The real figure is asked of the browser at
+  // runtime (see quota.ts) because it varies by device and by free disk —
+  // commonly gigabytes on a desktop. Hardcoding a ceiling would be wrong
+  // everywhere and would go stale, which is the thing worth not revisiting.
   approxCapacityBytes: 50 * 1024 * 1024,
   synchronous: false,
 };

@@ -46,6 +46,11 @@ export interface AppDefinition {
 }
 
 export const APP_REGISTRY: Partial<Record<AppId, AppDefinition>> = {
+    bypass: {
+        defaultSize: { width: 560, height: 660 },
+        Component: lazy(() => import('../components/apps/BypassApp').then(m => ({ default: m.BypassApp }))),
+        props: () => ({}),
+    },
     fleet: {
         defaultSize: { width: 520, height: 640 },
         Component: lazy(() => import('../components/apps/FleetApp').then(m => ({ default: m.FleetApp }))),

@@ -11,6 +11,7 @@
  * migration required.
  */
 
+import { bypass } from './bypass';
 import type { AppId } from '../types';
 import type { WorkspaceProfile } from './workspaceProfiles';
 
@@ -107,6 +108,9 @@ export function emit<K extends BusChannel>(
 ): void {
   if (typeof window === 'undefined') return;
   const detail = (args.length > 0 ? args[0] : undefined) as BusChannels[K];
+  // Recorded before dispatch so a listener that throws cannot lose the trace
+  // of what was sent — the trace is most useful precisely when something broke.
+  bypass.noteEmit(channel, detail);
   window.dispatchEvent(new CustomEvent(channel, { detail }));
 }
 
@@ -122,7 +126,11 @@ export function on<K extends BusChannel>(channel: K, handler: Handler<K>): () =>
   };
   listener[WRAPPED] = handler;
   window.addEventListener(channel, listener);
-  return () => window.removeEventListener(channel, listener);
+  bypass.noteSubscribe(channel);
+  return () => {
+    window.removeEventListener(channel, listener);
+    bypass.noteUnsubscribe(channel);
+  };
 }
 
 /** Subscribe to a channel for a single emission, then auto-unsubscribe. */
