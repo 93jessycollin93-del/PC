@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { safeGetJSON, isArray, isObject } from '../../lib/safeStorage';
 import { Database, Activity, HardDrive, TrendingDown, Zap, Play, Pause, RefreshCw, BarChart3, ArrowRight } from 'lucide-react';
 
 interface DataTier {
@@ -67,7 +68,7 @@ export const PodSystemApp: React.FC = () => {
     if (saved) {
       try {
         setStatus(JSON.parse(saved));
-        setLogs(JSON.parse(localStorage.getItem('pod_system_logs') || '[]'));
+        setLogs(safeGetJSON('pod_system_logs', [], isArray));
       } catch (e) {
         console.error('Failed to load pod system status:', e);
       }

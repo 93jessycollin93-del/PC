@@ -284,3 +284,75 @@ describe('bounding the log', () => {
     expect((await capped.verifyIntegrity()).ok).toBe(true);
   });
 });
+
+describe('storage pressure is reported, not swallowed', () => {
+  /** A storage that accepts reads but refuses every write, like a full one. */
+  function fullStorage() {
+    const map = new Map<string, string>();
+    return {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: () => {
+        const err = new Error('exceeded the quota') as Error & { name: string };
+        err.name = 'QuotaExceededError';
+        throw err;
+      },
+      removeItem: (k: string) => { map.delete(k); },
+    };
+  }
+
+  it('still records the commit in memory when the write fails', async () => {
+    // The desktop action that triggered the commit must not break; losing the
+    // save is bad, losing the user's action on top of it is worse.
+    const tt = new TimeTravel({ storage: fullStorage(), sha256: async t => `h${t.length}` });
+    const commit = await tt.commit('first', snap(['a']));
+    // The commit exists and the branch head points at it, even though the
+    // write to storage failed.
+    expect(commit.id).toBeTruthy();
+    expect((await tt.listBranches())[0].headCommitId).toBe(commit.id);
+  });
+
+  it('reports a quota failure instead of silently dropping history', async () => {
+    // Previously this was swallowed entirely: history stopped persisting and
+    // the loss only surfaced on the next launch, when it was already gone.
+    const seen: { quota: boolean; message: string }[] = [];
+    const tt = new TimeTravel({
+      storage: fullStorage(),
+      sha256: async t => `h${t.length}`,
+      onPersistError: info => seen.push({ quota: info.quota, message: info.message }),
+    });
+    await tt.commit('first', snap(['a']));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0].quota).toBe(true);
+    expect(seen[0].message).toMatch(/no longer being saved/i);
+  });
+
+  it('exposes the failure so the UI can warn that disk is behind memory', async () => {
+    const tt = new TimeTravel({ storage: fullStorage(), sha256: async t => `h${t.length}` });
+    expect(tt.hasPersistFailure()).toBe(false);
+    await tt.commit('first', snap(['a']));
+    expect(tt.hasPersistFailure()).toBe(true);
+  });
+
+  it('clears the failure flag once a write succeeds again', async () => {
+    const map = new Map<string, string>();
+    let failing = true;
+    const flaky = {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        if (failing) {
+          const err = new Error('full') as Error & { name: string };
+          err.name = 'QuotaExceededError';
+          throw err;
+        }
+        map.set(k, v);
+      },
+      removeItem: (k: string) => { map.delete(k); },
+    };
+    const tt = new TimeTravel({ storage: flaky, sha256: async t => `h${t.length}` });
+    await tt.commit('first', snap(['a']));
+    expect(tt.hasPersistFailure()).toBe(true);
+    failing = false;
+    await tt.commit('second', snap(['a', 'b']));
+    expect(tt.hasPersistFailure()).toBe(false);
+  });
+});
