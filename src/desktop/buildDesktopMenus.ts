@@ -15,6 +15,7 @@ import {
   Copy, Image, Monitor, Palette, Terminal, Trash2, Pencil, FolderInput,
   Info, Star, StarOff, ExternalLink, SortAsc, Shapes, CopyPlus,
   Maximize2, Minus, SendToBack, XSquare, Upload, Download, Link, Clock, Sparkles,
+  HardDriveDownload, HardDriveUpload,
 } from 'lucide-react';
 import { DesktopItem } from '../../types';
 import { MenuEntry } from './ContextMenu';
@@ -40,6 +41,11 @@ export interface DesktopMenuActions {
   importItem: () => void;
   /** Open the desktop history scrubber. */
   openHistory: () => void;
+  /** Seal everything (items, layout, wallpaper, theme, history) into one
+   *  verified file — idea #06. */
+  exportWholeDesktop: () => void;
+  /** Bring in a .pcsnapshot.json made by exportWholeDesktop. */
+  importWholeDesktopFile: () => void;
 }
 
 export interface ItemMenuActions {
@@ -97,6 +103,8 @@ export function buildDesktopMenu(a: DesktopMenuActions): MenuEntry[] {
     { id: 'display', label: 'Display settings', icon: Monitor, onSelect: a.openDisplaySettings },
     { id: 'terminal', label: 'Open Terminal', icon: Terminal, separatorBefore: true, onSelect: a.openTerminal },
     { id: 'history', label: 'History…', icon: Clock, separatorBefore: true, onSelect: a.openHistory },
+    { id: 'export-whole', label: 'Export whole desktop…', icon: HardDriveDownload, separatorBefore: true, onSelect: a.exportWholeDesktop },
+    { id: 'import-whole', label: 'Import whole desktop…', icon: HardDriveUpload, onSelect: a.importWholeDesktopFile },
   ];
 }
 

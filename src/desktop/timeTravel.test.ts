@@ -206,6 +206,71 @@ describe('persistence', () => {
   });
 });
 
+describe('exportState / importState — idea #06 whole-desktop bundling', () => {
+  it('exports the exact state a second instance would import', async () => {
+    const { tt } = at();
+    await tt.commit('one', snap(['a']));
+    await tt.commit('two', snap(['a', 'b']));
+
+    const raw = await tt.exportState();
+
+    const fresh = new TimeTravel({ now: () => 999, storage: freshStore() });
+    await fresh.importState(raw);
+    const history = await fresh.getHistory();
+    expect(history.map(c => c.label)).toEqual(['one', 'two']);
+  });
+
+  it('imported history still verifies — importing does not weaken the chain', async () => {
+    const { tt } = at();
+    await tt.commit('one', snap(['a']));
+    const raw = await tt.exportState();
+
+    const fresh = new TimeTravel({ now: () => 1, storage: freshStore() });
+    await fresh.importState(raw);
+    expect((await fresh.verifyIntegrity()).ok).toBe(true);
+  });
+
+  it('a fresh instance with nothing committed yet still exports a valid (empty) state', async () => {
+    const tt = new TimeTravel({ now: () => 1, storage: freshStore() });
+    const raw = await tt.exportState();
+    const parsed = JSON.parse(raw);
+    expect(parsed.v).toBe(1);
+    expect(parsed.commits).toEqual({});
+  });
+
+  it('replaces the whole log on import, not merges with what was already there', async () => {
+    const donor = new TimeTravel({ now: () => 1, storage: freshStore() });
+    await donor.commit('donor commit', snap(['x']));
+    const raw = await donor.exportState();
+
+    const receiver = new TimeTravel({ now: () => 1, storage: freshStore() });
+    await receiver.commit('receiver commit', snap(['y']));
+    await receiver.importState(raw);
+
+    const history = await receiver.getHistory();
+    expect(history.map(c => c.label)).toEqual(['donor commit']);
+  });
+
+  it('starts fresh rather than throwing on an unparseable import', async () => {
+    const tt = new TimeTravel({ now: () => 1, storage: freshStore() });
+    await expect(tt.importState('{{{ not json')).resolves.toBeUndefined();
+    expect(await tt.getHistory()).toEqual([]);
+  });
+
+  it('persists the imported state so a later instance sharing storage sees it too', async () => {
+    const store = freshStore();
+    const donor = new TimeTravel({ now: () => 1, storage: freshStore() });
+    await donor.commit('one', snap(['a']));
+    const raw = await donor.exportState();
+
+    const receiver = new TimeTravel({ now: () => 1, storage: store });
+    await receiver.importState(raw);
+
+    const another = new TimeTravel({ now: () => 2, storage: store });
+    expect((await another.getHistory()).map(c => c.label)).toEqual(['one']);
+  });
+});
+
 describe('bounding the log', () => {
   it('drops the oldest commits once the cap is passed, and the remaining chain still verifies', async () => {
     const { tt } = at();
