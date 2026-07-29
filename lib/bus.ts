@@ -26,6 +26,8 @@ export interface BusChannels {
   /** Open the ⌘K/Ctrl-K app search — the visible trigger for touch/mouse
    *  users who would otherwise have no way to discover or reach it. */
   'open-command-palette': void;
+  /** Open the nested router menu — the front door manual. */
+  'open-router-menu': void;
   /** Hardware/gesture "back" request. */
   'global-back-request': void;
   /** Cloud-sync lifecycle updates from lib/persist.ts. */

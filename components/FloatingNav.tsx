@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Edit2, X, Plus, Pencil, MousePointer2, LayoutGrid, Eraser, Loader2, Play, Bot, Terminal, Gamepad2, Layout, ArrowLeft, Move, Pin, Monitor, Search } from 'lucide-react';
+import { Settings, Edit2, X, Plus, Pencil, MousePointer2, LayoutGrid, Eraser, Loader2, Play, Bot, Terminal, Gamepad2, Layout, ArrowLeft, Move, Pin, Monitor, Search, BookOpen } from 'lucide-react';
 import { DesktopItem } from '../types';
 import { bus } from '../lib/bus';
 
@@ -390,6 +390,23 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
                 {/* Search — the ⌘K/Ctrl-K palette has no keyboard on touch, so
                     this is the only way a phone (or anyone who hasn't learned
                     the shortcut) can reach it at all. */}
+                {/* The front door. Labelled with a word rather than only an icon,
+                    because an icon cannot say "this is where you ask for help" —
+                    and someone who does not know the app is exactly who needs it. */}
+                <div className="relative group">
+                    <button
+                        onClick={() => bus.emit('open-router-menu')}
+                        className="h-7 px-2.5 rounded-full flex items-center gap-1.5 transition-all bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30"
+                        title="Guide — every app and command, by name or number"
+                    >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span className="text-[11px]">Guide</span>
+                    </button>
+                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-xs text-zinc-300 opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity pointer-events-none z-50">
+                        Every app and command
+                    </div>
+                </div>
+
                 <div className="relative group">
                     <button
                         onClick={() => bus.emit('open-command-palette')}

@@ -116,6 +116,7 @@ import { bus } from './lib/bus';
 import { safeSetJSON } from './lib/safeStorage';
 import { startOnlineSupervision } from './src/supervision/onlineTrigger';
 import { fleetAuditSnapshot } from './src/fleet/defaultFleet';
+import { RouterMenu } from './components/RouterMenu';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
 import { MobileStatusBar } from './components/MobileStatusBar';
@@ -1941,7 +1942,8 @@ Body: ${emailToSummarize.body}`,
                 </div>
             )}
 
-            <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
+            <RouterMenu />
+                    <CommandPalette items={desktopItems.filter(Boolean) as DesktopItem[]} />
 
             {/* Desktop context menu + the picker its "Change wallpaper" entry
                 drives. The input stays mounted and hidden so the click that
