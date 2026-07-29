@@ -31,7 +31,23 @@ interface APIKey {
 
 // Model configurations
 const MODEL_REGISTRY: Record<ModelProvider, ModelConfig[]> = {
-  ollama: [],
+  // Local-first. This entry is what makes the user's own GPU box reachable as
+  // a PRIMARY route rather than only a post-failure fallback: route() builds
+  // its candidate list from this registry, so an empty array here meant
+  // 'ollama' could never be chosen no matter how healthy the box was.
+  // One honest entry, not a list of invented model names — the local engine
+  // reports whichever model it is actually serving (see jackyFallback), so
+  // pinning fake names here would misrepresent what the box runs.
+  ollama: [
+    {
+      provider: 'ollama',
+      model: 'jacky-local',
+      capabilities: ['chat', 'code', 'analysis'],
+      costPer1kTokens: 0, // Own hardware — no metered cost, not an estimate of one.
+      speedRating: 7,
+      maxTokens: 32768,
+    },
+  ],
   grok: [
     {
       provider: 'grok',
@@ -92,10 +108,40 @@ const MODEL_REGISTRY: Record<ModelProvider, ModelConfig[]> = {
   ],
 };
 
+/** Providers that run on the user's own hardware — no key, no cost, no network. */
+const LOCAL_PROVIDERS: ReadonlySet<ModelProvider> = new Set<ModelProvider>(['ollama']);
+
+export function isLocalProvider(provider: ModelProvider): boolean {
+  return LOCAL_PROVIDERS.has(provider);
+}
+
 class ModelRouter {
   private apiKeys: Map<ModelProvider, string> = new Map();
   private costTracker: Map<string, number> = new Map(); // task_id -> cost
   private usageStats: Map<ModelProvider, { calls: number; totalTokens: number; totalCost: number }> = new Map();
+
+  /**
+   * Is the local box reachable right now? Injected rather than imported so
+   * modelRouter stays free of a cycle (fallbackOrchestrator already imports
+   * this module, and it owns the real jacky reachability probe). Defaults to
+   * "not reachable" so an unwired router degrades to cloud rather than
+   * confidently routing at a box that may not be there.
+   */
+  private localAvailable: () => boolean = () => false;
+
+  /** Wired once by fallbackOrchestrator, which owns the real health cache. */
+  public setLocalAvailabilityProbe(probe: () => boolean): void {
+    this.localAvailable = probe;
+  }
+
+  /** Is a local route currently possible? Read by the UI and by route(). */
+  public isLocalAvailable(): boolean {
+    try {
+      return this.localAvailable();
+    } catch {
+      return false;
+    }
+  }
 
   constructor() {
     this.loadAPIKeys();
@@ -149,22 +195,36 @@ class ModelRouter {
       throw new Error(`No model available for capabilities: ${capabilities.join(', ')}`);
     }
 
-    // Sort by: (1) API key available, (2) cost, (3) speed
+    // Sort by: (1) LOCAL FIRST, (2) API key available, (3) cost, (4) speed.
+    //
+    // Local-first is the app's routing policy, not a tie-breaker: if the user's
+    // own box can serve the request it takes it, before anything metered or
+    // networked is considered. Only when local is unreachable does the cloud
+    // cascade below decide, exactly as it did before.
+    const localUp = this.isLocalAvailable();
     const scored = compatible
       .map(model => {
-        const hasKey = this.apiKeys.has(model.provider);
+        const local = isLocalProvider(model.provider);
+        // Local needs no key; requiring one would permanently bench the box.
+        const hasKey = local || this.apiKeys.has(model.provider);
         const estimatedCost = (maxTokens / 1000) * model.costPer1kTokens;
+        // Dominates every cloud score below, so a reachable box always wins.
+        // An unreachable one is pushed under all cloud options rather than
+        // merely deprioritised — routing at a dead box would fail the call.
+        const localScore = local ? (localUp ? 10_000 : -10_000) : 0;
         const score = hasKey ? 100 : -100; // API key availability is critical
         const costScore = -estimatedCost * 1000; // Prefer cheaper
         const speedScore = model.speedRating * 5; // Prefer faster
-        return { model, score: score + costScore + speedScore, estimatedCost };
+        return { model, score: localScore + score + costScore + speedScore, estimatedCost };
       })
       .sort((a, b) => b.score - a.score);
 
     const best = scored[0];
-    const reason = this.apiKeys.has(best.model.provider)
-      ? `Using ${best.model.provider}/${best.model.model} (free tier, speed: ${best.model.speedRating}/10)`
-      : `${best.model.provider} selected but no API key configured`;
+    const reason = isLocalProvider(best.model.provider)
+      ? `Using your own hardware (${best.model.model}) — no key, no cost, no network`
+      : this.apiKeys.has(best.model.provider)
+        ? `Using ${best.model.provider}/${best.model.model} (free tier, speed: ${best.model.speedRating}/10)`
+        : `${best.model.provider} selected but no API key configured`;
 
     if (taskId) {
       this.costTracker.set(taskId, best.estimatedCost);

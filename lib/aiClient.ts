@@ -143,7 +143,13 @@ class AIClient {
     try {
       let response: AIResponse;
 
-      if (routing.provider === 'grok') {
+      if ((routing.provider as ModelProvider | 'ollama') === 'ollama') {
+        // The local box as a PRIMARY route, not just a post-failure fallback.
+        // Without this branch a local routing decision fell through to the
+        // "Unknown provider" throw below, so local-first could never work
+        // even once the router was able to choose it.
+        response = await askJackyForFallback(lastUserText);
+      } else if (routing.provider === 'grok') {
         response = await this.callGrok(allMessages, maxTokens, temperature);
       } else if (routing.provider === 'groq') {
         response = await this.callGroq(allMessages, maxTokens, temperature, routing.model);
@@ -179,13 +185,17 @@ class AIClient {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[AIClient] Error calling ${routing.provider}:`, errorMsg);
 
-      // Mark provider as down for future requests
-      if ((routing.provider as ModelProvider | 'ollama') !== 'ollama') {
-        fallbackOrchestrator.markProviderDown(routing.provider as ModelProvider, errorMsg);
-      }
+      // Mark provider as down for future requests. This now includes the local
+      // box: since it can be the PRIMARY route, a local failure has to be
+      // recorded, otherwise getFallback below sees it as healthy and hands the
+      // same dead box straight back instead of cascading to the cloud. The
+      // 30s checkJackyHealth loop restores it as soon as the box returns.
+      fallbackOrchestrator.markProviderDown(routing.provider as ModelProvider, errorMsg);
 
-      // Try to get a fallback provider and retry
-      if ((routing.provider as ModelProvider | 'ollama') !== 'ollama') {
+      // Try to get a fallback provider and retry. "Local first, and if local
+      // is not there, carry on" — being offline-preferred must never mean
+      // being stranded when the box is down but the network is fine.
+      {
         const fallback = fallbackOrchestrator.getFallback(routing.provider as ModelProvider);
         if (fallback && fallback !== routing.provider) {
           console.log(`[AIClient] Attempting fallback to ${fallback}`);
