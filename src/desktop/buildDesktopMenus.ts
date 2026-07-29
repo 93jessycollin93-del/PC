@@ -14,7 +14,7 @@ import {
   FolderPlus, FileText, ArrowUpDown, RefreshCw, ClipboardPaste, Scissors,
   Copy, Image, Monitor, Palette, Terminal, Trash2, Pencil, FolderInput,
   Info, Star, StarOff, ExternalLink, SortAsc, Shapes, CopyPlus,
-  Maximize2, Minus, SendToBack, XSquare, Upload, Download, Link, Clock,
+  Maximize2, Minus, SendToBack, XSquare, Upload, Download, Link, Clock, Sparkles,
 } from 'lucide-react';
 import { DesktopItem } from '../../types';
 import { MenuEntry } from './ContextMenu';
@@ -25,6 +25,8 @@ import { SortKey } from './desktopOps';
 export interface DesktopMenuActions {
   newFolder: () => void;
   newDocument: () => void;
+  /** Describe an app in plain language and install it — idea #04. */
+  newGeneratedApp: () => void;
   sortBy: (key: SortKey) => void;
   refresh: () => void;
   paste: () => void;
@@ -67,6 +69,7 @@ export function buildDesktopMenu(a: DesktopMenuActions): MenuEntry[] {
       submenu: [
         { id: 'new-folder', label: 'Folder', icon: FolderPlus, onSelect: a.newFolder },
         { id: 'new-doc', label: 'Text Document', icon: FileText, onSelect: a.newDocument },
+        { id: 'new-generated', label: 'App from a description…', icon: Sparkles, onSelect: a.newGeneratedApp },
       ],
     },
     {
