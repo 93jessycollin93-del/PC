@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verify Provenance — PC</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 2.5rem 1.5rem;
+    background: #09090b; color: #e4e4e7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex; justify-content: center;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 0.3rem; }
+  .sub { color: #a1a1aa; font-size: 0.9rem; margin: 0 0 1.75rem; line-height: 1.5; }
+  .drop {
+    border: 2px dashed #3f3f46; border-radius: 12px; padding: 2.5rem 1.5rem;
+    text-align: center; color: #a1a1aa; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .drop.hover { border-color: #f59e0b; background: rgba(245, 158, 11, 0.06); }
+  .drop input { display: none; }
+  textarea {
+    width: 100%; min-height: 100px; margin-top: 1rem; background: #18181b;
+    border: 1px solid #27272a; border-radius: 8px; color: #e4e4e7; padding: 0.75rem;
+    font-family: ui-monospace, monospace; font-size: 0.8rem; resize: vertical;
+  }
+  button {
+    margin-top: 1rem; background: #f59e0b; color: #000; border: none; border-radius: 8px;
+    padding: 0.6rem 1.1rem; font-weight: 600; font-size: 0.9rem; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #result { margin-top: 1.75rem; }
+  .card {
+    border-radius: 10px; padding: 1rem 1.1rem; font-size: 0.88rem; line-height: 1.55;
+    border: 1px solid; white-space: pre-wrap; word-break: break-word;
+  }
+  .card.ok { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); color: #6ee7b7; }
+  .card.fail { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.35); color: #fca5a5; }
+  .card.info { background: rgba(161, 161, 170, 0.08); border-color: rgba(161, 161, 170, 0.3); color: #d4d4d8; }
+  .field { margin-top: 0.9rem; font-size: 0.8rem; color: #a1a1aa; }
+  .field code { color: #e4e4e7; font-family: ui-monospace, monospace; word-break: break-all; }
+  .disclosure {
+    margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid #27272a;
+    font-size: 0.78rem; color: #71717a; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Verify Provenance</h1>
+  <p class="sub">
+    Checks a signed provenance record exported from PC: that its signature matches the public key it
+    carries, and that its content hash matches the artifact it describes. Runs entirely in this page —
+    nothing is uploaded, and this file works the same opened from disk with no network at all.
+  </p>
+
+  <div class="drop" id="drop">
+    <div>Drop a <code>.pcapp.json</code> export here, or click to choose a file</div>
+    <input type="file" id="file-input" accept=".json,application/json" />
+  </div>
+  <textarea id="raw" placeholder="…or paste the exported JSON here"></textarea>
+  <button id="verify-btn">Verify</button>
+
+  <div id="result"></div>
+
+  <div class="disclosure">
+    <strong>What "verified" means here:</strong> the record's signature matches its own embedded public
+    key, and the content hash matches the artifact bytes — proof this exact record was not altered after
+    signing, and describes this exact artifact. It does <em>not</em> prove which person or organization
+    holds the private key behind that public key — a browser app cannot manufacture that guarantee on its
+    own. Treat a pass as chain-of-custody evidence, not a notarized identity claim.
+  </div>
+</main>
+
+<script src="verify-provenance.js"></script>
+</body>
+</html>

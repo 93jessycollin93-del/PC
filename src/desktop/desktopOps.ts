@@ -18,7 +18,7 @@ export type DesktopList = (DesktopItem | null)[];
 export const USER_ITEMS_KEY = 'sas_user_desktop_items';
 
 /** Shape actually written to storage — icons flattened to a name. */
-interface StoredItem {
+export interface StoredItem {
   id: string;
   name: string;
   type: 'app' | 'folder';
@@ -41,7 +41,9 @@ function iconNameOf(item: DesktopItem): string {
   return item.type === 'folder' ? 'Folder' : 'Globe';
 }
 
-const toStored = (item: DesktopItem): StoredItem => ({
+/** Exported so a provenance record can hash the exact bytes an export will
+ *  carry, without duplicating the icon-flattening rule above. */
+export const toStored = (item: DesktopItem): StoredItem => ({
   id: item.id,
   name: item.name,
   type: item.type,
@@ -226,15 +228,21 @@ interface ExportEnvelope {
   version: number;
   exportedAt: string;
   item: StoredItem;
+  /** Optional signed origin-proof — see src/provenance/. Untyped here so
+   *  desktopOps never needs to import the provenance module; the caller
+   *  computes it (hashing the same toStored(item) bytes this function
+   *  produces) and hands back an opaque record to attach as-is. */
+  provenance?: unknown;
 }
 
 /** Serialize one item to the text that gets written to a .json file. */
-export function serializeForExport(item: DesktopItem): string {
+export function serializeForExport(item: DesktopItem, provenance?: unknown): string {
   const envelope: ExportEnvelope = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     item: toStored(item),
+    ...(provenance !== undefined ? { provenance } : {}),
   };
   return JSON.stringify(envelope, null, 2);
 }
