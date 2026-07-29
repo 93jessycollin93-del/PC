@@ -43,6 +43,26 @@ async function precacheBuildAssets() {
       if (/\.(js|css|woff2?|png|svg|ico|webmanifest|json)$/i.test(url)) urls.add(url);
     }
 
+    // Lazy route chunks are code-split per app and are NOT referenced by
+    // index.html, so scraping the HTML alone misses them entirely. Vite's
+    // build manifest lists every emitted chunk, which is what makes an app
+    // the user has never opened still openable with no network.
+    try {
+      const manifestRes = await fetch('./.vite/manifest.json', { cache: 'reload' });
+      if (manifestRes && manifestRes.ok) {
+        const manifest = await manifestRes.json();
+        for (const entry of Object.values(manifest)) {
+          if (entry && typeof entry.file === 'string') urls.add('./' + entry.file);
+          if (Array.isArray(entry && entry.css)) {
+            for (const css of entry.css) urls.add('./' + css);
+          }
+        }
+      }
+    } catch (_) {
+      // No manifest (dev server, or an older build) — the HTML-scraped assets
+      // above still cover the shell, and chunks fill in via runtime caching.
+    }
+
     await Promise.all([...urls].map(async (url) => {
       try {
         const assetRes = await fetch(url, { cache: 'reload' });
@@ -72,7 +92,16 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.startsWith('chrome-extension') || event.request.url.includes('firestore.googleapis.com')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    // `ignoreVary` plus a URL-string retry: a dynamic `import()` issues a
+    // module-script request whose properties differ from the plain fetch that
+    // populated the cache, and the default match misses it — the asset is
+    // cached, yet the import falls through to the offline branch and the app
+    // will not open. Measured directly: fetch() of the chunk returned 200
+    // while import() of the same URL returned 503. Matching on the URL fixes
+    // the class, not just this one chunk.
+    caches.match(event.request, { ignoreVary: true })
+      .then(hit => hit || caches.match(event.request.url, { ignoreVary: true }))
+      .then((cachedResponse) => {
       if (cachedResponse) {
         // Return from cache immediately, but fetch in background to update cache
         event.waitUntil(

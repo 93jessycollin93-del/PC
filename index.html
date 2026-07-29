@@ -12,7 +12,11 @@
          and index.css) rather than fetched from cdn.tailwindcss.com, so the PC
          styles correctly offline. The theme that used to be declared inline
          here now lives in tailwind.config.js. -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- html2canvas is a bundled dependency imported on demand where it is
+         used, for the same reason Tailwind is compiled in above: a CDN script
+         never loads with no network, so the screenshot feature failed silently
+         off-grid. It also blocked first paint on every load for a feature most
+         sessions never touch. -->
     <style>
         * {
             -webkit-tap-highlight-color: transparent;
