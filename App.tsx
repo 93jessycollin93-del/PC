@@ -479,7 +479,17 @@ export const App: React.FC = () => {
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
     // Jackie front-page shell: 'closed' = Jackie full screen (front page),
     // 'half' = PC on top / Jackie below, 'full' = PC full screen.
-    const [pcMode, setPcMode] = useState<PcMode>('full');
+    // Restored, not defaulted: whichever surface was on screen last is what
+    // should come back. Starting at 'full' every time discards a deliberate
+    // choice the user made, and there is no way for them to express it again
+    // other than redoing it on every launch.
+    // A stored value is validated rather than trusted — a corrupt or
+    // out-of-date entry falls back to 'full' instead of putting the app into
+    // a mode that no longer exists.
+    const [pcMode, setPcMode] = useState<PcMode>(() => {
+        const saved = (globalState as { pcMode?: unknown } | null)?.pcMode;
+        return saved === 'full' || saved === 'half' || saved === 'closed' ? saved : 'full';
+    });
     // PC theme context (provider lives in index.tsx). While the default
     // cosmic-jackie theme is active this is a pure passthrough: the desktop
     // renders exactly as before and no themed chrome mounts anywhere.
@@ -617,9 +627,10 @@ export const App: React.FC = () => {
             emails,
             wallpaperUrl,
             desktopItemIds,
-            desktopVisibility
+            desktopVisibility,
+            pcMode
         });
-    }, [openWindows, focusedId, nextZIndex, emails, wallpaperUrl, desktopItems, desktopVisibility]);
+    }, [openWindows, focusedId, nextZIndex, emails, wallpaperUrl, desktopItems, desktopVisibility, pcMode]);
 
     const showToast = (message: React.ReactNode, title?: string, autoDismiss: boolean = true) => {
         if (timeoutRef.current) {
