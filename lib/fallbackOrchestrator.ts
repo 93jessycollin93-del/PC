@@ -25,6 +25,10 @@ class FallbackOrchestrator {
   constructor() {
     this.initializeHealthCache();
     this.startHealthCheckLoop();
+    // Local-first routing: the router decides synchronously, and this class
+    // already owns the only real jacky reachability probe, so hand it over
+    // rather than duplicating the check (or making route() async).
+    modelRouter.setLocalAvailabilityProbe(() => this.isProviderHealthy('ollama'));
   }
 
   private initializeHealthCache(): void {
