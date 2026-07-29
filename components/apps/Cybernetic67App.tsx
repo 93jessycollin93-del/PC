@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { safeGetJSON, isArray, isObject } from '../../lib/safeStorage';
 import { Send, Shield, Search, Menu, Paperclip, Smile, Mic, MoreVertical, Phone, Loader2, Check, CheckCheck, User, Users, PhoneCall, Bookmark, Settings, Moon, ChevronLeft, Bot, Key, Copy, Crown, Swords, Award, Sparkles, BookOpen, Scan, Droplets, Scale } from 'lucide-react';
 import { getAiClient, MODEL_NAME } from '../../lib/gemini';
 import { NeutronStarBackground } from './NeutronStarBackground';
@@ -470,7 +471,7 @@ You identify leakage vectors, structure clean secure proxy schemas, plan API pay
     const [zhaoSignature, setZhaoSignature] = useState('');
     const [isChapterFinished, setIsChapterFinished] = useState<Record<string, boolean>>(() => {
         try {
-            return JSON.parse(localStorage.getItem('story_finished_chapters') || '{}');
+            return safeGetJSON('story_finished_chapters', {}, isObject);
         } catch {
             return {};
         }

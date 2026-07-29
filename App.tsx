@@ -114,6 +114,7 @@ import { secretsVault } from './lib/secretsVault';
 import { migrateSecretsToVault } from './lib/secretsMigration';
 import { Analytics } from '@vercel/analytics/react';
 import { bus } from './lib/bus';
+import { safeSetJSON } from './lib/safeStorage';
 import { startOnlineSupervision } from './src/supervision/onlineTrigger';
 import { fleetAuditSnapshot } from './src/fleet/defaultFleet';
 import { CommandPalette } from './components/CommandPalette';
@@ -508,7 +509,9 @@ export const App: React.FC = () => {
     });
 
     useEffect(() => {
-        localStorage.setItem('desktop_visibility_v1', JSON.stringify(desktopVisibility));
+        // Hardened: a full quota here previously threw and could break the
+        // effect that saves it, losing the setting with nothing on screen.
+        safeSetJSON('desktop_visibility_v1', desktopVisibility);
     }, [desktopVisibility]);
 
     // Kept current via refs, not read from closures, so a commit fired from

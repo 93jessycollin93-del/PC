@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { safeGetJSON, isArray, isObject } from '../../lib/safeStorage';
 import { Archive, Clock, HardDrive, CheckCircle, AlertCircle, Play, Zap, Database, Video, Cloud, Pause } from 'lucide-react';
 import { compressToGzipBase64 } from '../../lib/compression';
 import { db } from '../../lib/firebase';
@@ -58,7 +59,7 @@ export const ArchiverApp: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         setStatus(parsed);
-        setArchiveLog(JSON.parse(localStorage.getItem('archiver_log') || '[]'));
+        setArchiveLog(safeGetJSON('archiver_log', [], isArray));
       } catch (e) {
         console.error('Failed to load archiver status:', e);
       }

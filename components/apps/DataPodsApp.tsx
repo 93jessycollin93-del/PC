@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { safeGetJSON, isArray, isObject } from '../../lib/safeStorage';
 import { Database, HardDrive, Download, Settings, Shield, Server, Box, Activity, Zap, FileJson, Hash, Link, Terminal, Layout, Cpu, Network, Lock, Layers, Check, FolderTree, Folder, Trash2, Cloud, Clock, AlertCircle } from 'lucide-react';
 import { compress, decompress } from 'fflate';
 
@@ -228,7 +229,7 @@ const updateVaultBackupRotation = async (totalPodsCount: number, totalCompressed
             largeChangeDetected: isLargeChange,
             slot3Preserved: detection.slot3Preserved,
         };
-        const rotationLog = JSON.parse(localStorage.getItem('vault_rotation_log') || '[]') as any[];
+        const rotationLog = safeGetJSON<any[]>('vault_rotation_log', [], isArray);
         rotationLog.push(rotationEvent);
         if (rotationLog.length > 100) rotationLog.shift(); // Keep last 100 rotations
         localStorage.setItem('vault_rotation_log', JSON.stringify(rotationLog));

@@ -68,6 +68,14 @@ export interface TimeTravelOptions {
    *  cannot grow forever; the chain re-roots cleanly at the new oldest
    *  commit rather than pretending history before it still verifies. */
   maxCommitsPerBranch?: number;
+  /** Called when a commit could not be written to storage.
+   *
+   *  Injected rather than reaching for the notification bus directly, so this
+   *  module stays free of app wiring and testable in isolation. Silence was
+   *  the old behaviour and it is the dangerous one: history quietly stops
+   *  persisting, the user keeps working, and the loss only surfaces on the
+   *  next launch when it is already gone. */
+  onPersistError?: (info: { key: string; quota: boolean; message: string }) => void;
 }
 
 const DEFAULT_STORAGE_KEY = 'pc_time_travel_v1';
@@ -125,6 +133,10 @@ export class TimeTravel {
   private storage: StorageLike | null;
   private storageKey: string;
   private sha256: (text: string) => Promise<string>;
+  private onPersistError: (info: { key: string; quota: boolean; message: string }) => void;
+  /** True once a write has failed. Read by the UI to warn that the log on
+   *  disk is behind what is on screen. */
+  private persistFailed = false;
   private maxCommitsPerBranch: number;
   private state: StoredState;
   private loaded = false;
@@ -135,6 +147,7 @@ export class TimeTravel {
     this.storageKey = options.storageKey || DEFAULT_STORAGE_KEY;
     this.sha256 = options.sha256 || defaultSha256;
     this.maxCommitsPerBranch = options.maxCommitsPerBranch ?? DEFAULT_MAX_COMMITS;
+    this.onPersistError = options.onPersistError || (() => {});
     this.state = this.emptyState();
   }
 
@@ -340,13 +353,36 @@ export class TimeTravel {
     }
   }
 
+  /** Did the last write to storage fail? The in-memory log is still correct;
+   *  what is on disk is behind it. */
+  public hasPersistFailure(): boolean {
+    return this.persistFailed;
+  }
+
   private persist(): void {
     if (!this.storage) return;
     try {
       this.storage.setItem(this.storageKey, JSON.stringify(this.state));
-    } catch {
+      this.persistFailed = false;
+    } catch (err) {
       // Storage pressure must never break the desktop action that triggered
-      // the commit; the commit still exists in memory for this session.
+      // the commit — the commit still exists in memory for this session — but
+      // it must not pass unnoticed either. Reporting is the difference between
+      // "history is not saving" and discovering it gone on the next launch.
+      this.persistFailed = true;
+      const e = err as Error & { name?: string; code?: number };
+      const quota =
+        e?.name === 'QuotaExceededError' ||
+        e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        e?.code === 22 ||
+        e?.code === 1014;
+      this.onPersistError({
+        key: this.storageKey,
+        quota,
+        message: quota
+          ? 'Storage is full, so time-travel history is no longer being saved. Export the desktop, then clear old items.'
+          : `Time-travel history could not be saved: ${e?.message ?? 'unknown error'}`,
+      });
     }
   }
 }
