@@ -1651,7 +1651,7 @@ Body: ${emailToSummarize.body}`,
                 {/* Windows */}
                 {openWindows.filter(w => !w.minimized).map(win => {
                     let content = null;
-                    if (win.item.type === 'folder') content = <FolderView folder={win.item} />;
+                    if (win.item.type === 'folder') content = <FolderView folder={win.item} onLaunch={handleLaunch} />;
                     else if (win.item.appId === 'fusion') content = <FusionApp />;
                     else if (win.item.appId === 'mail') content = <MailApp emails={emails} />;
                     else if (win.item.appId === 'slides') content = <SlidesApp />;

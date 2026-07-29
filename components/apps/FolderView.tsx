@@ -8,9 +8,10 @@ import { FileText, ArrowDownAz, Calendar, Type } from 'lucide-react';
 
 interface FolderViewProps {
     folder: DesktopItem;
+    onLaunch: (item: DesktopItem) => void;
 }
 
-export const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
+export const FolderView: React.FC<FolderViewProps> = ({ folder, onLaunch }) => {
     const [sortBy, setSortBy] = useState<'name' | 'date' | 'type'>('name');
 
     const sortedContents = useMemo(() => {
@@ -77,7 +78,13 @@ export const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
             
             <div className="grid grid-cols-4 gap-2 content-start">
                 {sortedContents.map(item => (
-                    <div key={item.id} className="flex flex-col items-center gap-1.5 p-2 hover:bg-zinc-200/50 rounded-lg cursor-pointer transition-colors group">
+                    <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onLaunch(item)}
+                        title={item.name}
+                        className="flex flex-col items-center gap-1.5 p-2 hover:bg-zinc-200/50 rounded-lg cursor-pointer transition-colors group"
+                    >
                         {/* Gentler 3D effect for small icons */}
                         <div className={`relative w-12 h-12 ${item.bgColor || 'bg-zinc-500'} rounded-xl flex items-center justify-center text-white shadow-[0_1px_3px_-1px_rgba(0,0,0,0.2),inset_0_1px_0.5px_rgba(255,255,255,0.2),inset_0_-1px_2px_rgba(0,0,0,0.1)] group-hover:scale-105 transition-transform duration-200 ease-out border-t border-white/10 overflow-hidden`}>
                              {/* Gentler Glossy Overlay (Scaled down) */}
@@ -85,7 +92,7 @@ export const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
                             <item.icon size={24} className="relative z-10 drop-shadow-[0_1px_1px_rgba(0,0,0,0.1)]" />
                         </div>
                         <span className="text-xs text-center truncate w-full font-medium text-zinc-700 group-hover:text-zinc-900">{item.name}</span>
-                    </div>
+                    </button>
                 ))}
                 {(!folder.contents || folder.contents.length === 0) && (
                      <div className="col-span-full text-zinc-400 italic py-4 text-center text-sm">
