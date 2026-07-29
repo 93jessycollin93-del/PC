@@ -1,14 +1,13 @@
 /**
  * Provider Handoff Briefing
- * When the router swaps providers mid-conversation the incoming model gets raw history and
+ * When a router swaps providers mid-conversation the incoming model gets raw history and
  * no idea it is a replacement. This builds the note the outgoing side leaves behind so the
  * new model continues the work instead of starting cold.
  *
  * Pure and deterministic: no clock, no randomness, no I/O. Timestamps arrive as a parameter.
  */
 
-import type { AIMessage } from '../../lib/aiClient';
-import type { ModelProvider } from '../../lib/modelRouter';
+import type { AIMessage, Provider } from './types';
 
 /** Realistic causes for a mid-conversation swap. Wording of the briefing turns on this. */
 export type HandoffReason =
@@ -23,8 +22,8 @@ export type UnfinishedKind = 'none' | 'unanswered_user' | 'truncated_assistant';
 
 export interface BriefingInput {
   messages: AIMessage[];
-  fromProvider: ModelProvider;
-  toProvider: ModelProvider;
+  fromProvider: Provider;
+  toProvider: Provider;
   reason: HandoffReason;
   /** Hard ceiling on the returned string. Provider context windows differ wildly. */
   maxChars?: number;
@@ -34,7 +33,8 @@ export interface BriefingInput {
   timestamp?: number;
 }
 
-/** Flat result shape on purpose: the repo compiles with strict:false, so unions do not narrow. */
+/** Flat result shape on purpose: many consuming apps compile with strict:false,
+ *  where discriminated-union narrowing does not work. */
 export interface HandoffAnalysis {
   messageCount: number;
   lastRole: string;
@@ -137,7 +137,7 @@ function isKnownReason(reason: HandoffReason): boolean {
   return REASON_ORDER.indexOf(reason) !== -1;
 }
 
-function normalizeBudget(maxChars: number): number {
+function normalizeBudget(maxChars: number | undefined): number {
   const n = Number(maxChars);
   if (!isFinite(n) || n <= 0) return DEFAULT_MAX_CHARS;
   return Math.floor(n);
@@ -163,7 +163,7 @@ function render(sections: Section[]): string {
 }
 
 /** Drop the oldest item, keeping the omission visible. Returns null when nothing is left to shed. */
-function shrink(section: Section): Section {
+function shrink(section: Section): Section | null {
   if (!section.shrinkable || section.items.length === 0) return null;
   return {
     ...section,
@@ -240,7 +240,7 @@ export function reasonGuidance(reason: HandoffReason): string {
 /** Cause plus guidance in one sentence. Exported so UIs can show the same wording. */
 export function describeReason(
   reason: HandoffReason,
-  fromProvider: ModelProvider,
+  fromProvider: Provider,
   detail?: string
 ): string {
   const from = String(fromProvider || 'the previous provider');
@@ -378,7 +378,7 @@ export function buildBriefing(input: BriefingInput): string {
 
   // Fit by measurement, not estimate: each candidate is rendered against what is already committed.
   for (const optional of optionals) {
-    let candidate = optional;
+    let candidate: Section | null = optional;
     while (candidate) {
       if (render(chosen.concat([candidate])).length <= budget) {
         chosen.push(candidate);

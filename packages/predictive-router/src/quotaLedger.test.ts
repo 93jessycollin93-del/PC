@@ -11,19 +11,21 @@ const freshStore = () => {
   };
 };
 
-/** A ledger on a clock the test drives, so nothing depends on wall time. */
+/** A ledger with a caller-driven clock, and groq's public free-tier limits
+ *  declared explicitly — this package bakes in no provider's numbers. */
 function at(start = 1_000_000) {
   let now = start;
-  const ledger = new QuotaLedger({ now: () => now, storage: freshStore() });
+  const ledger = new QuotaLedger({
+    now: () => now,
+    storage: freshStore(),
+    limits: { groq: { requestsPerMinute: 30, tokensPerMinute: 6000 } },
+  });
   return { ledger, advance: (ms: number) => { now += ms; }, now: () => now };
 }
 
 describe('predicting exhaustion before it happens', () => {
-  // This is the whole reason the module exists: the old failover only
-  // learned a provider was spent by failing a request first.
   it('signals a switch while headroom still remains', () => {
     const { ledger, advance } = at();
-    // 20 of groq's 30/min, burned fast (about 120/min).
     for (let i = 0; i < 20; i++) { ledger.record('groq', { requests: 1 }); advance(500); }
 
     const forecast = ledger.forecast('groq');
@@ -33,8 +35,6 @@ describe('predicting exhaustion before it happens', () => {
   });
 
   it('stays put on a slow trickle of the same volume', () => {
-    // Guards the failure that would matter most in practice: a forecast that
-    // always says yes hands off on every request and is worse than nothing.
     const { ledger, advance } = at();
     for (let i = 0; i < 5; i++) { ledger.record('groq', { requests: 1 }); advance(10_000); }
     expect(ledger.shouldPreemptivelySwitch('groq')).toBe(false);
@@ -44,11 +44,16 @@ describe('predicting exhaustion before it happens', () => {
     expect(at().ledger.shouldPreemptivelySwitch('groq')).toBe(false);
   });
 
+  it('never signals for a provider with no declared limits', () => {
+    // The whole point of not baking in numbers: an unconfigured provider must
+    // never be treated as constrained.
+    const { ledger, advance } = at();
+    for (let i = 0; i < 500; i++) { ledger.record('anything', { requests: 1 }); advance(10); }
+    expect(ledger.shouldPreemptivelySwitch('anything')).toBe(false);
+    expect(ledger.forecast('anything').status).toBe('ok');
+  });
+
   it('shortens its estimate as consumption climbs', () => {
-    // Rate is measured over a rolling window, so the signal is how much
-    // landed inside that window — not how tightly it was packed. Ten calls
-    // in two seconds and ten in ten seconds are both "ten in the last
-    // minute" and correctly forecast the same.
     const light = at();
     for (let i = 0; i < 8; i++) { light.ledger.record('groq', { requests: 1 }); light.advance(300); }
     const lightEta = light.ledger.forecast('groq').willExhaustInMs;
@@ -96,13 +101,19 @@ describe('choosing who takes over', () => {
 
   it('puts the provider with more room to spare first', () => {
     const { ledger, advance } = at();
-    // Load gemini hard, leave deepseek idle.
+    ledger.setLimits('gemini', { requestsPerMinute: 15 });
     for (let i = 0; i < 12; i++) { ledger.record('gemini', { requests: 1 }); advance(200); }
     expect(ledger.nextInLine('groq', ['gemini', 'deepseek'])[0]).toBe('deepseek');
   });
 
   it('returns nothing when there is nobody to switch to', () => {
     expect(at().ledger.nextInLine('groq', [])).toEqual([]);
+  });
+
+  it('requires providers to be named explicitly for forecastAll', () => {
+    // No baked-in roster exists to default to.
+    expect(at().ledger.forecastAll(['groq', 'gemini'])).toHaveLength(2);
+    expect(at().ledger.forecastAll([])).toEqual([]);
   });
 });
 
@@ -130,7 +141,7 @@ describe('storage', () => {
 
   it('starts clean on a corrupt payload rather than throwing during boot', () => {
     const store = freshStore();
-    store.setItem('jackie_quota_ledger_v1', '{{{ not json');
+    store.setItem('predictive_router_quota_ledger_v1', '{{{ not json');
     const ledger = new QuotaLedger({ now: () => 1_000_000, storage: store });
     expect(() => ledger.forecast('groq')).not.toThrow();
     expect(ledger.forecast('groq').requestsLastMinute).toBe(0);

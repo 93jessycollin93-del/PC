@@ -1,14 +1,20 @@
 /**
  * Provider Quota Ledger
- * Predictive quota tracking so the router can hand off BEFORE a provider rate-limits,
+ * Predictive quota tracking so a router can hand off BEFORE a provider rate-limits,
  * instead of discovering exhaustion by failing a live request.
+ *
+ * Provider-agnostic on purpose. This package does not ship opinions about which
+ * providers exist or what their limits are — a library that hardcodes "Groq allows
+ * 30 requests/min" stops being reusable the moment someone's rate limit changes or
+ * they add a provider it never heard of. The caller declares limits via
+ * `options.limits` or `setLimits`; everything here defaults to unlimited.
  */
 
-import type { ModelProvider } from '../../lib/modelRouter';
+import type { Provider } from './types';
 
 export type QuotaStatus = 'ok' | 'warn' | 'critical' | 'exhausted';
 
-/** null means "no published limit", which we treat as unlimited rather than guessing. */
+/** null means "no declared limit", treated as unlimited rather than guessed. */
 export interface ProviderLimits {
   requestsPerMinute: number | null;
   tokensPerMinute: number | null;
@@ -24,7 +30,7 @@ export interface UsageSample {
 }
 
 export interface QuotaForecast {
-  provider: ModelProvider;
+  provider: Provider;
   /** Worst-case fill across every limited dimension, 0..1 (can exceed 1 when over). */
   utilization: number;
   /** Projected ms until the tightest dimension is spent at the current rate. */
@@ -54,7 +60,7 @@ export interface QuotaLedgerOptions {
   now?: () => number;
   storage?: StorageLike | null;
   storageKey?: string;
-  limits?: Partial<Record<ModelProvider, Partial<ProviderLimits>>>;
+  limits?: Record<Provider, Partial<ProviderLimits>>;
   warnThreshold?: number;
   criticalThreshold?: number;
   /** Switch early if the tightest dimension dies within this many ms. */
@@ -86,22 +92,9 @@ const DAY_MS = 86_400_000;
 const SLOT_RETENTION_MS = 5 * MINUTE_MS;
 const DAY_RETENTION = 2;
 const STORAGE_VERSION = 1;
-const DEFAULT_STORAGE_KEY = 'jackie_quota_ledger_v1';
+const DEFAULT_STORAGE_KEY = 'predictive_router_quota_ledger_v1';
 
-/**
- * Public free-tier numbers where they are documented. Anything undocumented stays null:
- * a wrong guess would trigger handoffs that cost money for no reason.
- */
-export const DEFAULT_PROVIDER_LIMITS: Record<ModelProvider, ProviderLimits> = {
-  groq: { requestsPerMinute: 30, tokensPerMinute: 6000, requestsPerDay: 14400, tokensPerDay: 500000 },
-  gemini: { requestsPerMinute: 15, tokensPerMinute: 1000000, requestsPerDay: 1500, tokensPerDay: null },
-  deepseek: { requestsPerMinute: 60, tokensPerMinute: null, requestsPerDay: null, tokensPerDay: null },
-  anthropic: { requestsPerMinute: 50, tokensPerMinute: 40000, requestsPerDay: null, tokensPerDay: null },
-  grok: { requestsPerMinute: null, tokensPerMinute: null, requestsPerDay: null, tokensPerDay: null },
-  ollama: { requestsPerMinute: null, tokensPerMinute: null, requestsPerDay: null, tokensPerDay: null },
-};
-
-const EMPTY_LIMITS: ProviderLimits = {
+export const EMPTY_LIMITS: ProviderLimits = {
   requestsPerMinute: null,
   tokensPerMinute: null,
   requestsPerDay: null,
@@ -128,7 +121,7 @@ export class QuotaLedger {
   private nowFn: () => number;
   private storage: StorageLike | null;
   private storageKey: string;
-  private limits: Record<string, ProviderLimits>;
+  private limits: Record<string, ProviderLimits> = {};
   private warnThreshold: number;
   private criticalThreshold: number;
   private horizonMs: number;
@@ -148,19 +141,15 @@ export class QuotaLedger {
     this.reserveRequests = options.reserveRequests ?? 2;
     this.rateWindowMs = options.rateWindowMs ?? MINUTE_MS;
 
-    this.limits = {};
-    (Object.keys(DEFAULT_PROVIDER_LIMITS) as ModelProvider[]).forEach(p => {
-      this.limits[p] = { ...DEFAULT_PROVIDER_LIMITS[p] };
-    });
     if (options.limits) {
-      (Object.keys(options.limits) as ModelProvider[]).forEach(p => {
-        this.setLimits(p, options.limits[p]);
+      Object.keys(options.limits).forEach(p => {
+        this.setLimits(p, options.limits![p]);
       });
     }
   }
 
   /** Record consumption. Safe to call on every completed call, including failures. */
-  public record(provider: ModelProvider, sample: UsageSample = {}): void {
+  public record(provider: Provider, sample: UsageSample = {}): void {
     this.ensureLoaded();
     const at = Number.isFinite(sample.at) ? (sample.at as number) : this.nowFn();
     const requests = sample.requests === undefined ? 1 : toCount(sample.requests);
@@ -188,7 +177,7 @@ export class QuotaLedger {
     this.persist();
   }
 
-  public forecast(provider: ModelProvider): QuotaForecast {
+  public forecast(provider: Provider): QuotaForecast {
     this.ensureLoaded();
     const now = this.nowFn();
     const state = this.stateFor(provider);
@@ -258,18 +247,17 @@ export class QuotaLedger {
     };
   }
 
-  public forecastAll(providers?: ModelProvider[]): QuotaForecast[] {
-    const list = providers && providers.length
-      ? providers
-      : (Object.keys(DEFAULT_PROVIDER_LIMITS) as ModelProvider[]);
-    return list.map(p => this.forecast(p));
+  /** Providers must be named explicitly: this package has no baked-in idea of
+   *  who your providers are, unlike a version that shipped one app's roster. */
+  public forecastAll(providers: Provider[]): QuotaForecast[] {
+    return (providers || []).map(p => this.forecast(p));
   }
 
   /**
    * The predictive question: will this provider die during the next call or two?
    * Answering yes here is what turns failover from reactive into planned.
    */
-  public shouldPreemptivelySwitch(provider: ModelProvider): boolean {
+  public shouldPreemptivelySwitch(provider: Provider): boolean {
     const f = this.forecast(provider);
     if (f.status === 'exhausted' || f.status === 'critical') return true;
     if (f.headroomRequests <= this.reserveRequests) return true;
@@ -281,9 +269,9 @@ export class QuotaLedger {
    * Rank the bench by remaining headroom so the handoff target is known in advance.
    * Fractional headroom leads because absolute counts are not comparable across providers.
    */
-  public nextInLine(current: ModelProvider | null, candidates: ModelProvider[]): ModelProvider[] {
+  public nextInLine(current: Provider | null, candidates: Provider[]): Provider[] {
     const seen: Record<string, boolean> = {};
-    const pool: ModelProvider[] = [];
+    const pool: Provider[] = [];
     (candidates || []).forEach(c => {
       if (!c || c === current || seen[c]) return;
       seen[c] = true;
@@ -304,12 +292,12 @@ export class QuotaLedger {
       .map(entry => entry.provider);
   }
 
-  public setLimits(provider: ModelProvider, limits: Partial<ProviderLimits>): void {
+  public setLimits(provider: Provider, limits: Partial<ProviderLimits>): void {
     const base = this.limits[provider] || { ...EMPTY_LIMITS };
     this.limits[provider] = { ...base, ...(limits || {}) };
   }
 
-  public getLimits(provider: ModelProvider): ProviderLimits {
+  public getLimits(provider: Provider): ProviderLimits {
     return { ...(this.limits[provider] || EMPTY_LIMITS) };
   }
 
@@ -319,7 +307,7 @@ export class QuotaLedger {
     return JSON.parse(JSON.stringify(this.state));
   }
 
-  public reset(provider?: ModelProvider): void {
+  public reset(provider?: Provider): void {
     this.ensureLoaded();
     if (provider) {
       delete this.state[provider];
@@ -345,7 +333,7 @@ export class QuotaLedger {
     return headroom;
   }
 
-  private stateFor(provider: ModelProvider): ProviderState {
+  private stateFor(provider: Provider): ProviderState {
     let state = this.state[provider];
     if (!state) {
       state = { slots: [], days: {} };
@@ -438,5 +426,3 @@ export class QuotaLedger {
     }
   }
 }
-
-export const quotaLedger = new QuotaLedger();
