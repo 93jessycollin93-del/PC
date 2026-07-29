@@ -5,6 +5,9 @@ import type { AskOutcome } from '../../src/fleet/fleetService';
 import type { FleetTier } from '../../src/fleet/types';
 import { SpecialistRouterRegistry } from '../../src/fleet/specialistRouter';
 import demoArtifact from '../../src/router/router-fixture-v1.json';
+import { auditFleet, type AuditReport } from '../../src/supervision/routerAudit';
+import { renderBriefing, briefingHeadline } from '../../src/supervision/briefing';
+import type { RouterArtifact } from '../../src/router/types';
 
 /**
  * Fleet — see what is thinking and what it costs.
@@ -60,6 +63,8 @@ export const FleetApp: React.FC = () => {
   const [question, setQuestion] = useState('my gpu driver keeps crashing');
   const [outcome, setOutcome] = useState<AskOutcome | null>(null);
   const [classified, setClassified] = useState<{ label: string; confidence: number } | null>(null);
+  const [audit, setAudit] = useState<AuditReport | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
   const members = useMemo(() => fleet.list(), [fleet, tick]);
@@ -81,6 +86,40 @@ export const FleetApp: React.FC = () => {
       : undefined;
     setOutcome(fleet.ask((target ?? text).toLowerCase(), { assistants: 2 }));
     refresh();
+  };
+
+  const runAudit = () => {
+    // Deterministic and offline: no model has to be reachable for the user to
+    // learn their fleet is dropping questions.
+    const report = auditFleet({
+      artifacts: [
+        {
+          id: 'demo',
+          artifact: demoArtifact.artifacts.nano as unknown as RouterArtifact,
+          labelRouting: { cook: 'spec-cooking', tech: 'spec-physics' },
+        },
+      ],
+      members: fleet.list(),
+      budgetMB: 120,
+    });
+    setAudit(report);
+  };
+
+  const copyBriefing = async () => {
+    if (!audit) return;
+    const text = renderBriefing(audit, {
+      trigger: 'manual review from the Fleet app',
+      at: new Date().toISOString(),
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard can be denied; the briefing is still rendered below so it
+      // can be selected by hand rather than being lost.
+      setCopied(false);
+    }
   };
 
   const toggle = (id: string) => {
@@ -113,7 +152,38 @@ export const FleetApp: React.FC = () => {
         <button onClick={ask} className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm">
           Route
         </button>
+        <button
+          onClick={runAudit}
+          title="Check the fleet for broken routing"
+          className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm"
+        >
+          Audit
+        </button>
       </div>
+
+      {audit && (
+        <div className="px-3 py-2 border-b border-zinc-800 shrink-0 text-[11px]">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={audit.healthy ? 'text-emerald-400' : 'text-amber-400'}>
+              {briefingHeadline(audit)}
+            </span>
+            <button
+              onClick={copyBriefing}
+              className="ml-auto px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shrink-0"
+            >
+              {copied ? 'Copied' : 'Copy briefing'}
+            </button>
+          </div>
+          {audit.findings.slice(0, 4).map(f => (
+            <div key={f.subject + f.code} className="text-zinc-500 leading-snug">
+              <span className={f.severity === 'critical' ? 'text-amber-400/90' : 'text-zinc-400'}>
+                {f.subject}
+              </span>{' '}
+              {f.summary}
+            </div>
+          ))}
+        </div>
+      )}
 
       {outcome && (
         <div className="px-3 py-2 border-b border-zinc-800 shrink-0 text-[11px]">
