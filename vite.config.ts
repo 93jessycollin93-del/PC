@@ -13,6 +13,12 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       build: {
         chunkSizeWarningLimit: 1600,
+        // Emit .vite/manifest.json so the service worker can precache the lazy
+        // route chunks. Apps are code-split (see APP_REGISTRY) and those chunks
+        // are NOT referenced by index.html, so without this list an app the
+        // user never opened while online cannot be opened off-grid — the one
+        // moment it matters.
+        manifest: true,
         rollupOptions: {
           output: {
             // Split the biggest self-contained vendors out of the main bundle

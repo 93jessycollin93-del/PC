@@ -1354,6 +1354,13 @@ export const App: React.FC = () => {
 
         setIsProcessing(true);
         try {
+            // Imported from the bundle rather than read off `window`, where it
+            // only existed because index.html pulled it from a CDN. Off-grid
+            // that script never loads, so this whole feature failed silently
+            // with no network. A dynamic import keeps it in its own chunk,
+            // which the service worker precaches from the build manifest — so
+            // it works offline without weighing down the shell.
+            const { default: html2canvas } = await import('html2canvas');
             const canvas = await html2canvas(document.body, {
                  ignoreElements: (element) => element.id === 'control-bar',
                  logging: false,
