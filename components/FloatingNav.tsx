@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Edit2, X, Plus, Pencil, MousePointer2, LayoutGrid, Eraser, Loader2, Play, Bot, Terminal, Gamepad2, Layout, ArrowLeft, Move, Pin, Monitor } from 'lucide-react';
+import { Settings, Edit2, X, Plus, Pencil, MousePointer2, LayoutGrid, Eraser, Loader2, Play, Bot, Terminal, Gamepad2, Layout, ArrowLeft, Move, Pin, Monitor, Search } from 'lucide-react';
 import { DesktopItem } from '../types';
+import { bus } from '../lib/bus';
 
 interface FloatingNavProps {
     apps: DesktopItem[];
@@ -385,6 +386,22 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
                 )}
 
                 <div className="h-4 w-px bg-zinc-800/80 mx-0.5 shrink-0"></div>
+
+                {/* Search — the ⌘K/Ctrl-K palette has no keyboard on touch, so
+                    this is the only way a phone (or anyone who hasn't learned
+                    the shortcut) can reach it at all. */}
+                <div className="relative group">
+                    <button
+                        onClick={() => bus.emit('open-command-palette')}
+                        className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700"
+                        title="Search apps (⌘K)"
+                    >
+                        <Search className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-xs text-zinc-300 opacity-0 group-hover:opacity-100 whitespace-nowrap transition-opacity pointer-events-none z-50">
+                        Search apps
+                    </div>
+                </div>
 
                 {/* Expand / Library Toggle */}
                 <div className="relative group">
