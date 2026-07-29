@@ -5,6 +5,7 @@
 
 import { modelRouter, type ModelProvider } from './modelRouter';
 import { bus } from './bus';
+import { jacky } from './jackyClient';
 
 export interface ProviderHealth {
   provider: ModelProvider | 'ollama';
@@ -115,6 +116,38 @@ class FallbackOrchestrator {
       this.lastFullCheck = Date.now();
     } finally {
       this.checkInProgress = false;
+    }
+
+    // Independent of the cloud check above (different endpoint, different
+    // failure modes) — a jacky-only outage must never be masked by, or mask,
+    // the cloud providers' health.
+    await this.checkJackyHealth();
+  }
+
+  /**
+   * Real reachability + thermal-safety check for the 'ollama' fallback slot,
+   * replacing what used to be a permanently optimistic default that never
+   * updated (isProviderHealthy('ollama') always returned true because
+   * nothing ever called markProviderDown/Up for it). Feeds both getFallback
+   * and the live status surface (SystemMonitor's Jacky tab) from one place.
+   */
+  private async checkJackyHealth(): Promise<void> {
+    try {
+      const status = await jacky.getStatus();
+      const safe = status.gpu?.safe_to_use !== false; // unknown field = don't assume unsafe
+      this.healthCache.set('ollama', {
+        provider: 'ollama',
+        ok: status.gpu?.available !== false && safe,
+        lastCheck: Date.now(),
+        detail: safe ? undefined : 'GPU thermal margin unsafe',
+      });
+    } catch (e) {
+      this.healthCache.set('ollama', {
+        provider: 'ollama',
+        ok: false,
+        lastCheck: Date.now(),
+        detail: (e as Error)?.message || 'jacky unreachable',
+      });
     }
   }
 

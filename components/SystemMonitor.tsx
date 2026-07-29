@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Cpu, HardDrive, RefreshCw, Sparkles, CheckCircle, Activity, Play, Eye, Trash2, Info, ChevronDown, ChevronUp, Smartphone, AlertTriangle, ShieldCheck, Lock } from 'lucide-react';
+import { Cpu, HardDrive, RefreshCw, Sparkles, CheckCircle, Activity, Play, Eye, Trash2, Info, ChevronDown, ChevronUp, Smartphone, AlertTriangle, ShieldCheck, Lock, Zap, Thermometer, Send, WifiOff } from 'lucide-react';
+import { jacky, type JackyStatus, JackyError } from '../lib/jackyClient';
 
 interface ActiveWindowInfo {
     id: string;
@@ -22,7 +23,54 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
     const [coreLoads, setCoreLoads] = useState<number[]>(Array(8).fill(18));
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const [activeTab, setActiveTab] = useState<'monitor' | 'sandbox' | 'cleaner'>('monitor');
+    const [activeTab, setActiveTab] = useState<'monitor' | 'sandbox' | 'cleaner' | 'jacky'>('monitor');
+
+    // ── Jacky (idea #05: your own GPU, from your pocket) ──────────────────
+    // Real state, not simulated — a 'checking' vs 'connected' vs 'unreachable'
+    // tri-state instead of a boolean, so "haven't checked yet" is never
+    // shown as either a false pass or a false failure.
+    const [jackyState, setJackyState] = useState<'checking' | 'connected' | 'unreachable'>('checking');
+    const [jackyStatus, setJackyStatus] = useState<JackyStatus | null>(null);
+    const [jackyError, setJackyError] = useState<string | null>(null);
+    const [jackyPrompt, setJackyPrompt] = useState('');
+    const [jackyAnswer, setJackyAnswer] = useState<string | null>(null);
+    const [jackyAsking, setJackyAsking] = useState(false);
+
+    const refreshJacky = async () => {
+        setJackyState('checking');
+        setJackyError(null);
+        try {
+            const status = await jacky.getStatus();
+            setJackyStatus(status);
+            setJackyState('connected');
+        } catch (e) {
+            setJackyStatus(null);
+            setJackyState('unreachable');
+            setJackyError(e instanceof JackyError ? e.message : 'Jacky unreachable');
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'jacky' && jackyState === 'checking' && !jackyStatus) {
+            refreshJacky();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
+
+    const askJacky = async () => {
+        const prompt = jackyPrompt.trim();
+        if (!prompt || jackyAsking) return;
+        setJackyAsking(true);
+        setJackyAnswer(null);
+        try {
+            const result = await jacky.ask(prompt, { task_type: 'general' });
+            setJackyAnswer(result.response);
+        } catch (e) {
+            setJackyAnswer(e instanceof JackyError ? `Error: ${e.message}` : 'Ask failed.');
+        } finally {
+            setJackyAsking(false);
+        }
+    };
     const [ramReservationMb, setRamReservationMb] = useState<number>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('cy_ram_reservation_mb');
@@ -424,6 +472,16 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                             }`}
                         >
                             iOS Cache
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('jacky')}
+                            className={`flex-1 py-1 text-center text-[10px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
+                                activeTab === 'jacky'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30'
+                            }`}
+                        >
+                            Jacky
                         </button>
                     </div>
 
@@ -842,6 +900,93 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ openWindows, onFoc
                                     <span className="font-bold text-zinc-300">Third-party Browsers:</span> If you use Chrome or Firefox on your iPhone, clear your cache by opening that specific app, tapping Settings {`>`} Privacy & Security {`>`} Clear Browsing Data {`>`} Cached Images.
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'jacky' && (
+                        <div className="flex flex-col gap-3 animate-in fade-in duration-150 text-left">
+                            <div className="bg-zinc-900/30 border border-zinc-800 p-2.5 rounded-xl flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                                        <span className="text-[10px] font-bold uppercase text-zinc-400">Your own GPU</span>
+                                    </div>
+                                    <button
+                                        onClick={refreshJacky}
+                                        disabled={jackyState === 'checking'}
+                                        className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
+                                        aria-label="Refresh Jacky status"
+                                    >
+                                        <RefreshCw className={`w-3 h-3 ${jackyState === 'checking' ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+
+                                {jackyState === 'checking' && (
+                                    <p className="text-[10px] text-zinc-500">Checking for your GPU box…</p>
+                                )}
+
+                                {jackyState === 'unreachable' && (
+                                    <div className="flex items-start gap-1.5 text-[10px] text-zinc-500">
+                                        <WifiOff className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p>Not connected. Requests fall back to cloud providers.</p>
+                                            {jackyError && <p className="text-zinc-600 mt-0.5 font-mono">{jackyError}</p>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {jackyState === 'connected' && jackyStatus && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-zinc-950/60 rounded-lg p-2 flex flex-col gap-0.5">
+                                            <span className="text-[9px] text-zinc-500 uppercase">GPU</span>
+                                            <span className="text-xs font-mono text-emerald-400">
+                                                {jackyStatus.gpu.available ? 'Online' : 'Offline'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-zinc-950/60 rounded-lg p-2 flex flex-col gap-0.5">
+                                            <span className="text-[9px] text-zinc-500 uppercase flex items-center gap-1">
+                                                <Thermometer className="w-2.5 h-2.5" /> Temp
+                                            </span>
+                                            <span className="text-xs font-mono text-zinc-200">
+                                                {jackyStatus.gpu.temp_c != null ? `${jackyStatus.gpu.temp_c}°C` : '—'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-zinc-950/60 rounded-lg p-2 flex flex-col gap-0.5 col-span-2">
+                                            <span className="text-[9px] text-zinc-500 uppercase">Safe to use</span>
+                                            <span className={`text-xs font-mono ${jackyStatus.gpu.safe_to_use === false ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                {jackyStatus.gpu.safe_to_use === false ? 'No — thermal margin' : 'Yes'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <p className="text-[9px] text-zinc-500 leading-normal">
+                                    Full model power on hardware you own — no subscription, nothing sent to the cloud, unless this box is hot or unreachable, in which case requests fall back to cloud providers automatically.
+                                </p>
+                            </div>
+
+                            {jackyState === 'connected' && (
+                                <div className="bg-zinc-900/30 border border-zinc-800 p-2.5 rounded-xl flex flex-col gap-1.5">
+                                    <span className="text-[9px] font-bold uppercase text-zinc-500">Ask Jacky directly</span>
+                                    <textarea
+                                        value={jackyPrompt}
+                                        onChange={e => setJackyPrompt(e.target.value)}
+                                        placeholder="Ask your local model something…"
+                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-[11px] text-zinc-200 resize-none outline-none"
+                                        rows={2}
+                                    />
+                                    <button
+                                        onClick={askJacky}
+                                        disabled={jackyAsking || !jackyPrompt.trim()}
+                                        className="self-end flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-black text-[10px] font-bold"
+                                    >
+                                        <Send className="w-3 h-3" /> {jackyAsking ? 'Asking…' : 'Ask'}
+                                    </button>
+                                    {jackyAnswer && (
+                                        <p className="text-[10px] text-zinc-300 bg-zinc-950/60 rounded-lg p-2 whitespace-pre-wrap">{jackyAnswer}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

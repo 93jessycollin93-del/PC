@@ -10,6 +10,7 @@ import { fallbackOrchestrator } from './fallbackOrchestrator';
 import { secretsVault } from './secretsVault';
 import { QuotaLedger, buildBriefing } from '../packages/predictive-router/src';
 import { PC_PROVIDER_LIMITS } from './providerLimits';
+import { askJackyForFallback } from './jackyFallback';
 
 // This app's configured instance of the standalone package. The package
 // ships no opinion about provider names or limits — PC_PROVIDER_LIMITS is
@@ -192,15 +193,12 @@ class AIClient {
             let fallbackResponse: AIResponse;
 
             if (fallback === 'ollama') {
-              // Local Ollama fallback — return a safe degraded response
-              return {
-                content: '[Offline Mode] Cloud providers unavailable. Local Ollama not integrated for direct calls. Try again when cloud is available.',
-                provider: 'groq', // Mark as groq (free alternative)
-                model: 'offline-fallback',
-                tokensUsed: 0,
-                cost: 0,
-                timestamp: Date.now(),
-              };
+              // A real call through jackyClient to the user's own GPU box —
+              // idea #05. Throws the same way every other branch here does
+              // when it fails, so a jacky miss falls through to the
+              // `throw error` at the bottom exactly like a failed cloud
+              // fallback would, instead of always claiming success.
+              fallbackResponse = await askJackyForFallback(lastUserText);
             } else if (fallback === 'grok') {
               fallbackResponse = await this.callGrok(allMessages, maxTokens, temperature);
             } else if (fallback === 'groq') {
