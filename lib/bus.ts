@@ -23,6 +23,9 @@ export interface BusChannels {
   'launch-app': { appId: AppId | string };
   /** Ask the desktop to re-read its item list (after adding/removing apps). */
   'refresh-desktop': void;
+  /** Open the ⌘K/Ctrl-K app search — the visible trigger for touch/mouse
+   *  users who would otherwise have no way to discover or reach it. */
+  'open-command-palette': void;
   /** Hardware/gesture "back" request. */
   'global-back-request': void;
   /** Cloud-sync lifecycle updates from lib/persist.ts. */

@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { MousePointer2, PenLine, Play, Mail, Presentation, Folder, Loader2, FileText, Image as ImageIcon, Gamepad2, Eraser, Terminal, X, Monitor } from 'lucide-react';
 import { Modality } from "@google/genai";
 import { AppId, DesktopItem, Stroke, Email } from './types';
@@ -144,6 +144,7 @@ import { signArtifact } from './src/provenance/provenance';
 import type { ProvenanceRecord } from './src/provenance/provenance';
 import { GeneratedAppRunner } from './components/apps/GeneratedAppRunner';
 import { sealWholeDesktop, unsealWholeDesktop } from './src/whole-desktop/wholeDesktopCodec';
+import { getAppDefinition } from './lib/appRegistry';
 import type { WholeDesktopSnapshot } from './src/whole-desktop/wholeDesktopSnapshot';
 import { PC_THEME_STORAGE_KEY } from './src/pc-themes/types';
 
@@ -1636,9 +1637,6 @@ Body: ${emailToSummarize.body}`,
                 {/* Animated vibe-coding background (hidden when an AI wallpaper is set) */}
                 {!wallpaperUrl && <JackieVibeBackground />}
 
-                {/* Background Home Screen (Clicking it focuses desktop) */}
-                {!wallpaperUrl && <JackieVibeBackground />}
-
                 <div className="h-full w-full relative" onMouseDown={() => focusWindow(null)}>
                      <HomeScreen
                          items={desktopItems.filter(item => item && desktopVisibility[item.id] !== false)}
@@ -1750,6 +1748,27 @@ Body: ${emailToSummarize.body}`,
                     // known case, and the simulator is a decorative placeholder —
                     // exactly the outcome idea #04 exists to avoid.
                     else if (win.item.generatedSpec) content = <GeneratedAppRunner itemId={win.item.id} spec={win.item.generatedSpec} />;
+                    else if (getAppDefinition(win.item.appId as any)) {
+                        // lib/appRegistry.ts's real extension point: add ONE entry there for a
+                        // new app and it renders here with no other change to this dispatch
+                        // chain — the promise the registry's own docs make, now actually true.
+                        // Checked before UniversalAppSimulator for the same reason generatedSpec
+                        // is: a registered app must never fall through to the decorative demo.
+                        const def = getAppDefinition(win.item.appId as any)!;
+                        const RegistryComponent = def.Component;
+                        const ctx = {
+                            item: win.item,
+                            windowId: win.id,
+                            emails,
+                            showToast,
+                            navigate: (feature: string, _params?: Record<string, any>) => launchByAppId(feature, feature),
+                        };
+                        content = (
+                            <Suspense fallback={<div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm">Loading…</div>}>
+                                <RegistryComponent {...def.props(ctx)} />
+                            </Suspense>
+                        );
+                    }
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe

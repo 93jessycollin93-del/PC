@@ -54,6 +54,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ items }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Visible trigger (FloatingNav's search button) for touch/mouse users who
+  // have no keyboard shortcut to find — otherwise this whole search-every-app
+  // feature is reachable only by someone who already knows to press ⌘K.
+  useEffect(() => bus.on('open-command-palette', () => setOpen(true)), []);
+
   useEffect(() => {
     if (open) {
       setQuery('');
