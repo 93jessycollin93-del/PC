@@ -518,6 +518,17 @@ export const App: React.FC = () => {
     const desktopItemsRef = useRef(desktopItems);
     useEffect(() => { desktopItemsRef.current = desktopItems; }, [desktopItems]);
 
+    /** Set right before a time-travel checkout (restore/fork/branch switch)
+     *  changes desktopItems, so the persistence effect below can tell "the
+     *  user is browsing a past or alternate state" apart from "the user
+     *  actually created or removed something." Without this, checking out
+     *  an earlier point that has fewer items would overwrite
+     *  sas_user_desktop_items with that smaller set, permanently deleting
+     *  the definition of any item that only existed on a later commit —
+     *  even though the log still remembers the item existed, there would be
+     *  nothing left to resolve its id back into. */
+    const skipNextSaveUserItemsRef = useRef(false);
+
     /** Wallpaper is part of a time-travel snapshot but does not go through
      *  setDesktopItems, so it gets its own single commit point. */
     const commitWallpaper = useCallback((url: string | null) => {
@@ -681,8 +692,13 @@ export const App: React.FC = () => {
 
     // Anything the user created is written back whenever the desktop changes,
     // so folders survive a reload. Built-in items are re-merged from source
-    // and deliberately excluded.
+    // and deliberately excluded. Skipped for one cycle right after a
+    // time-travel checkout — see skipNextSaveUserItemsRef above.
     useEffect(() => {
+        if (skipNextSaveUserItemsRef.current) {
+            skipNextSaveUserItemsRef.current = false;
+            return;
+        }
         ops.saveUserItems(desktopItems);
     }, [desktopItems]);
 
@@ -719,6 +735,7 @@ export const App: React.FC = () => {
      *  edits; checkout needs the same guarantee). */
     const applySnapshot = useCallback((snapshot: { desktopItemIds: (string | null)[]; desktopVisibility: Record<string, boolean>; wallpaperUrl: string | null }) => {
         const resolved = resolveSnapshotItems(snapshot.desktopItemIds, getMergedDesktopItems());
+        skipNextSaveUserItemsRef.current = true;
         setDesktopItemsRaw(resolved);
         setDesktopVisibility(snapshot.desktopVisibility);
         setWallpaperUrl(snapshot.wallpaperUrl);
