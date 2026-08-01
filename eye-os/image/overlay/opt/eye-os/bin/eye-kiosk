@@ -82,9 +82,16 @@ case "$BROWSER" in
   epiphany-browser | epiphany)
     # --application-mode drops the URL bar and tab strip; the profile keeps
     # the shell's own storage out of any default GNOME Web profile.
+    #
+    # The directory name is not free choice. Application mode refuses to start
+    # unless the profile directory begins with "org.gnome.Epiphany.WebApp_",
+    # and it says so on stderr and exits — which, under cage, means the
+    # compositor loses its only client and exits too. The symptom is a
+    # restart loop that looks like a graphics failure and is not one.
     export GDK_BACKEND=wayland
-    mkdir -p "$PROFILE/epiphany"
-    set -- "$BROWSER" --application-mode --profile="$PROFILE/epiphany" "$URL"
+    EPIPHANY_PROFILE="$PROFILE/org.gnome.Epiphany.WebApp_eyeos"
+    mkdir -p "$EPIPHANY_PROFILE"
+    set -- "$BROWSER" --application-mode --profile="$EPIPHANY_PROFILE" "$URL"
     ;;
 esac
 
