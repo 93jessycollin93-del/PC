@@ -106,12 +106,40 @@ echo "eye-kiosk: starting $* " >&2
 # What does work anywhere there is a KMS device is Mesa's kms_swrast driver:
 # scanout through KMS, rendering on the CPU. So try the default once, and
 # fall back to that rather than loop on a black screen.
+# -s makes cage span all outputs; -- separates the client.
+try_cage() {
+  cage -s -- "$@"
+}
+
+# Three renderers, weakest requirements last. Each is a subshell so its
+# environment does not leak into the next attempt.
+#
+#   1. default        GLES over EGL on the real driver — what you want when
+#                     the GPU has one.
+#   2. kms_swrast     GLES over EGL, rendering on the CPU. Covers a GPU with
+#                     no 3D driver, provided EGL itself can initialize.
+#   3. pixman         wlroots composites in software and never asks for EGL
+#                     at all. Covers the case where EGL cannot initialize —
+#                     a plain virtio-gpu with no virgl, for instance, where
+#                     stage 2 still fails with "failed to create dri2 screen".
+#
+# Slower at each step and correct at all of them. A machine that reaches
+# stage 3 paints; without it, it restart-loops on a black screen forever.
+# Set once, at top level: wlroots needs it to accept a software renderer at
+# all, and it is harmless on the hardware path. Only the renderer-selecting
+# variables differ between stages, so only those go in a subshell.
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+
 if [ -z "${EYE_FORCE_SOFTWARE_GL:-}" ]; then
-  # -s makes cage span all outputs; -- separates the client.
-  cage -s -- "$@" && exit 0
-  echo "eye-kiosk: compositor failed with the default renderer, retrying with software GL" >&2
+  try_cage "$@" && exit 0
+  echo "eye-kiosk: default renderer failed, retrying with software GL" >&2
 fi
 
-export MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
-export WLR_RENDERER_ALLOW_SOFTWARE=1
-exec cage -s -- "$@"
+(
+  export MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
+  try_cage "$@"
+) && exit 0
+
+echo "eye-kiosk: software GL failed, retrying with CPU compositing (pixman)" >&2
+export WLR_RENDERER=pixman
+exec try_cage "$@"
