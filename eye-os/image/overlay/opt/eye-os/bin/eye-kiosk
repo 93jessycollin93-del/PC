@@ -90,5 +90,28 @@ esac
 
 echo "eye-kiosk: starting $* " >&2
 
-# -s makes cage span all outputs; -- separates the client.
+# wlroots needs a renderer, and which one works depends on hardware this
+# image cannot know about in advance.
+#
+# On a machine with a working DRI driver the default (GLES over EGL) is what
+# you want. On a VM without 3D, or on a GPU this image ships no driver for,
+# EGL fails to initialize and cage exits immediately with "Failed to create
+# DRM backend" — a black screen that systemd then restarts forever.
+#
+# LIBGL_ALWAYS_SOFTWARE does not fix that: Mesa refuses it when the EGL
+# device is a real DRM node ("Not allowed to force software rendering when
+# API explicitly selects a hardware device"). WLR_RENDERER=pixman does not
+# either — it avoids EGL but cannot supply the DRM backend's texture formats.
+#
+# What does work anywhere there is a KMS device is Mesa's kms_swrast driver:
+# scanout through KMS, rendering on the CPU. So try the default once, and
+# fall back to that rather than loop on a black screen.
+if [ -z "${EYE_FORCE_SOFTWARE_GL:-}" ]; then
+  # -s makes cage span all outputs; -- separates the client.
+  cage -s -- "$@" && exit 0
+  echo "eye-kiosk: compositor failed with the default renderer, retrying with software GL" >&2
+fi
+
+export MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
+export WLR_RENDERER_ALLOW_SOFTWARE=1
 exec cage -s -- "$@"

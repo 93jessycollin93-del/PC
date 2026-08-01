@@ -69,6 +69,16 @@ MARKERS=(
   "eye-hostd: serving"
   "Reached target graphical"
   "eye-kiosk: starting"
+  # The end-to-end one, and the reason the list does not stop above.
+  #
+  # "eye-kiosk: starting" only proves the launcher ran. Earlier boots reported
+  # a healthy session on that marker while cage was dying on EGL immediately
+  # after and restarting forever — green test, black screen.
+  #
+  # A GET for the page itself can only happen if the compositor came up, the
+  # browser got a surface, and it loaded the session. That is the claim worth
+  # testing.
+  'eye-hostd: "GET / HTTP'
 )
 # Only in kernel-direct mode, where this script sets the command line and
 # leaves the loglevel at the default. The disk boots at loglevel=4 from the
