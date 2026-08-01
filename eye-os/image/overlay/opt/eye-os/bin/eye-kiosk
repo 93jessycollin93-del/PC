@@ -97,6 +97,9 @@ case "$BROWSER" in
     # image instead (SUITE=bookworm), where the browser is real Chromium and
     # --kiosk does the job properly.
     export GDK_BACKEND=wayland
+    # No accessibility bus on an appliance; without this GTK logs a failure
+    # for every launch and slows startup waiting on a service that is absent.
+    export GTK_A11Y=none
     EPIPHANY_PROFILE="$PROFILE/epiphany"
     mkdir -p "$EPIPHANY_PROFILE"
     set -- "$BROWSER" --profile="$EPIPHANY_PROFILE" "$URL"

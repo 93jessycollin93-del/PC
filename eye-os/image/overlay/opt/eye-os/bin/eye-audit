@@ -371,12 +371,23 @@ def audit_kernel() -> None:
     # bubblewrap, which needs them. Reporting this as a pass when it is
     # disabled would be backwards.
     userns = read_sysctl("user.max_user_namespaces")
+    apparmor_userns = read_sysctl("kernel.apparmor_restrict_unprivileged_userns")
     if userns is not None and userns == "0":
         record(
             FAIL,
             area,
             "user namespaces available for the browser sandbox",
             "disabled — WebKit cannot sandbox its renderers",
+        )
+    elif apparmor_userns == "1":
+        # Ubuntu's default. bubblewrap is refused, so WebKit runs its web
+        # process unsandboxed or not at all — either way this is worth a
+        # failure rather than a shrug.
+        record(
+            FAIL,
+            area,
+            "user namespaces available for the browser sandbox",
+            "apparmor_restrict_unprivileged_userns=1 — bubblewrap refused, WebKit cannot sandbox",
         )
     else:
         record(PASS, area, "user namespaces available for the browser sandbox")
