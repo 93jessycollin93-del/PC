@@ -240,7 +240,19 @@ while [ "$SECONDS" -lt "$deadline" ]; do
       exit 1
     fi
   done
-  if grep -qiF "${MARKERS[-1]}" "$LOG" 2>/dev/null; then
+  # Wait for *every* marker, not the last one in the array. Markers do not
+  # complete in the order they are listed — the posture check and the
+  # browser's first page request race, and whichever lands first used to end
+  # the run and fail the other. Two consecutive runs disagreed about which,
+  # which is what exposed it.
+  missing=0
+  for pattern in "${MARKERS[@]}"; do
+    grep -qiF "$pattern" "$LOG" 2>/dev/null || {
+      missing=1
+      break
+    }
+  done
+  if [ "$missing" -eq 0 ]; then
     break
   fi
   # One dot per marker reached, so a slow boot still shows progress. The
