@@ -60,12 +60,19 @@ fi
 # the console and as "Reached target Graphical Interface" in its pretty
 # output. Both are the same event and either one counts.
 MARKERS=(
-  "Linux version"
   "systemd[1]:"
   "jackie-hostd: serving"
   "Reached target graphical"
   "jackie-kiosk: starting"
 )
+# Only in kernel-direct mode, where this script sets the command line and
+# leaves the loglevel at the default. The disk boots at loglevel=4 from the
+# loader entry, which suppresses the kernel's own banner — and asserting on it
+# there would mean letting the test dictate how chatty the shipped device is.
+# PID 1 running is proof enough that the kernel came up.
+if [ "$MODE" = "kernel" ]; then
+  MARKERS=("Linux version" "${MARKERS[@]}")
+fi
 # Any of these means the boot is already lost; fail fast instead of idling
 # until the timeout.
 FATAL=(
