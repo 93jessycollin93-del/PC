@@ -114,11 +114,28 @@ def audit_listeners() -> None:
 
 def audit_remote_access() -> None:
     area = "remote access"
-    ssh_units = run("systemctl", "list-unit-files", "--no-legend", "ssh.service", "sshd.service")
-    if "enabled" in ssh_units:
-        record(FAIL, area, "no ssh server", "sshd is enabled")
-    elif ssh_units.strip():
-        record(PASS, area, "no ssh server", "installed but not enabled")
+    # Parse the state column, not the whole line. `list-unit-files` prints
+    # "ssh.service masked enabled" — state then *vendor preset* — so a
+    # substring match for "enabled" reports a masked unit as enabled, which is
+    # exactly backwards and was doing so on a correctly locked-down image.
+    ssh_states = {}
+    for line in run(
+        "systemctl", "list-unit-files", "--no-legend", "ssh.service", "sshd.service"
+    ).splitlines():
+        fields = line.split()
+        if len(fields) >= 2:
+            ssh_states[fields[0]] = fields[1]
+
+    live = [unit for unit, state in ssh_states.items() if state in ("enabled", "enabled-runtime")]
+    if live:
+        record(FAIL, area, "no ssh server", f"enabled: {', '.join(live)}")
+    elif ssh_states:
+        record(
+            PASS,
+            area,
+            "no ssh server",
+            ", ".join(f"{unit} {state}" for unit, state in sorted(ssh_states.items())),
+        )
     else:
         record(PASS, area, "no ssh server", "not installed")
 
