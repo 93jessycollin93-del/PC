@@ -125,8 +125,20 @@ echo "eye-kiosk: starting $* " >&2
 # scanout through KMS, rendering on the CPU. So try the default once, and
 # fall back to that rather than loop on a black screen.
 # -s makes cage span all outputs; -- separates the client.
+#
+# dbus-run-session wraps the whole session because WebKit sandboxes its web
+# process behind xdg-dbus-proxy, and a proxy with no bus to proxy exits 1 —
+# taking the browser, and therefore cage, down with it. The unit sets
+# XDG_RUNTIME_DIR and PAMName=login gives it a logind session, but neither
+# puts DBUS_SESSION_BUS_ADDRESS in the environment, and that is what the proxy
+# reads. Confirmed on a booted machine: bwrap and bwrap --unshare-user both
+# succeed there, and the bus address is simply unset.
 try_cage() {
-  cage -s -- "$@"
+  if command -v dbus-run-session >/dev/null 2>&1; then
+    dbus-run-session -- cage -s -- "$@"
+  else
+    cage -s -- "$@"
+  fi
 }
 
 # Three renderers, weakest requirements last. Each is a subshell so its
