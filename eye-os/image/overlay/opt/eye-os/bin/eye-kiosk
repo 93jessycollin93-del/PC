@@ -80,18 +80,26 @@ case "$BROWSER" in
       --check-for-update-interval=31536000
     ;;
   epiphany-browser | epiphany)
-    # --application-mode drops the URL bar and tab strip; the profile keeps
-    # the shell's own storage out of any default GNOME Web profile.
+    # Deliberately NOT --application-mode.
     #
-    # The directory name is not free choice. Application mode refuses to start
-    # unless the profile directory begins with "org.gnome.Epiphany.WebApp_",
-    # and it says so on stderr and exits — which, under cage, means the
-    # compositor loses its only client and exits too. The symptom is a
-    # restart loop that looks like a graphics failure and is not one.
+    # Application mode looks like what a kiosk wants — it drops the URL bar
+    # and tab strip — but it is built for installed web apps and needs two
+    # things an appliance does not have: a profile directory named
+    # org.gnome.Epiphany.WebApp_*, and a matching .desktop file registered
+    # with xdg-desktop-portal. Without the portal it fails with "Required
+    # desktop file not available" and exits. Under cage that takes the
+    # compositor down with it, and the resulting restart loop looks exactly
+    # like a graphics failure.
+    #
+    # cage is already the kiosk: one fullscreen window, no decorations,
+    # nothing behind it. The cost of dropping application mode is Epiphany's
+    # own toolbar staying visible. For a chrome-free session build a Debian
+    # image instead (SUITE=bookworm), where the browser is real Chromium and
+    # --kiosk does the job properly.
     export GDK_BACKEND=wayland
-    EPIPHANY_PROFILE="$PROFILE/org.gnome.Epiphany.WebApp_eyeos"
+    EPIPHANY_PROFILE="$PROFILE/epiphany"
     mkdir -p "$EPIPHANY_PROFILE"
-    set -- "$BROWSER" --application-mode --profile="$EPIPHANY_PROFILE" "$URL"
+    set -- "$BROWSER" --profile="$EPIPHANY_PROFILE" "$URL"
     ;;
 esac
 
