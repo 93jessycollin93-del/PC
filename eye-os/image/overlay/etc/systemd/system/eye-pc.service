@@ -1,0 +1,57 @@
+[Unit]
+Description=eYe OS session server (the PC application's Express backend)
+# Only runs when the PC session was actually built into this image. A shell
+# or recovery image simply has no such file and this unit stays inert.
+ConditionPathExists=/opt/eye-os/pc/server.cjs
+After=network.target eye-firewall.service
+Wants=eye-firewall.service
+Before=eye-hostd.service
+
+[Service]
+Type=simple
+User=eye
+Group=eye
+WorkingDirectory=/opt/eye-os/pc
+ExecStart=/usr/bin/node /opt/eye-os/pc/server.cjs
+Environment=NODE_ENV=production
+Environment=PORT=5000
+# The application reads its provider keys from the environment. This file is
+# root-owned 0600 and absent by default, so a machine with no keys still
+# boots — the AI apps just report no provider rather than failing to start.
+EnvironmentFile=-/etc/eye-os/session.env
+Restart=always
+RestartSec=3
+
+# This process holds the API keys and talks to the internet, so it gets the
+# tightest confinement of anything on the machine.
+#
+# It binds 0.0.0.0 and that is not changed here: the application's source is
+# the author's business, and the input chain in firewall.nft is what makes
+# the bind harmless. Enforcing it underneath rather than editing the app is
+# the whole argument for putting security at this layer.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+ReadWritePaths=/var/lib/eye-os
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete @mount @debug
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

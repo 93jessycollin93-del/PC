@@ -1,0 +1,25 @@
+[Unit]
+Description=eYe OS first-boot provisioning (per-machine secrets)
+After=local-fs.target
+Before=eye-pc.service eye-hostd.service
+# Nothing that needs the token may start before this has produced it.
+RequiredBy=eye-pc.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/eye-os/bin/eye-provision
+Environment=PYTHONUNBUFFERED=1
+# Runs as root because it writes a root-owned 0600 file in /etc, and only
+# for as long as that takes.
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=eYe OS egress firewall (nftables, default deny)
+Documentation=file:/etc/eye-os/firewall.nft
+DefaultDependencies=no
+# Loaded before anything can send a packet — after this point a network
+# interface coming up cannot open a hole, because the policy is already drop.
+After=systemd-sysctl.service
+Before=network-pre.target eye-hostd.service eye-pc.service
+Wants=network-pre.target
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/eye-os/bin/eye-firewall-apply
+# No ExecStop that flushes: tearing the ruleset down on stop would leave the
+# machine open during shutdown, and open is never the safer failure here.
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=sysinit.target

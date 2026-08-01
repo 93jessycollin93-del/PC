@@ -1,0 +1,40 @@
+[Unit]
+Description=eYe OS kiosk session (cage + chromium)
+After=systemd-user-sessions.service eye-hostd.service
+Wants=eye-hostd.service
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+Type=simple
+User=eye
+Group=eye
+
+# PAMName=login is what makes this a real logind session rather than a bare
+# process. Without it there is no seat, and wlroots (which cage is built on)
+# will not open the DRM device — the symptom is "could not create backend"
+# on an otherwise healthy boot.
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_SESSION_TYPE=wayland
+Environment=EYE_URL=http://127.0.0.1:7788/
+Environment=EYE_PROFILE=/var/lib/eye-os/browser
+# No GPU on a plain VM: let Mesa fall back to its software rasteriser rather
+# than let wlroots fail to find a renderer and take the session down with it.
+Environment=WLR_RENDERER_ALLOW_SOFTWARE=1
+Environment=LIBGL_ALWAYS_SOFTWARE=1
+
+ExecStart=/opt/eye-os/bin/eye-kiosk
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

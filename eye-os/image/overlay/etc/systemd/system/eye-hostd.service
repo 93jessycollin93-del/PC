@@ -1,0 +1,43 @@
+[Unit]
+Description=eYe OS host agent (session static files + filesystem API)
+Documentation=file:/opt/eye-os/README
+After=local-fs.target eye-firewall.service
+Wants=eye-firewall.service
+Before=eye-kiosk.service
+
+[Service]
+Type=simple
+User=eye
+Group=eye
+ExecStart=/opt/eye-os/bin/eye-hostd
+# EYE_STATIC comes from here, so switching sessions is a config change and a
+# restart rather than a rebuild.
+EnvironmentFile=/etc/eye-os/session.conf
+# systemd reads this as root before dropping to the eye user, so the proxy
+# gets the token without the file ever being readable by the account the
+# proxy runs as.
+EnvironmentFile=-/etc/eye-os/session.env
+Environment=EYE_FILES=/var/lib/eye-os/files
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=1
+
+# The agent serves one directory over loopback and needs nothing else. These
+# are the confinement knobs that cost nothing to switch on.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/eye-os
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

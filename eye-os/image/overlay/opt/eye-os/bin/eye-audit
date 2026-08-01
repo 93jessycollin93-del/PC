@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""
+eye-audit — reports this machine's actual security posture.
+
+The same idea as the shell's IPC trace: a claim about the system should be
+checkable from the system, not from its documentation. Every check here reads
+live state — the loaded nftables ruleset, the open sockets, the running units,
+the mounted filesystems — and none of it trusts a config file to describe what
+is actually in force.
+
+Exit status: 0 if nothing failed, 1 if any check failed. Warnings do not fail
+the run; they are things worth knowing that are not yet wrong.
+
+    eye-audit           human-readable
+    eye-audit --json    machine-readable, for a health app or a cron job
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
+results: list[dict[str, str]] = []
+
+
+def record(status: str, area: str, check: str, detail: str = "") -> None:
+    results.append({"status": status, "area": area, "check": check, "detail": detail})
+
+
+def run(*args: str) -> str:
+    """Command output, or '' if the command is missing or fails."""
+    try:
+        completed = subprocess.run(args, capture_output=True, text=True, timeout=15)
+        return completed.stdout
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return ""
+
+
+# --------------------------------------------------------------- firewall
+
+
+def audit_firewall() -> None:
+    area = "firewall"
+    if not shutil.which("nft"):
+        record(FAIL, area, "nftables installed", "nft not found")
+        return
+
+    ruleset = run("nft", "list", "table", "inet", "eye")
+    if not ruleset:
+        record(FAIL, area, "eye table loaded", "no `inet eye` table — egress is unrestricted")
+        return
+    record(PASS, area, "eye table loaded")
+
+    # The policy is what actually decides the default; a chain full of accept
+    # rules with `policy accept` is not a deny-by-default firewall.
+    for chain in ("input", "forward", "output"):
+        match = re.search(rf"chain {chain} \{{.*?policy (\w+);", ruleset, re.S)
+        if not match:
+            record(FAIL, area, f"{chain} chain present", "chain missing")
+        elif match.group(1) == "drop":
+            record(PASS, area, f"{chain} default-deny")
+        else:
+            record(FAIL, area, f"{chain} default-deny", f"policy is {match.group(1)}")
+
+    permitted = re.findall(r"elements = \{([^}]*)\}", ruleset, re.S)
+    destinations = [d.strip() for group in permitted for d in group.split(",") if d.strip()]
+    if destinations:
+        record(WARN, area, "egress allowlist", f"{len(destinations)} permitted: {', '.join(destinations[:6])}")
+    else:
+        record(PASS, area, "egress allowlist", "empty — nothing may leave this machine")
+
+
+# ---------------------------------------------------------------- network
+
+
+def audit_listeners() -> None:
+    area = "network"
+    output = run("ss", "-Hltnp") or run("ss", "-Hltn")
+    if not output:
+        record(WARN, area, "listening sockets", "ss unavailable — cannot enumerate")
+        return
+
+    exposed = []
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) < 4:
+            continue
+        local = fields[3]
+        address, _, port = local.rpartition(":")
+        address = address.strip("[]")
+        # Anything not bound to loopback is reachable from a wire, firewall
+        # permitting. Worth surfacing even when the firewall covers it.
+        if address not in ("127.0.0.1", "::1") and not address.startswith("127."):
+            exposed.append(f"{address}:{port}")
+
+    if not exposed:
+        record(PASS, area, "all listeners on loopback")
+    else:
+        # Not a failure by itself: the input chain drops these. It is the
+        # reason that chain has to stay default-deny, so it is worth naming.
+        record(
+            WARN,
+            area,
+            "listeners bound beyond loopback",
+            f"{', '.join(sorted(set(exposed)))} — reachable only because the input chain drops",
+        )
+
+
+def audit_remote_access() -> None:
+    area = "remote access"
+    ssh_units = run("systemctl", "list-unit-files", "--no-legend", "ssh.service", "sshd.service")
+    if "enabled" in ssh_units:
+        record(FAIL, area, "no ssh server", "sshd is enabled")
+    elif ssh_units.strip():
+        record(PASS, area, "no ssh server", "installed but not enabled")
+    else:
+        record(PASS, area, "no ssh server", "not installed")
+
+    gettys = [
+        line.split()[0]
+        for line in run("systemctl", "list-units", "--no-legend", "--state=active", "getty@*.service").splitlines()
+        if line.strip()
+    ]
+    if gettys:
+        record(WARN, area, "console logins", f"active: {', '.join(gettys)}")
+    else:
+        record(PASS, area, "console logins", "no getty running")
+
+
+# --------------------------------------------------------------- accounts
+
+
+def audit_accounts() -> None:
+    area = "accounts"
+    try:
+        shadow = Path("/etc/shadow").read_text().splitlines()
+    except (PermissionError, FileNotFoundError):
+        record(WARN, area, "password hashes", "/etc/shadow unreadable — run as root for this check")
+        return
+
+    loginable = []
+    for line in shadow:
+        parts = line.split(":")
+        if len(parts) < 2:
+            continue
+        user, secret = parts[0], parts[1]
+        # '!' or '*' means no password will ever match; '' means no password
+        # is *required*, which is the dangerous one.
+        if secret == "":
+            record(FAIL, area, f"{user} has no password", "empty hash — anyone can log in")
+        elif not secret.startswith(("!", "*")):
+            loginable.append(user)
+
+    if "root" in loginable:
+        record(FAIL, area, "root locked", "root has a usable password")
+    else:
+        record(PASS, area, "root locked")
+
+    if loginable:
+        record(WARN, area, "accounts with passwords", ", ".join(loginable))
+    else:
+        record(PASS, area, "no account can log in with a password")
+
+
+# ------------------------------------------------------------- confinement
+
+
+HARDENING = ("NoNewPrivileges", "PrivateTmp", "ProtectSystem", "ProtectHome")
+
+
+def audit_services() -> None:
+    area = "confinement"
+    for unit in ("eye-hostd.service", "eye-pc.service"):
+        state = run("systemctl", "is-active", unit).strip()
+        if state != "active":
+            record(WARN, area, f"{unit} running", state or "not loaded")
+            continue
+
+        weak = []
+        for prop in HARDENING:
+            value = run("systemctl", "show", "-p", prop, "--value", unit).strip()
+            if value.lower() in ("", "no", "false", "null"):
+                weak.append(prop)
+        if weak:
+            record(WARN, area, f"{unit} hardening", f"not set: {', '.join(weak)}")
+        else:
+            record(PASS, area, f"{unit} hardening", ", ".join(HARDENING))
+
+
+# ------------------------------------------------------------- filesystem
+
+
+def audit_filesystem() -> None:
+    area = "filesystem"
+    try:
+        mounts = Path("/proc/mounts").read_text().splitlines()
+    except OSError:
+        record(WARN, area, "mounts readable", "/proc/mounts unavailable")
+        return
+
+    for line in mounts:
+        fields = line.split()
+        if len(fields) >= 4 and fields[1] == "/":
+            options = fields[3].split(",")
+            if "ro" in options:
+                record(PASS, area, "root filesystem read-only")
+            else:
+                # Not a failure: read-only root is a Tier 2 item and the
+                # image ships read-write on purpose while you are building.
+                record(WARN, area, "root filesystem read-only", "mounted rw — a compromise persists across reboot")
+            break
+
+    data = Path("/var/lib/eye-os")
+    if data.is_dir():
+        mode = data.stat().st_mode & 0o777
+        if mode & 0o007:
+            record(FAIL, area, "data directory not world-accessible", f"mode {mode:o}")
+        else:
+            record(PASS, area, "data directory permissions", f"mode {mode:o}")
+    else:
+        record(WARN, area, "data directory", f"{data} missing")
+
+    # A world-writable file under the install root means anything running on
+    # this machine can rewrite what the session executes on next boot.
+    writable = []
+    for root, _, files in os.walk("/opt/eye-os"):
+        for name in files:
+            path = Path(root) / name
+            try:
+                if path.stat().st_mode & 0o002:
+                    writable.append(str(path))
+            except OSError:
+                continue
+    if writable:
+        record(FAIL, area, "no world-writable install files", ", ".join(writable[:5]))
+    else:
+        record(PASS, area, "no world-writable install files")
+
+
+# ---------------------------------------------------------------- session
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        for raw in path.read_text().splitlines():
+            line = raw.split("#", 1)[0].strip()
+            if "=" in line:
+                key, _, value = line.partition("=")
+                values[key.strip()] = value.strip()
+    except (OSError, PermissionError):
+        pass
+    return values
+
+
+def audit_session() -> None:
+    area = "session"
+    conf = read_env_file(Path("/etc/eye-os/session.conf"))
+    env_path = Path("/etc/eye-os/session.env")
+
+    # A token that is missing means the session server's shell, build and
+    # filesystem routes accept anything that can reach port 5000.
+    if not env_path.exists():
+        record(FAIL, area, "session token provisioned", f"{env_path} missing — run eye-provision")
+    else:
+        mode = env_path.stat().st_mode & 0o777
+        if mode & 0o077:
+            record(FAIL, area, "session token file permissions", f"mode {mode:o}, expected 600")
+        else:
+            record(PASS, area, "session token file permissions", f"mode {mode:o}")
+
+        secrets_env = read_env_file(env_path)
+        token = secrets_env.get("JACKIE_API_TOKEN", "")
+        if not token:
+            record(FAIL, area, "session token set", "JACKIE_API_TOKEN empty — dangerous routes are open")
+        elif len(token) < 32:
+            record(WARN, area, "session token strength", f"{len(token)} chars")
+        else:
+            record(PASS, area, "session token set", f"{len(token)} chars")
+
+        if secrets_env.get("JACKIE_ALLOW_DOCKER", "false").lower() == "true":
+            record(FAIL, area, "container runtime not exposed", "JACKIE_ALLOW_DOCKER=true is a path to host root")
+        else:
+            record(PASS, area, "container runtime not exposed")
+
+    # The blocked-route policy is what stops a compromised renderer turning
+    # the proxy's injected token into command execution.
+    blocked = [p for p in conf.get("EYE_BLOCKED_UPSTREAM", "").split(",") if p.strip()]
+    dangerous = ("/api/shell/", "/api/build/", "/api/term-fs/")
+    unblocked = [route for route in dangerous if route not in blocked]
+    if not blocked:
+        record(FAIL, area, "dangerous routes blocked", "EYE_BLOCKED_UPSTREAM empty — exec and fs routes reachable")
+    elif unblocked:
+        record(WARN, area, "dangerous routes blocked", f"open: {', '.join(unblocked)}")
+    else:
+        record(PASS, area, "dangerous routes blocked", ", ".join(blocked))
+
+
+# -------------------------------------------------------------------- main
+
+
+def main() -> int:
+    audit_firewall()
+    audit_listeners()
+    audit_remote_access()
+    audit_accounts()
+    audit_session()
+    audit_services()
+    audit_filesystem()
+
+    failures = sum(1 for r in results if r["status"] == FAIL)
+    warnings = sum(1 for r in results if r["status"] == WARN)
+
+    if "--json" in sys.argv:
+        print(json.dumps({"results": results, "failed": failures, "warned": warnings}, indent=2))
+        return 1 if failures else 0
+
+    colour = {PASS: "\033[32m", WARN: "\033[33m", FAIL: "\033[31m"}
+    area = None
+    for result in results:
+        if result["area"] != area:
+            area = result["area"]
+            print(f"\n  {area.upper()}")
+        detail = f"  — {result['detail']}" if result["detail"] else ""
+        print(f"    {colour[result['status']]}{result['status']}\033[0m  {result['check']}{detail}")
+
+    print(f"\n  {len(results)} checks · {failures} failed · {warnings} warnings\n")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

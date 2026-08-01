@@ -1,0 +1,84 @@
+#!/usr/sbin/nft -f
+#
+# eYe OS egress firewall — default deny, in both directions.
+#
+# The threat this addresses is specific and worth naming. The session is a
+# browser running a large application that talks to AI providers, and the
+# application's own server binds 0.0.0.0. Neither of those is wrong, but both
+# mean the machine's network posture cannot be argued from the application's
+# source. It has to be enforced underneath, where a compromised renderer or a
+# dependency with a postinstall script does not get a vote.
+#
+# So: nothing reaches this machine, and this machine reaches nothing, unless
+# it is written down here.
+#
+# Edit /etc/eye-os/allowed-egress.conf to permit a destination, then
+# `systemctl restart eye-firewall`. Run `eye-audit` to see what is live.
+
+flush ruleset
+
+table inet eye {
+    # Destinations the session is allowed to reach. Generated from
+    # allowed-egress.conf by eye-firewall-apply; empty means "nothing", which
+    # is the correct default for a machine that has not been told otherwise.
+    set allowed_egress_v4 {
+        type ipv4_addr
+        flags interval
+    }
+
+    set allowed_egress_v6 {
+        type ipv6_addr
+        flags interval
+    }
+
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        # Loopback is the whole internal architecture: the browser talks to
+        # eye-hostd, and eye-hostd talks to the session server. None of it
+        # crosses a wire.
+        iif lo accept
+
+        ct state established,related accept
+        ct state invalid drop
+
+        # Enough ICMP to stay debuggable without becoming a broadcast target.
+        ip protocol icmp icmp type { echo-reply, destination-unreachable, time-exceeded } accept
+        ip6 nexthdr icmpv6 icmpv6 type { echo-reply, destination-unreachable, time-exceeded, packet-too-big, nd-neighbor-solicit, nd-neighbor-advert, nd-router-advert } accept
+
+        # Deliberately no accept rule for tcp dport 5000 or 7788. The session
+        # server binds 0.0.0.0 and this is what makes that harmless: the port
+        # is open on the interface and unreachable from it.
+        counter drop
+    }
+
+    chain forward {
+        # Not a router.
+        type filter hook forward priority filter; policy drop;
+        counter drop
+    }
+
+    chain output {
+        type filter hook output priority filter; policy drop;
+
+        oif lo accept
+        ct state established,related accept
+
+        # DHCP and DNS, or the machine cannot join a network or resolve the
+        # hosts it is allowed to reach.
+        udp dport { 67, 68 } accept
+        meta l4proto { tcp, udp } th dport 53 accept
+
+        # NTP: a wrong clock breaks TLS certificate validation, which fails
+        # in a way that looks like anything but a clock problem.
+        udp dport 123 accept
+
+        ip daddr @allowed_egress_v4 accept
+        ip6 daddr @allowed_egress_v6 accept
+
+        # Log what gets stopped. A kiosk that silently cannot reach something
+        # is indistinguishable from one that is broken.
+        limit rate 10/minute burst 5 packets log prefix "eye-egress-denied: " level info
+        counter drop
+    }
+}
