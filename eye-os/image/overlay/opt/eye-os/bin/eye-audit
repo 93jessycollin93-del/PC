@@ -445,6 +445,17 @@ def main() -> int:
         print(json.dumps({"results": results, "failed": failures, "warned": warnings}, indent=2))
         return 1 if failures else 0
 
+    # --brief is what runs at boot: one summary line plus anything that failed,
+    # with no colour, so the journal carries a usable record instead of either
+    # nothing or twenty lines of escape codes.
+    if "--brief" in sys.argv or not sys.stdout.isatty():
+        print(f"eye-audit: {len(results)} checks, {failures} failed, {warnings} warnings")
+        for result in results:
+            if result["status"] in (FAIL, WARN):
+                detail = f" — {result['detail']}" if result["detail"] else ""
+                print(f"eye-audit: {result['status']} [{result['area']}] {result['check']}{detail}")
+        return 1 if failures else 0
+
     colour = {PASS: "\033[32m", WARN: "\033[33m", FAIL: "\033[31m"}
     area = None
     for result in results:
@@ -459,4 +470,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except BrokenPipeError:
+        # `eye-audit | head`, or journald going away mid-write. Python would
+        # otherwise print a traceback on the way out and turn a clean report
+        # into what looks like a crash. Redirect the remaining output at
+        # /dev/null so the interpreter's own flush at exit stays quiet.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        raise SystemExit(0)

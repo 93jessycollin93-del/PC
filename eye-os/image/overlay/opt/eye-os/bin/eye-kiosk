@@ -142,4 +142,9 @@ fi
 
 echo "eye-kiosk: software GL failed, retrying with CPU compositing (pixman)" >&2
 export WLR_RENDERER=pixman
-exec try_cage "$@"
+# Not `exec try_cage`: exec replaces the process with an external program and
+# cannot run a shell function, so that spelling fails with "try_cage: not
+# found" and takes the last fallback stage with it. Call it, then exit on its
+# status.
+try_cage "$@"
+exit $?

@@ -303,6 +303,7 @@ systemctl enable eye-hostd.service
 systemctl enable eye-kiosk.service
 systemctl enable eye-pc.service || true
 systemctl enable eye-harden.service
+systemctl enable eye-audit-boot.service
 systemctl set-default graphical.target
 
 # No remote access on an appliance. Neither is installed by default; masking

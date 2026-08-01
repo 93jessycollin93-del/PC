@@ -79,6 +79,11 @@ MARKERS=(
   # browser got a surface, and it loaded the session. That is the claim worth
   # testing.
   'eye-hostd: "GET / HTTP'
+  # The security posture, asserted from the booted machine rather than from
+  # the files that were supposed to produce it. eye-audit reads the loaded
+  # ruleset, the open sockets, /proc/sys and /proc/mounts; "0 failed" means
+  # every control this image claims is actually in force on this boot.
+  "0 failed"
 )
 # Only in kernel-direct mode, where this script sets the command line and
 # leaves the loglevel at the default. The disk boots at loglevel=4 from the

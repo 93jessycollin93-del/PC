@@ -1,0 +1,25 @@
+[Unit]
+Description=eYe OS security posture check
+Documentation=file:/opt/eye-os/bin/eye-audit
+# Last, so it sees the finished system: firewall loaded, secrets provisioned,
+# services running, late hardening applied.
+After=eye-harden.service eye-kiosk.service eye-pc.service
+Wants=eye-harden.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/eye-os/bin/eye-audit --brief
+# A failing check is a report, not a broken boot — the machine should still
+# come up so you can log in and fix it. `systemctl status eye-audit-boot`
+# and the journal carry the result either way.
+SuccessExitStatus=0 1
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=yes
+ProtectHome=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=graphical.target
