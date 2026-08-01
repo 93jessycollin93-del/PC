@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""
+jackie-hostd — the shell's host agent.
+
+Two jobs, one process:
+
+  1. Serve the built shell as static files.
+  2. Expose the machine's filesystem at /api/fs, which is what turns the
+     shell's VFS probe from "localStorage" into "a real disk".
+
+Deliberately stdlib-only. The image already carries a browser and a kernel;
+adding a package manager's worth of web framework to a kiosk that serves one
+directory on loopback is not a trade worth making.
+
+Scope of trust: this binds to 127.0.0.1 only and is reachable solely by the
+browser running on the same machine. It is not authenticated, because on this
+image there is no second principal to authenticate against — the kiosk user
+already owns the files it exposes. Do not bind it to 0.0.0.0.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
+
+HOST = "127.0.0.1"
+PORT = int(os.environ.get("JACKIE_PORT", "7788"))
+STATIC_ROOT = Path(os.environ.get("JACKIE_STATIC", "/opt/jackie-os/shell")).resolve()
+FILES_ROOT = Path(os.environ.get("JACKIE_FILES", "/var/lib/jackie-os/files")).resolve()
+
+CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff2": "font/woff2",
+    ".map": "application/json; charset=utf-8",
+}
+
+
+class PathOutsideRoot(Exception):
+    """A request tried to address something outside FILES_ROOT."""
+
+
+def resolve_vfs(raw: str) -> Path:
+    """
+    Map a VFS-absolute path onto the host filesystem.
+
+    Traversal is blocked after resolution rather than by string inspection:
+    `..` sequences, absolute re-roots and symlinks all collapse first, and the
+    result must still sit inside FILES_ROOT. Checking the resolved path is the
+    only version of this test that a symlink cannot walk around.
+    """
+    candidate = (FILES_ROOT / raw.lstrip("/")).resolve()
+    if candidate != FILES_ROOT and FILES_ROOT not in candidate.parents:
+        raise PathOutsideRoot(raw)
+    return candidate
+
+
+def to_vfs(path: Path) -> str:
+    relative = path.relative_to(FILES_ROOT).as_posix()
+    return "/" + relative if relative != "." else "/"
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "jackie-hostd/1.0"
+    protocol_version = "HTTP/1.1"
+
+    # ---------------------------------------------------------------- utils
+
+    def log_message(self, fmt: str, *args) -> None:
+        # journald already timestamps; stderr keeps it in `journalctl -u`.
+        sys.stderr.write("jackie-hostd: " + (fmt % args) + "\n")
+
+    def _send(self, status: int, body: bytes, content_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        # The shell is served from this same origin; nothing else may embed it.
+        self.send_header("X-Frame-Options", "DENY")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _text(self, status: int, text: str) -> None:
+        self._send(status, text.encode("utf-8"), "text/plain; charset=utf-8")
+
+    def _json(self, status: int, payload: object) -> None:
+        self._send(status, json.dumps(payload).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _query_path(self) -> str | None:
+        params = parse_qs(urlparse(self.path).query)
+        values = params.get("path")
+        return values[0] if values else None
+
+    def _body(self) -> bytes:
+        length = int(self.headers.get("Content-Length") or 0)
+        return self.rfile.read(length) if length else b""
+
+    # ------------------------------------------------------------- fs verbs
+
+    def _fs(self, action: str) -> None:
+        raw = self._query_path()
+        if raw is None:
+            self._text(400, "missing ?path=")
+            return
+        try:
+            target = resolve_vfs(unquote(raw))
+        except PathOutsideRoot:
+            self._text(403, "path escapes the files root")
+            return
+
+        try:
+            if action == "read":
+                if not target.is_file():
+                    self._text(404, "not found")
+                    return
+                self._send(200, target.read_bytes(), "text/plain; charset=utf-8")
+
+            elif action == "write":
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(self._body())
+                self._text(200, "ok")
+
+            elif action == "mkdir":
+                target.mkdir(parents=True, exist_ok=True)
+                self._text(200, "ok")
+
+            elif action == "remove":
+                if target == FILES_ROOT:
+                    self._text(403, "refusing to remove the files root")
+                    return
+                if target.is_dir():
+                    shutil.rmtree(target)
+                elif target.exists():
+                    target.unlink()
+                self._text(200, "ok")
+
+            elif action == "list":
+                if not target.is_dir():
+                    self._json(200, [])
+                    return
+                entries = []
+                for child in sorted(target.iterdir()):
+                    try:
+                        info = child.stat()
+                    except OSError:
+                        continue  # vanished mid-listing
+                    entries.append(
+                        {
+                            "path": to_vfs(child),
+                            "kind": "dir" if child.is_dir() else "file",
+                            "size": 0 if child.is_dir() else info.st_size,
+                            "modified": int(info.st_mtime * 1000),
+                        }
+                    )
+                entries.sort(key=lambda e: (e["kind"] != "dir", e["path"]))
+                self._json(200, entries)
+
+            else:
+                self._text(404, "unknown fs action")
+
+        except PermissionError:
+            self._text(403, "permission denied")
+        except OSError as error:
+            self._text(500, f"{type(error).__name__}: {error}")
+
+    # ---------------------------------------------------------------- static
+
+    def _static(self) -> None:
+        requested = unquote(urlparse(self.path).path)
+        if requested in ("", "/"):
+            requested = "/index.html"
+
+        candidate = (STATIC_ROOT / requested.lstrip("/")).resolve()
+        inside = candidate == STATIC_ROOT or STATIC_ROOT in candidate.parents
+
+        # Single-page fallback: unknown paths render the shell rather than 404,
+        # but only after the traversal check, never as a way around it.
+        if not inside or not candidate.is_file():
+            candidate = STATIC_ROOT / "index.html"
+            if not candidate.is_file():
+                self._text(404, "shell not installed")
+                return
+
+        content_type = CONTENT_TYPES.get(candidate.suffix, "application/octet-stream")
+        self._send(200, candidate.read_bytes(), content_type)
+
+    # ---------------------------------------------------------------- routes
+
+    def _route(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/api/fs/health":
+            self._json(200, {"backend": "host", "root": str(FILES_ROOT)})
+        elif path.startswith("/api/fs/"):
+            self._fs(path[len("/api/fs/") :])
+        elif self.command in ("GET", "HEAD"):
+            self._static()
+        else:
+            self._text(405, "method not allowed")
+
+    do_GET = _route
+    do_HEAD = _route
+    do_PUT = _route
+    do_POST = _route
+    do_DELETE = _route
+
+
+def main() -> int:
+    FILES_ROOT.mkdir(parents=True, exist_ok=True)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    print(f"jackie-hostd: serving {STATIC_ROOT} and {FILES_ROOT} on http://{HOST}:{PORT}")
+    sys.stdout.flush()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

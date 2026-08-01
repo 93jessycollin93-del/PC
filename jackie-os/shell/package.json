@@ -1,0 +1,25 @@
+{
+  "name": "jackie-os-shell",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The desktop shell shipped as the session on a Jackie OS image.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 7777",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "node test/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

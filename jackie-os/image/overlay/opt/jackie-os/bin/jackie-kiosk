@@ -1,0 +1,94 @@
+#!/bin/sh
+# Launches the session: a Wayland kiosk compositor with exactly one client.
+#
+# cage is a compositor that hosts a single window, fullscreen, with no
+# decorations, no way to minimise it and nothing behind it. That is the whole
+# difference between "a browser showing a web page" and "the machine's UI" —
+# there is no desktop underneath to fall back to.
+#
+# The browser is whichever one the image was built with. cage is what makes
+# the session a kiosk, so the choice only changes the flags used to suppress
+# the browser's own chrome.
+
+set -eu
+
+URL="${JACKIE_URL:-http://127.0.0.1:7788/}"
+PROFILE="${JACKIE_PROFILE:-/var/lib/jackie-os/browser}"
+
+mkdir -p "$PROFILE"
+
+# Wait for the host agent before painting anything: a browser caches a failed
+# load, so racing it produces a permanent error page rather than a retry.
+probe() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsS --max-time 1 "${URL}api/fs/health" >/dev/null 2>&1
+  else
+    # /dev/tcp is a bash feature and this runs under dash, so the fallback
+    # goes through python3 — which the image already carries for the agent.
+    python3 - "$URL" <<'PY' >/dev/null 2>&1
+import sys, urllib.request
+urllib.request.urlopen(sys.argv[1] + "api/fs/health", timeout=1).read()
+PY
+  fi
+}
+
+tries=0
+while [ "$tries" -lt 50 ]; do
+  probe && break
+  tries=$((tries + 1))
+  sleep 0.2
+done
+
+find_browser() {
+  for candidate in cog chromium chromium-browser epiphany-browser epiphany; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+BROWSER="$(find_browser)" || {
+  echo "jackie-kiosk: no browser installed" >&2
+  exit 1
+}
+
+# Chromium's GPU sandbox has no working path under cage on a bare image, and
+# the browser is the only client of a single-purpose machine, so the sandbox
+# is buying nothing here. Leaving it on costs a black screen.
+case "$BROWSER" in
+  cog)
+    set -- "$BROWSER" --platform=wl "$URL"
+    ;;
+  chromium | chromium-browser)
+    set -- "$BROWSER" \
+      --kiosk \
+      --app="$URL" \
+      --user-data-dir="$PROFILE" \
+      --ozone-platform=wayland \
+      --enable-features=UseOzonePlatform \
+      --no-first-run \
+      --no-default-browser-check \
+      --noerrdialogs \
+      --disable-infobars \
+      --disable-session-crashed-bubble \
+      --disable-pinch \
+      --overscroll-history-navigation=0 \
+      --disable-features=TranslateUI,MediaRouter \
+      --no-sandbox \
+      --check-for-update-interval=31536000
+    ;;
+  epiphany-browser | epiphany)
+    # --application-mode drops the URL bar and tab strip; the profile keeps
+    # the shell's own storage out of any default GNOME Web profile.
+    export GDK_BACKEND=wayland
+    mkdir -p "$PROFILE/epiphany"
+    set -- "$BROWSER" --application-mode --profile="$PROFILE/epiphany" "$URL"
+    ;;
+esac
+
+echo "jackie-kiosk: starting $* " >&2
+
+# -s makes cage span all outputs; -- separates the client.
+exec cage -s -- "$@"
