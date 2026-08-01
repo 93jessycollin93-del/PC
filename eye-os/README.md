@@ -152,6 +152,38 @@ Ubuntu ships Chromium only as a snap, which cannot run in a bootstrapped
 rootfs. It matters less than it sounds: `cage` is what makes the session a
 kiosk, and `eye-kiosk` detects the browser at runtime.
 
+## Verification status
+
+Everything below was observed on a booted machine, not inferred from the
+build. `make smoke` reproduces it.
+
+| | |
+|---|---|
+| Boot — kernel-direct, UEFI disk, and **USB** | 3/3 USB runs, all markers |
+| The PC application rendering | `GET /` + 8 asset requests, 0 kiosk restarts |
+| The PC application's Express backend | `Server running on :5000` |
+| Security posture, read from live kernel state | **25 checks, 0 failed** |
+| Clean from-scratch build | all seven units enabled by configure |
+
+USB boot is the one worth calling out, because it is the only mode that
+exercises the path a written stick takes. The firmware log shows it:
+
+```
+BdsDxe: loading Boot0001 "UEFI QEMU QEMU USB HARDDRIVE ..."
+EFI stub: Loaded initrd from LINUX_EFI_INITRD_MEDIA_GUID device path
+```
+
+The two standing warnings from `eye-audit` are deliberate, not outstanding
+work: module lockdown is off by default because it breaks new hardware until
+reboot, and the root filesystem is read-write. Both are in
+[`docs/SECURITY.md`](docs/SECURITY.md) with what closing them would take.
+
+**One trap worth knowing.** `make rebuild` (`--reuse-rootfs`) skips the
+configure step, so it will not pick up changes to units, users, or anything
+enabled with `systemctl`. It is for iterating on the shell. Anything else
+needs a full `sudo make image` — a dozen test cycles here ran against images
+missing two services because of exactly this.
+
 ## What this is
 
 A real operating system in every sense that matters here: it owns the boot,
