@@ -40,5 +40,19 @@ ExecStart=/opt/eye-os/bin/eye-kiosk
 Restart=always
 RestartSec=2
 
+# Drop every capability from the session.
+#
+# Not only hardening — the browser does not start without it. bubblewrap
+# refuses to run when it finds capabilities in its permitted set while not
+# being setuid ("Unexpected capabilities but not setuid, old file caps
+# config?") and exits. WebKit's sandbox helper dies with it, then the browser,
+# then cage, and systemd restarts the lot. Another failure that presents as a
+# graphics problem and is not one.
+#
+# A kiosk session needs no capabilities at all: cage reaches DRM and input
+# through its seat, which is group membership and seatd, not CAP_SYS_ADMIN.
+CapabilityBoundingSet=
+AmbientCapabilities=
+
 [Install]
 WantedBy=graphical.target
