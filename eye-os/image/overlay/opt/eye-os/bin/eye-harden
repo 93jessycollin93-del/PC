@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""
+Late-boot hardening — the steps that can only be taken once the system has
+finished needing the thing being taken away.
+
+sysctl.d handles everything that can be set early. This handles what cannot:
+locking module loading has to wait until every driver the machine needs is
+already loaded, which is not true when sysctl.d runs.
+
+Reads /etc/eye-os/hardening.conf. Everything here is off by default and
+`eye-audit` reports which of them are not in force, because a hardening step
+that silently did not apply is worse than one you know is off.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+CONFIG = Path("/etc/eye-os/hardening.conf")
+
+
+def log(message: str) -> None:
+    print(f"eye-harden: {message}", flush=True)
+
+
+def read_config() -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        for raw in CONFIG.read_text().splitlines():
+            line = raw.split("#", 1)[0].strip()
+            if "=" in line:
+                key, _, value = line.partition("=")
+                values[key.strip()] = value.strip().strip('"')
+    except OSError:
+        log(f"{CONFIG} unreadable — nothing applied")
+    return values
+
+
+def enabled(config: dict[str, str], key: str) -> bool:
+    return config.get(key, "0").lower() in ("1", "yes", "true", "on")
+
+
+def write_sysctl(name: str, value: str) -> bool:
+    path = Path("/proc/sys") / name.replace(".", "/")
+    try:
+        path.write_text(value)
+        return True
+    except OSError as error:
+        log(f"could not set {name}: {error}")
+        return False
+
+
+def main() -> int:
+    config = read_config()
+
+    if enabled(config, "EYE_LOCK_MODULES"):
+        # One-way until reboot. Everything the machine needs is loaded by the
+        # time this runs; what it blocks is a later load, which on an
+        # appliance is either new hardware or an attacker.
+        if write_sysctl("kernel.modules_disabled", "1"):
+            log("module loading locked (kernel.modules_disabled=1)")
+    else:
+        log("module loading NOT locked — set EYE_LOCK_MODULES=1 in /etc/eye-os/hardening.conf")
+
+    if enabled(config, "EYE_DISABLE_USB_STORAGE"):
+        target = Path("/etc/modprobe.d/eye-usb-storage.conf")
+        if not target.exists():
+            target.write_text("install usb-storage /bin/false\n")
+            log(f"usb-storage refused from next boot ({target})")
+        else:
+            log("usb-storage already refused")
+    else:
+        log("usb-storage allowed — set EYE_DISABLE_USB_STORAGE=1 once installed to internal storage")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

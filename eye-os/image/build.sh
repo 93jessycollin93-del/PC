@@ -246,9 +246,19 @@ EOF
 
 # ext4 root on the first virtio/NVMe disk; the label keeps it independent of
 # whether the firmware enumerates it as vda, sda or nvme0n1.
+# nodev/nosuid/noexec on the writable, world-reachable directories. This is
+# the CIS baseline and it is cheap: nothing on this machine legitimately
+# executes from /tmp or from shared memory, and a dropped payload that cannot
+# be executed where it landed is a much smaller problem.
+#
+# /var/lib/eye-os holds the browser profile and the session's files — data,
+# never code — so it gets the same treatment through the bind below.
 cat >"$ROOTFS/etc/fstab" <<'EOF'
-LABEL=eye-root  /          ext4  errors=remount-ro,noatime  0 1
-LABEL=EYE-ESP   /boot/efi  vfat  umask=0077,noauto          0 2
+LABEL=eye-root  /          ext4   errors=remount-ro,noatime          0 1
+LABEL=EYE-ESP   /boot/efi  vfat   umask=0077,noauto                  0 2
+tmpfs           /tmp       tmpfs  nodev,nosuid,noexec,size=512M      0 0
+tmpfs           /dev/shm   tmpfs  nodev,nosuid,noexec                0 0
+/var/lib/eye-os /var/lib/eye-os none bind,nodev,nosuid,noexec        0 0
 EOF
 
 # --------------------------------------------------------- 4. configure
@@ -278,7 +288,7 @@ install -d -o $KIOSK_USER -g $KIOSK_USER -m 0750 /var/lib/eye-os /var/lib/eye-os
 install -d -o $KIOSK_USER -g $KIOSK_USER -m 0750 /var/lib/eye-os/pc-data
 
 # eye-audit and the rest on PATH for whoever is looking at this machine.
-for tool in eye-audit eye-provision eye-firewall-apply; do
+for tool in eye-audit eye-provision eye-firewall-apply eye-harden; do
   ln -sf /opt/eye-os/bin/\$tool /usr/local/bin/\$tool
 done
 
@@ -292,6 +302,7 @@ systemctl enable eye-provision.service
 systemctl enable eye-hostd.service
 systemctl enable eye-kiosk.service
 systemctl enable eye-pc.service || true
+systemctl enable eye-harden.service
 systemctl set-default graphical.target
 
 # No remote access on an appliance. Neither is installed by default; masking

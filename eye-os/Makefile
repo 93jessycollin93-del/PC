@@ -49,15 +49,13 @@ smoke:
 smoke-disk:
 	$(IMAGE_DIR)/smoke-test.sh --disk
 
-# Every shell script and every Python tool, not a hand-listed subset — a new
-# tool in bin/ is covered the moment it lands rather than whenever someone
-# remembers to add it here.
-PY_TOOLS := $(IMAGE_DIR)/overlay/opt/eye-os/bin/eye-hostd \
-            $(IMAGE_DIR)/overlay/opt/eye-os/bin/eye-audit \
-            $(IMAGE_DIR)/overlay/opt/eye-os/bin/eye-provision \
-            $(IMAGE_DIR)/overlay/opt/eye-os/bin/eye-firewall-apply
+# Globbed, not listed. This was a hand-written list and it went stale the
+# first time a tool was added — which is the whole argument against writing
+# one. Everything in bin/ is a Python tool except eye-kiosk, which is sh.
+BIN_DIR := $(IMAGE_DIR)/overlay/opt/eye-os/bin
+PY_TOOLS := $(filter-out $(BIN_DIR)/eye-kiosk,$(wildcard $(BIN_DIR)/*))
 SH_SCRIPTS := $(IMAGE_DIR)/build.sh $(IMAGE_DIR)/run.sh $(IMAGE_DIR)/smoke-test.sh \
-              $(IMAGE_DIR)/overlay/opt/eye-os/bin/eye-kiosk
+              $(BIN_DIR)/eye-kiosk
 
 check:
 	cd $(SHELL_DIR) && npm run typecheck

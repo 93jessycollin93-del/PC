@@ -307,6 +307,123 @@ def audit_session() -> None:
         record(PASS, area, "dangerous routes blocked", ", ".join(blocked))
 
 
+# ----------------------------------------------------------------- kernel
+
+# Read from /proc/sys, never from sysctl.d — a value that failed to apply is
+# exactly the case worth catching, and the file on disk cannot tell you.
+#
+# (value, direction). "min" passes on anything at least as strict, because for
+# several of these a higher number is a stronger setting:
+# unprivileged_bpf_disabled=2 is "off and locked" where 1 is merely "off", and
+# ptrace_scope=3 forbids ptrace entirely where 2 restricts it to admin.
+# Reporting a stricter machine as failing would teach you to ignore this tool.
+# "exact" is for the ones where the wanted value is already the strict end.
+EXPECTED_SYSCTLS = {
+    "kernel.dmesg_restrict": ("1", "min"),
+    "kernel.kptr_restrict": ("2", "min"),
+    "kernel.yama.ptrace_scope": ("2", "min"),
+    "kernel.unprivileged_bpf_disabled": ("1", "min"),
+    "kernel.kexec_load_disabled": ("1", "min"),
+    "kernel.sysrq": ("0", "exact"),
+    "kernel.perf_event_paranoid": ("3", "min"),
+    "kernel.randomize_va_space": ("2", "min"),
+    "fs.suid_dumpable": ("0", "exact"),
+    "fs.protected_hardlinks": ("1", "min"),
+    "fs.protected_symlinks": ("1", "min"),
+    "net.ipv4.ip_forward": ("0", "exact"),
+    "net.ipv4.conf.all.accept_redirects": ("0", "exact"),
+    "net.ipv4.conf.all.accept_source_route": ("0", "exact"),
+    "net.ipv4.tcp_syncookies": ("1", "min"),
+}
+
+
+def read_sysctl(name: str) -> str | None:
+    try:
+        return (Path("/proc/sys") / name.replace(".", "/")).read_text().split()[0]
+    except (OSError, IndexError):
+        return None
+
+
+def audit_kernel() -> None:
+    area = "kernel"
+    wrong = []
+    missing = []
+    for name, (expected, mode) in EXPECTED_SYSCTLS.items():
+        actual = read_sysctl(name)
+        if actual is None:
+            missing.append(name)
+            continue
+        try:
+            ok = int(actual) >= int(expected) if mode == "min" else actual == expected
+        except ValueError:
+            ok = actual == expected
+        if not ok:
+            wrong.append(f"{name}={actual} (want {'>=' if mode == 'min' else ''}{expected})")
+
+    if wrong:
+        record(FAIL, area, "hardening sysctls applied", "; ".join(wrong[:4]))
+    elif missing:
+        record(WARN, area, "hardening sysctls applied", f"not present: {', '.join(missing[:4])}")
+    else:
+        record(PASS, area, "hardening sysctls applied", f"all {len(EXPECTED_SYSCTLS)} as configured")
+
+    # user namespaces must stay ON: WebKit sandboxes its renderers with
+    # bubblewrap, which needs them. Reporting this as a pass when it is
+    # disabled would be backwards.
+    userns = read_sysctl("user.max_user_namespaces")
+    if userns is not None and userns == "0":
+        record(
+            FAIL,
+            area,
+            "user namespaces available for the browser sandbox",
+            "disabled — WebKit cannot sandbox its renderers",
+        )
+    else:
+        record(PASS, area, "user namespaces available for the browser sandbox")
+
+    locked = read_sysctl("kernel.modules_disabled")
+    if locked == "1":
+        record(PASS, area, "module loading locked")
+    else:
+        record(WARN, area, "module loading locked", "off — set EYE_LOCK_MODULES=1 in /etc/eye-os/hardening.conf")
+
+    # Refusals are `install <mod> /bin/false`, which blacklist alone does not
+    # achieve; count them rather than trusting the file exists.
+    try:
+        blacklist = Path("/etc/modprobe.d/eye-blacklist.conf").read_text()
+        refused = len([l for l in blacklist.splitlines() if l.strip().startswith("install ")])
+        record(PASS, area, "kernel modules refused", f"{refused} modules")
+    except OSError:
+        record(FAIL, area, "kernel modules refused", "eye-blacklist.conf missing")
+
+
+def audit_mounts() -> None:
+    area = "mounts"
+    try:
+        mounts = Path("/proc/mounts").read_text().splitlines()
+    except OSError:
+        record(WARN, area, "mount options", "/proc/mounts unavailable")
+        return
+
+    wanted = {"/tmp": ("nodev", "nosuid", "noexec"), "/dev/shm": ("nodev", "nosuid", "noexec")}
+    seen = {}
+    for line in mounts:
+        fields = line.split()
+        if len(fields) >= 4 and fields[1] in wanted:
+            seen[fields[1]] = fields[3].split(",")
+
+    for point, required in wanted.items():
+        options = seen.get(point)
+        if options is None:
+            record(WARN, area, f"{point} hardened", "not a separate mount")
+            continue
+        absent = [opt for opt in required if opt not in options]
+        if absent:
+            record(FAIL, area, f"{point} hardened", f"missing {', '.join(absent)}")
+        else:
+            record(PASS, area, f"{point} hardened", ",".join(required))
+
+
 # -------------------------------------------------------------------- main
 
 
@@ -317,6 +434,8 @@ def main() -> int:
     audit_accounts()
     audit_session()
     audit_services()
+    audit_kernel()
+    audit_mounts()
     audit_filesystem()
 
     failures = sum(1 for r in results if r["status"] == FAIL)
