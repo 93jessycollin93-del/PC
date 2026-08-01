@@ -27,8 +27,19 @@ Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=XDG_SESSION_TYPE=wayland
 Environment=EYE_URL=http://127.0.0.1:7788/
 Environment=EYE_PROFILE=/var/lib/eye-os/browser
-# No GPU on a plain VM: let Mesa fall back to its software rasteriser rather
-# than let wlroots fail to find a renderer and take the session down with it.
+# No GPU on a plain VM. LIBGL_ALWAYS_SOFTWARE is not enough on its own —
+# Mesa refuses it when the EGL device is a real DRM node ("Not allowed to
+# force software rendering when API explicitly selects a hardware device"),
+# EGL then fails to initialize, and wlroots takes the whole session down with
+# a "Failed to create DRM backend".
+#
+# WLR_RENDERER=pixman sidesteps EGL entirely: wlroots composites on the CPU
+# and never asks for a GL context. Slower, and completely reliable on
+# hardware that has no usable GPU driver — which includes every plain VM and
+# any machine whose GPU this image has no driver for.
+#
+# On real hardware with working DRI, drop this line to get GPU compositing.
+Environment=WLR_RENDERER=pixman
 Environment=WLR_RENDERER_ALLOW_SOFTWARE=1
 Environment=LIBGL_ALWAYS_SOFTWARE=1
 

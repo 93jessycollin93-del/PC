@@ -219,6 +219,9 @@ cp -a "$PROJECT/shell/dist" "$ROOTFS/opt/eye-os/shell"
 if [ "$WITH_PC" -eq 1 ]; then
   rm -rf "$ROOTFS/opt/eye-os/pc"
   cp -a "$PC_STAGE" "$ROOTFS/opt/eye-os/pc"
+  # Mount point for the writable data directory. Has to exist in the image —
+  # BindPaths= into a path that is not there fails the unit before ExecStart.
+  install -d -m 0755 "$ROOTFS/opt/eye-os/pc/data"
 else
   # No PC session installed: point the default session at the recovery shell
   # so eye-hostd has something real to serve.
@@ -270,6 +273,9 @@ done
 # 0750, not 0755: this holds the session's files and browser profile, and
 # nothing outside the eye user has any business reading them.
 install -d -o $KIOSK_USER -g $KIOSK_USER -m 0750 /var/lib/eye-os /var/lib/eye-os/files
+# Backing store for the PC session's ./data, bind-mounted into the read-only
+# install tree by eye-pc.service.
+install -d -o $KIOSK_USER -g $KIOSK_USER -m 0750 /var/lib/eye-os/pc-data
 
 # eye-audit and the rest on PATH for whoever is looking at this machine.
 for tool in eye-audit eye-provision eye-firewall-apply; do

@@ -44,6 +44,17 @@ ProtectControlGroups=yes
 ProtectClock=yes
 ProtectProc=invisible
 ReadWritePaths=/var/lib/eye-os
+
+# The application creates and writes ./data relative to its working
+# directory. /opt is read-only under ProtectSystem=strict and stays that way —
+# the install tree is what the session executes, and making it writable to
+# satisfy a data directory would hand anything that compromises the renderer a
+# way to rewrite the next boot.
+#
+# So the path exists where the application expects it and the storage lives on
+# the data partition instead. Without this the process throws an unhandled
+# EACCES from an async mkdir a few seconds after start and exits 1.
+BindPaths=/var/lib/eye-os/pc-data:/opt/eye-os/pc/data
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 RestrictNamespaces=yes
 RestrictSUIDSGID=yes
