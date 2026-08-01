@@ -23,19 +23,47 @@ else
   TIMEOUT="${TIMEOUT:-900}"
 fi
 
-[ -f "$OUT/rootfs.ext4" ] || {
-  echo "no out/rootfs.ext4 — run build.sh first" >&2
-  exit 1
-}
+# Default exercises the system; --disk additionally exercises the boot chain
+# (GPT, ESP, systemd-boot) that real hardware actually uses.
+MODE="kernel"
+[ "${1:-}" = "--disk" ] && MODE="disk"
+
+if [ "$MODE" = "disk" ]; then
+  [ -f "$OUT/jackie-os.img" ] || {
+    echo "no out/jackie-os.img — run build.sh --disk first" >&2
+    exit 1
+  }
+  OVMF=""
+  for candidate in \
+    /usr/share/OVMF/OVMF_CODE_4M.fd \
+    /usr/share/OVMF/OVMF_CODE.fd \
+    /usr/share/ovmf/OVMF.fd; do
+    [ -f "$candidate" ] && OVMF="$candidate" && break
+  done
+  [ -n "$OVMF" ] || {
+    echo "no OVMF firmware found (apt-get install ovmf)" >&2
+    exit 1
+  }
+else
+  [ -f "$OUT/rootfs.ext4" ] || {
+    echo "no out/rootfs.ext4 — run build.sh first" >&2
+    exit 1
+  }
+fi
 
 # Every marker is a line one component prints only once it has genuinely
-# started. `Reached target Graphical` is systemd's own, and the two jackie-*
-# lines come from the units in the overlay.
+# started: the target line is systemd's own, and the two jackie-* lines come
+# from the units in the overlay.
+#
+# Matched case-insensitively, because systemd renders the target as "Reached
+# target graphical.target - Graphical Interface" when journald is forwarded to
+# the console and as "Reached target Graphical Interface" in its pretty
+# output. Both are the same event and either one counts.
 MARKERS=(
   "Linux version"
   "systemd[1]:"
   "jackie-hostd: serving"
-  "Reached target Graphical"
+  "Reached target graphical"
   "jackie-kiosk: starting"
 )
 # Any of these means the boot is already lost; fail fast instead of idling
@@ -59,13 +87,26 @@ QEMU_ARGS=(
   -device virtio-gpu-pci
   -netdev user,id=net0
   -device virtio-net-pci,netdev=net0
-  -kernel "$OUT/vmlinuz"
-  -initrd "$OUT/initrd.img"
-  -drive "file=$OUT/rootfs.ext4,format=raw,if=virtio"
-  -append "root=/dev/vda rw console=ttyS0,115200 systemd.journald.forward_to_console=1 systemd.log_level=info"
   -nographic
   -no-reboot
 )
+
+if [ "$MODE" = "disk" ]; then
+  # The kernel command line here comes from the loader entry on the ESP, not
+  # from this script — which is exactly what makes this a test of the boot
+  # chain rather than a second test of the same rootfs.
+  QEMU_ARGS+=(
+    -drive "if=pflash,format=raw,readonly=on,file=$OVMF"
+    -drive "file=$OUT/jackie-os.img,format=raw,if=virtio"
+  )
+else
+  QEMU_ARGS+=(
+    -kernel "$OUT/vmlinuz"
+    -initrd "$OUT/initrd.img"
+    -drive "file=$OUT/rootfs.ext4,format=raw,if=virtio"
+    -append "root=/dev/vda rw console=ttyS0,115200 systemd.journald.forward_to_console=1 systemd.log_level=info"
+  )
+fi
 if [ -w /dev/kvm ]; then
   QEMU_ARGS+=(-enable-kvm -cpu host)
 else
@@ -89,14 +130,14 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     break
   fi
   for pattern in "${FATAL[@]}"; do
-    if grep -qF "$pattern" "$LOG" 2>/dev/null; then
+    if grep -qiF "$pattern" "$LOG" 2>/dev/null; then
       echo
       echo "FATAL: guest reported '$pattern'" >&2
       tail -40 "$LOG" >&2
       exit 1
     fi
   done
-  if grep -qF "${MARKERS[-1]}" "$LOG" 2>/dev/null; then
+  if grep -qiF "${MARKERS[-1]}" "$LOG" 2>/dev/null; then
     break
   fi
   # One dot per marker reached, so a slow boot still shows progress. The
@@ -105,7 +146,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   # the guest has printed anything at all.
   reached="$(
     for pattern in "${MARKERS[@]}"; do
-      grep -qF "$pattern" "$LOG" 2>/dev/null && printf '.'
+      grep -qiF "$pattern" "$LOG" 2>/dev/null && printf '.'
     done
     true
   )"
@@ -119,7 +160,7 @@ echo
 
 status=0
 for pattern in "${MARKERS[@]}"; do
-  if grep -qF "$pattern" "$LOG" 2>/dev/null; then
+  if grep -qiF "$pattern" "$LOG" 2>/dev/null; then
     printf '  \033[32mPASS\033[0m  %s\n' "$pattern"
   else
     printf '  \033[31mFAIL\033[0m  %s\n' "$pattern"

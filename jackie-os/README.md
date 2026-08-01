@@ -40,6 +40,10 @@ make run        # boot it in a QEMU window
 make smoke      # boot headless and assert the system came up
 ```
 
+Iterating on the shell? `sudo make rebuild` re-lays it onto the rootfs from
+the last build and re-bakes the images without bootstrapping again — about a
+minute instead of ten.
+
 `make run-serial` boots the same image headless with the console on your
 terminal, which is how you read the boot log when something goes wrong.
 
@@ -50,8 +54,14 @@ system:
 
 ```sh
 make smoke                        # boots the image, asserts on the serial log
+make smoke-disk                   # same, but through UEFI and systemd-boot
 npm --prefix shell run test:browser   # drives the shell in a real browser
 ```
+
+`make smoke` boots the kernel directly, so a failure is the system's fault.
+`make smoke-disk` boots the GPT disk through OVMF and systemd-boot, which is
+the path real hardware takes — run it when you change anything about
+partitioning or the loader.
 
 The browser test needs Playwright, which is deliberately not a dependency —
 `make image` would otherwise pull a browser download it has no use for:

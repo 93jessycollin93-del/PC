@@ -4,15 +4,18 @@
 #   make dev       run the shell in a browser with hot reload
 #   make image     bootable rootfs for QEMU            (needs root)
 #   make disk      + a UEFI disk image for real hardware (needs root)
+#   make rebuild   re-bake the image from the existing rootfs (needs root)
 #   make run       boot the image in a QEMU window
 #   make run-serial  boot headless, console on this terminal
+#   make smoke     boot headless and assert the system came up
+#   make smoke-disk  same, but through UEFI and systemd-boot
 #   make check     typecheck the shell and lint the image scripts
 #   make clean     remove build output
 
 SHELL_DIR := shell
 IMAGE_DIR := image
 
-.PHONY: all shell dev image disk run run-serial smoke check clean
+.PHONY: all shell dev image disk rebuild run run-serial smoke smoke-disk check clean
 
 all: image
 
@@ -28,6 +31,12 @@ image:
 disk:
 	$(IMAGE_DIR)/build.sh --disk
 
+# Re-lays the shell and overlay onto the rootfs from the last build and
+# re-bakes the images. Roughly a minute instead of ten, which is what you
+# want while iterating on the shell.
+rebuild: shell
+	$(IMAGE_DIR)/build.sh --skip-shell --reuse-rootfs --disk
+
 run:
 	$(IMAGE_DIR)/run.sh
 
@@ -36,6 +45,9 @@ run-serial:
 
 smoke:
 	$(IMAGE_DIR)/smoke-test.sh
+
+smoke-disk:
+	$(IMAGE_DIR)/smoke-test.sh --disk
 
 check:
 	cd $(SHELL_DIR) && npm run typecheck
