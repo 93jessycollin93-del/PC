@@ -67,6 +67,12 @@ QEMU=(
   -smp "$CPUS"
   # virtio-gpu gives the guest a KMS device, which is what cage needs to find
   # an output. Without it wlroots has nothing to open and the session dies.
+  #
+  # -vga none is not optional: q35 supplies a default VGA as well, and two DRM
+  # devices send wlroots down its multi-GPU path, where it tries DMA-BUF
+  # imports that software rendering cannot satisfy. The compositor then fails
+  # on a machine whose graphics are otherwise fine.
+  -vga none
   -device virtio-gpu-pci
   -device virtio-tablet-pci
   -device virtio-keyboard-pci

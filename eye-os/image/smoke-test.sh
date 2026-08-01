@@ -106,6 +106,14 @@ QEMU_ARGS=(
   -machine q35
   -m "${MEM:-2048}"
   -smp "${CPUS:-2}"
+  # -vga none matters, and cost a whole debugging cycle to find. q35 provides
+  # a default VGA (1234:1111, bochs-drm) and adding virtio-gpu-pci on top of
+  # it gives the guest TWO DRM devices. wlroots then takes its multi-GPU path
+  # and tries to import buffers across them over DMA-BUF, which software
+  # rendering cannot do — so the compositor dies with "Failed to import source
+  # buffer into multi-GPU renderer" on a machine that has no GPU problem at
+  # all. One GPU, like the hardware this image actually targets.
+  -vga none
   -device virtio-gpu-pci
   -netdev user,id=net0
   -device virtio-net-pci,netdev=net0
