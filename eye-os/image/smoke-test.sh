@@ -12,7 +12,6 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$HERE/out"
-LOG="$OUT/smoke-serial.log"
 # With KVM this boots in well under a minute. Under TCG emulation — no
 # /dev/kvm, which is the normal case in a container or on a CI runner — the
 # same boot takes many minutes, so the default has to follow the mode rather
@@ -23,12 +22,68 @@ else
   TIMEOUT="${TIMEOUT:-900}"
 fi
 
-# Default exercises the system; --disk additionally exercises the boot chain
-# (GPT, ESP, systemd-boot) that real hardware actually uses.
+# Three modes, each exercising more of the real path than the last:
+#
+#   kernel  QEMU loads the kernel directly. No firmware, no bootloader, so a
+#           failure here is always the system's own.
+#   disk    UEFI firmware, GPT, ESP, systemd-boot, root on a virtio disk.
+#   usb     the same, but the image is attached as a USB mass storage device
+#           behind an xHCI controller — which is what a written USB stick
+#           actually is. This is the only mode that proves the initramfs
+#           carries the xhci and usb-storage drivers it needs to find root;
+#           virtio never touches that code, so a virtio boot passing tells you
+#           nothing about whether the stick will come up.
+#
+# --repeat N runs the whole thing N times and reports each. Boot ordering is
+# not deterministic — device probe, seat acquisition and service start all
+# race — so one green run is weaker evidence than it looks.
 MODE="kernel"
-[ "${1:-}" = "--disk" ] && MODE="disk"
+REPEAT=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --kernel) MODE="kernel" ;;
+    --disk) MODE="disk" ;;
+    --usb) MODE="usb" ;;
+    --repeat)
+      REPEAT="$2"
+      shift
+      ;;
+    *)
+      echo "unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
-if [ "$MODE" = "disk" ]; then
+# Each run gets its own log so a flaky failure is still there to read after
+# the next run starts.
+LOG="$OUT/smoke-$MODE.log"
+
+# Repeats re-invoke this script rather than looping inside it, so every run is
+# a genuinely fresh process, fresh firmware and fresh disk state.
+if [ "$REPEAT" -gt 1 ]; then
+  passes=0
+  for run in $(seq 1 "$REPEAT"); do
+    printf '\n══════════ run %d of %d (%s) ══════════\n' "$run" "$REPEAT" "$MODE"
+    if "$0" "--$MODE"; then
+      passes=$((passes + 1))
+    else
+      cp "$LOG" "$OUT/smoke-$MODE-fail-$run.log" 2>/dev/null || true
+      echo "  (serial log kept at $OUT/smoke-$MODE-fail-$run.log)" >&2
+    fi
+  done
+  printf '\n%d/%d runs passed (%s)\n' "$passes" "$REPEAT" "$MODE"
+  [ "$passes" -eq "$REPEAT" ] || exit 1
+  exit 0
+fi
+
+if [ "$MODE" = "kernel" ]; then
+  [ -f "$OUT/rootfs.ext4" ] || {
+    echo "no out/rootfs.ext4 — run build.sh first" >&2
+    exit 1
+  }
+else
   [ -f "$OUT/eye-os.img" ] || {
     echo "no out/eye-os.img — run build.sh --disk first" >&2
     exit 1
@@ -42,11 +97,6 @@ if [ "$MODE" = "disk" ]; then
   done
   [ -n "$OVMF" ] || {
     echo "no OVMF firmware found (apt-get install ovmf)" >&2
-    exit 1
-  }
-else
-  [ -f "$OUT/rootfs.ext4" ] || {
-    echo "no out/rootfs.ext4 — run build.sh first" >&2
     exit 1
   }
 fi
@@ -126,22 +176,40 @@ QEMU_ARGS=(
   -no-reboot
 )
 
-if [ "$MODE" = "disk" ]; then
-  # The kernel command line here comes from the loader entry on the ESP, not
-  # from this script — which is exactly what makes this a test of the boot
-  # chain rather than a second test of the same rootfs.
-  QEMU_ARGS+=(
-    -drive "if=pflash,format=raw,readonly=on,file=$OVMF"
-    -drive "file=$OUT/eye-os.img,format=raw,if=virtio"
-  )
-else
-  QEMU_ARGS+=(
-    -kernel "$OUT/vmlinuz"
-    -initrd "$OUT/initrd.img"
-    -drive "file=$OUT/rootfs.ext4,format=raw,if=virtio"
-    -append "root=/dev/vda rw console=ttyS0,115200 systemd.journald.forward_to_console=1 systemd.log_level=info"
-  )
-fi
+case "$MODE" in
+  disk)
+    # The kernel command line here comes from the loader entry on the ESP, not
+    # from this script — which is exactly what makes this a test of the boot
+    # chain rather than a second test of the same rootfs.
+    # shellcheck disable=SC2054  # commas belong to QEMU's option syntax
+    QEMU_ARGS+=(
+      -drive "if=pflash,format=raw,readonly=on,file=$OVMF"
+      -drive "file=$OUT/eye-os.img,format=raw,if=virtio"
+    )
+    ;;
+  usb)
+    # A written USB stick, as faithfully as QEMU can present one: an xHCI
+    # controller with a mass storage device on it, and firmware that has to
+    # find the ESP there. Root is located by LABEL, so the initramfs must
+    # load xhci_pci and usb-storage before it can mount anything.
+    # shellcheck disable=SC2054  # commas belong to QEMU's option syntax
+    QEMU_ARGS+=(
+      -drive "if=pflash,format=raw,readonly=on,file=$OVMF"
+      -device qemu-xhci,id=xhci
+      -drive "if=none,id=usbstick,format=raw,file=$OUT/eye-os.img"
+      -device usb-storage,bus=xhci.0,drive=usbstick,bootindex=0
+    )
+    ;;
+  *)
+    # shellcheck disable=SC2054  # commas belong to QEMU's option syntax
+    QEMU_ARGS+=(
+      -kernel "$OUT/vmlinuz"
+      -initrd "$OUT/initrd.img"
+      -drive "file=$OUT/rootfs.ext4,format=raw,if=virtio"
+      -append "root=/dev/vda rw console=ttyS0,115200 systemd.journald.forward_to_console=1 systemd.log_level=info"
+    )
+    ;;
+esac
 if [ -w /dev/kvm ]; then
   QEMU_ARGS+=(-enable-kvm -cpu host)
 else
