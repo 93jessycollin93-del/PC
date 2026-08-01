@@ -1,9 +1,10 @@
 [Unit]
 Description=eYe OS first-boot provisioning (per-machine secrets)
 After=local-fs.target
+# Nothing that needs the token may start before this has produced it. The
+# matching Requires= lives in the consumers, since RequiredBy= is an
+# [Install] directive and silently does nothing here.
 Before=eye-pc.service eye-hostd.service
-# Nothing that needs the token may start before this has produced it.
-RequiredBy=eye-pc.service
 
 [Service]
 Type=oneshot

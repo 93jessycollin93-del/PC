@@ -3,8 +3,11 @@ Description=eYe OS session server (the PC application's Express backend)
 # Only runs when the PC session was actually built into this image. A shell
 # or recovery image simply has no such file and this unit stays inert.
 ConditionPathExists=/opt/eye-os/pc/server.cjs
-After=network.target eye-firewall.service
+After=network.target eye-firewall.service eye-provision.service
 Wants=eye-firewall.service
+# Hard requirement, not a Wants: starting the session server before its token
+# exists would run it with the shell, build and filesystem routes wide open.
+Requires=eye-provision.service
 Before=eye-hostd.service
 
 [Service]
