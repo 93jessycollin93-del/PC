@@ -50,19 +50,28 @@ RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
 SystemCallArchitectures=native
-# @system-service and nothing more.
+
+# No SystemCallFilter=, deliberately, and this is a real gap — see
+# docs/SECURITY.md.
 #
-# This previously also subtracted `~@privileged @resources @obsolete @mount
-# @debug`, which killed the service with SIGSYS during V8 startup on every
-# boot. Two things were wrong with it. @system-service *contains* @resources,
-# so the subtraction removed scheduling and rlimit calls the baseline
-# deliberately grants — and the other four sets are not in @system-service to
-# begin with, so denying them was already a no-op.
+# Node 18 running this bundle is killed with SIGSYS during startup under
+# SystemCallFilter=@system-service, before it prints a line. That was
+# established by bisection on a booted image rather than by reasoning: three
+# variants of this unit ran side by side, one with no confinement, one with
+# only the two seccomp directives, one with every Protect*/Restrict* setting
+# below and no seccomp. Only the seccomp variant died. Splitting it again
+# showed SystemCallArchitectures=native is fine and SystemCallFilter is what
+# kills it.
 #
-# The lesson is worth keeping: stacking a subtraction onto an allow-list only
-# ever removes things the allow-list chose to include. Harden by narrowing
-# what you allow, not by re-denying what you already did not permit.
-SystemCallFilter=@system-service
+# The exact syscall is still unidentified — the kernel emitted no type=1326
+# record to name it — so allowing it explicitly is not yet possible, and
+# guessing at the filter is what produced two wrong fixes before this one.
+#
+# What remains in force is everything the bisect proved safe: strict
+# filesystem protection, an empty capability set, no new privileges, address
+# family and namespace restrictions, and native-architecture-only syscalls.
+# That is meaningful confinement, but it is not syscall filtering, and this
+# comment exists so nobody reads the block below and assumes otherwise.
 CapabilityBoundingSet=
 AmbientCapabilities=
 UMask=0077

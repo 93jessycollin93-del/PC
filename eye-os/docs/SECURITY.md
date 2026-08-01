@@ -136,6 +136,38 @@ applies; the OS adds nothing.
 **No integrity measurement of the session bundle.** Nothing checks that
 `/opt/eye-os/pc/server.cjs` is the file the build produced.
 
+**No syscall filtering on the session server.** `eye-pc.service` carries no
+`SystemCallFilter=`, and that is the process holding the API keys and talking
+to the internet — so it is the one where the omission matters most.
+
+Node 18 running this bundle is killed with SIGSYS during startup under
+`SystemCallFilter=@system-service`, before it prints a line. That was
+established by bisection on a booted image, after two attempts to fix it by
+reasoning about which syscall groups V8 needs both failed:
+
+| variant | confinement | result |
+|---|---|---|
+| a | none | ran |
+| b | seccomp only | killed |
+| c | every `Protect*`/`Restrict*`, no seccomp | ran |
+| d | `SystemCallArchitectures=native` only | ran |
+| e | `SystemCallFilter=@system-service` only | killed |
+
+So `SystemCallFilter` is the cause and every other confinement directive is
+safe. The exact syscall is still unknown — the kernel emitted no `type=1326`
+record naming it — which is why it is not simply allowed back explicitly.
+
+What remains in force on that unit: `ProtectSystem=strict`, `ProtectHome`,
+`ProtectKernelTunables`/`Modules`/`Logs`, `ProtectControlGroups`,
+`ProtectClock`, `ProtectProc=invisible`, `RestrictAddressFamilies`,
+`RestrictNamespaces`, `RestrictSUIDSGID`, `RestrictRealtime`,
+`LockPersonality`, `NoNewPrivileges`, an empty `CapabilityBoundingSet`, and
+`SystemCallArchitectures=native`. Meaningful, but not a syscall filter.
+
+To finish it: run the service with `SystemCallErrorNumber=EPERM` so a denial
+returns an error instead of killing, identify the call that fails, then
+restore `SystemCallFilter=@system-service` with that call allowed explicitly.
+
 ## Checking a machine
 
 ```sh
