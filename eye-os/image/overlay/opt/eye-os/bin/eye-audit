@@ -122,15 +122,20 @@ def audit_remote_access() -> None:
     else:
         record(PASS, area, "no ssh server", "not installed")
 
+    # Deliberately '*getty*' and not 'getty@*': serial-getty@ttyS0 is a login
+    # prompt on the serial console and does not match the narrower pattern.
+    # Missing it is exactly the sort of gap this tool exists to catch.
     gettys = [
-        line.split()[0]
-        for line in run("systemctl", "list-units", "--no-legend", "--state=active", "getty@*.service").splitlines()
+        line.split()[0].lstrip("*").strip()
+        for line in run(
+            "systemctl", "list-units", "--no-legend", "--state=active", "*getty*.service"
+        ).splitlines()
         if line.strip()
     ]
     if gettys:
-        record(WARN, area, "console logins", f"active: {', '.join(gettys)}")
+        record(FAIL, area, "no console login prompt", f"active: {', '.join(gettys)}")
     else:
-        record(PASS, area, "console logins", "no getty running")
+        record(PASS, area, "no console login prompt")
 
 
 # --------------------------------------------------------------- accounts

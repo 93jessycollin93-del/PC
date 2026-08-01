@@ -50,8 +50,19 @@ RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+# @system-service and nothing more.
+#
+# This previously also subtracted `~@privileged @resources @obsolete @mount
+# @debug`, which killed the service with SIGSYS during V8 startup on every
+# boot. Two things were wrong with it. @system-service *contains* @resources,
+# so the subtraction removed scheduling and rlimit calls the baseline
+# deliberately grants — and the other four sets are not in @system-service to
+# begin with, so denying them was already a no-op.
+#
+# The lesson is worth keeping: stacking a subtraction onto an allow-list only
+# ever removes things the allow-list chose to include. Harden by narrowing
+# what you allow, not by re-denying what you already did not permit.
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @resources @obsolete @mount @debug
 CapabilityBoundingSet=
 AmbientCapabilities=
 UMask=0077

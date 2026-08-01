@@ -296,8 +296,19 @@ systemctl mask ssh.service sshd.service 2>/dev/null || true
 
 # No login prompt on any console. The kiosk owns tty1; the rest would only
 # ever be a way in.
+#
+# serial-getty is masked too, and that one is easy to miss: masking
+# getty@tty1 and disabling getty.target still leaves a login prompt on the
+# serial console, which on a machine with a header or a USB-serial adapter is
+# a way in that bypasses everything else here.
+# Mask only, and never follow it with a systemctl disable on the templates:
+# disable removes symlinks in /etc/systemd/system whose names match template
+# instances, and a mask *is* such a symlink. Running disable afterwards
+# silently deletes the masks and hands the console its login prompt back.
 systemctl mask getty@tty1.service 2>/dev/null || true
-systemctl disable getty.target 2>/dev/null || true
+systemctl mask serial-getty@ttyS0.service 2>/dev/null || true
+systemctl mask getty.target 2>/dev/null || true
+systemctl mask autovt@.service 2>/dev/null || true
 
 # nftables' own unit would load /etc/nftables.conf and stomp on the ruleset
 # eye-firewall applies. One firewall, one owner.
