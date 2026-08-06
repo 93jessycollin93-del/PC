@@ -21,6 +21,7 @@ export interface DesktopItem {
     notepadInitialContent?: string;
     url?: string;
     iconName?: string;
+    featured?: boolean;
 }
 
 export interface Point {

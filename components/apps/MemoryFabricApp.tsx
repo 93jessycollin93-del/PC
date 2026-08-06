@@ -2,13 +2,15 @@ import React, { useState, useEffect, useReducer } from 'react';
 import { Brain, Search, Trash2, Link2, Download, Plus } from 'lucide-react';
 import { memoryFabric, type MemoryEntry } from '../../lib/memoryFabric';
 
+type MemoryType = MemoryEntry['type'];
+
 export const MemoryFabricApp: React.FC = () => {
   const [, tick] = useReducer((x: number) => x + 1, 0);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [stats, setStats] = useState(memoryFabric.getStats());
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MemoryEntry[]>([]);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<MemoryType | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tagsInput, setTagsInput] = useState('');
@@ -148,7 +150,7 @@ export const MemoryFabricApp: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <select
                 value={selectedType || ''}
-                onChange={e => setSelectedType(e.target.value || null)}
+                onChange={e => setSelectedType((e.target.value || null) as MemoryType | null)}
                 className="px-2 py-1.5 bg-zinc-950 border border-zinc-700 rounded text-sm text-zinc-300 focus:border-purple-500 outline-none"
               >
                 <option value="">Type (auto: fact)</option>

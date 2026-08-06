@@ -35,6 +35,7 @@ const PROVIDER_COLORS: Record<ModelProvider, string> = {
   deepseek: 'text-violet-400',
   anthropic: 'text-amber-400',
   grok: 'text-emerald-400',
+  ollama: 'text-teal-400',
 };
 
 export const MissionControlApp: React.FC = () => {
