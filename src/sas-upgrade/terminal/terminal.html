@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAS Workstation - Terminal + AI</title>
+<style>
+  :root {
+    --bg-primary: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-panel-light: #334155;
+    --bg-hover: #273449;
+    --bg-active: #475569;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --accent-light: rgba(139, 92, 246, 0.15);
+    --success: #10b981;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --border: #334155;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Consolas', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    line-height: 1.6;
+  }
+
+  .header {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-shrink: 0;
+    box-shadow: var(--shadow);
+    z-index: 100;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 1rem; }
+  .logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.125rem; color: var(--text-primary); }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+
+  .btn {
+    padding: 0.5rem 1rem;
+    background: var(--bg-panel-light);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg-hover); border-color: var(--accent); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn-icon { padding: 0.5rem; width: 36px; height: 36px; justify-content: center; }
+  .btn-ghost { background: transparent; border-color: transparent; }
+  .btn-ghost:hover { background: var(--bg-hover); }
+
+  .main-container { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+  .sidebar {
+    width: 280px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+  .sidebar.collapsed { width: 0; border-right: none; }
+  .sidebar-header { padding: 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .sidebar-title { font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+  .file-tree { flex: 1; overflow-y: auto; padding: 0.5rem; }
+  .file-item {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.875rem;
+    transition: var(--transition);
+    margin-bottom: 0.25rem;
+  }
+  .file-item:hover { background: var(--bg-hover); }
+  .file-item.active { background: var(--accent-light); color: var(--accent); }
+  .file-icon { opacity: 0.7; font-size: 1rem; }
+
+  .workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }
+
+  .tabs-container {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; overflow-x: auto;
+    flex-shrink: 0;
+    padding: 0 0.5rem;
+  }
+  .tabs { display: flex; gap: 0.25rem; flex: 1; }
+  .tab {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+    max-width: 200px;
+  }
+  .tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .tab.active { color: var(--text-primary); border-bottom-color: var(--accent); background: var(--bg-primary); }
+  .tab-close {
+    opacity: 0; transition: var(--transition);
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .tab:hover .tab-close { opacity: 1; }
+  .tab-close:hover { background: var(--bg-active); }
+
+  .split-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .panel { display: flex; flex-direction: column; min-height: 0; position: relative; }
+  .panel-top { flex: 1; background: var(--bg-primary); border-bottom: 1px solid var(--border); }
+  .panel-bottom { height: 40%; min-height: 200px; background: #0a0f1e; display: flex; flex-direction: column; }
+
+  .resizer {
+    height: 4px; background: var(--border);
+    cursor: ns-resize; transition: var(--transition);
+    position: relative; flex-shrink: 0;
+  }
+  .resizer:hover, .resizer.dragging { background: var(--accent); }
+
+  .editor-container { flex: 1; display: flex; position: relative; overflow: hidden; }
+  .editor-view { flex: 1; display: none; flex-direction: column; }
+  .editor-view.active { display: flex; }
+  .editor-textarea {
+    flex: 1;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.6;
+    padding: 1rem;
+    border: none;
+    resize: none;
+    outline: none;
+    tab-size: 2;
+  }
+
+  .canvas-container {
+    flex: 1; position: relative; background: #0a0f1e;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #visualCanvas {
+    max-width: 100%; max-height: 100%;
+    border-radius: var(--radius);
+    background: var(--bg-panel);
+    box-shadow: var(--shadow-lg);
+  }
+  .canvas-placeholder { color: var(--text-muted); text-align: center; padding: 2rem; }
+  .canvas-placeholder-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+
+  .terminal {
+    flex: 1; display: flex; flex-direction: column;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    overflow: hidden;
+  }
+  .terminal-output { flex: 1; overflow-y: auto; padding: 1rem; line-height: 1.6; }
+  .terminal-line { margin-bottom: 0.25rem; word-wrap: break-word; white-space: pre-wrap; }
+  .terminal-prompt { color: var(--accent); font-weight: 600; }
+  .terminal-command { color: var(--text-primary); }
+  .terminal-output-text { color: var(--text-secondary); }
+  .terminal-error { color: var(--error); }
+  .terminal-success { color: var(--success); }
+  .terminal-info { color: var(--warning); }
+  .terminal-real { color: #38bdf8; }
+
+  .terminal-input-container {
+    display: flex; align-items: center;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border);
+    background: #0a0f1e;
+    gap: 0.5rem;
+  }
+  .terminal-prompt-symbol { color: var(--accent); font-weight: 600; flex-shrink: 0; }
+  .terminal-input {
+    flex: 1; background: transparent; border: none;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    outline: none;
+  }
+
+  .ai-sidebar {
+    width: 340px;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    flex-shrink: 0;
+    transition: var(--transition);
+    z-index: 50;
+  }
+  .ai-sidebar.collapsed { width: 0; border-left: none; overflow: hidden; }
+  .ai-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg-panel);
+  }
+  .ai-header-left { display: flex; align-items: center; gap: 0.5rem; }
+  .ai-icon {
+    width: 24px; height: 24px;
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.875rem;
+  }
+  .ai-title { font-weight: 600; font-size: 0.9375rem; }
+  .ai-status {
+    font-size: 0.75rem; color: var(--success);
+    padding: 0.125rem 0.5rem;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 9999px;
+  }
+  .ai-route-badge {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin-top: 0.125rem;
+  }
+
+  .ai-chat { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; background: #0f172a; }
+  .ai-message { max-width: 85%; padding: 0.75rem 1rem; border-radius: 12px; font-size: 0.875rem; line-height: 1.5; white-space: pre-wrap; }
+  .ai-message.user { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 4px; }
+  .ai-message.assistant { align-self: flex-start; background: var(--bg-panel-light); color: var(--text-primary); border-bottom-left-radius: 4px; }
+  .ai-message.system {
+    align-self: center; background: var(--bg-active); color: var(--text-secondary);
+    font-size: 0.75rem; padding: 0.5rem 1rem; border-radius: 9999px;
+  }
+
+  .ai-input-container {
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-panel);
+    display: flex; gap: 0.5rem;
+  }
+  .ai-input {
+    flex: 1;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    padding: 0.625rem 0.875rem;
+    outline: none;
+    resize: none;
+    min-height: 42px;
+    max-height: 120px;
+  }
+  .ai-input:focus { border-color: var(--accent); }
+  .ai-actions { display: flex; gap: 0.5rem; align-items: flex-end; }
+  .ai-context-btn {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    background: var(--bg-panel-light);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .ai-context-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .sidebar, .ai-sidebar { position: absolute; top: 0; bottom: 0; z-index: 200; box-shadow: var(--shadow-lg); }
+    .ai-sidebar { right: 0; }
+    .sidebar.collapsed { transform: translateX(-100%); }
+    .ai-sidebar.collapsed { transform: translateX(100%); }
+    .header-left .btn-text { display: none; }
+    .panel-bottom { height: 50%; }
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-panel); }
+  ::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--bg-panel-light); }
+
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 150; }
+  .overlay.active { display: block; }
+
+  .modal {
+    display: none;
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    z-index: 300;
+    box-shadow: var(--shadow-lg);
+    min-width: 300px;
+    max-width: 90vw;
+  }
+  .modal.active { display: block; }
+  .modal-header { font-weight: 600; margin-bottom: 1rem; font-size: 1.125rem; }
+  .modal-input {
+    width: 100%; padding: 0.625rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+  .modal-input:focus { outline: none; border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+  .hljs-keyword { color: #c792ea; }
+  .hljs-string { color: #c3e88d; }
+  .hljs-number { color: #f78c6c; }
+  .hljs-comment { color: #616161; font-style: italic; }
+  .hljs-function { color: #82aaff; }
+  .hljs-built_in { color: #ffcb6b; }
+</style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <button class="btn btn-ghost btn-icon" id="toggleSidebar" title="Toggle file explorer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <span>SAS Workstation</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="newFileBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="12" y1="18" x2="12" y2="12"></line>
+          <line x1="9" y1="15" x2="15" y2="15"></line>
+        </svg>
+        <span class="btn-text">New File</span>
+      </button>
+      <button class="btn" id="runCodeBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span class="btn-text">Run</span>
+      </button>
+      <a class="btn" href="/dashboard" title="Back to SAS Dashboard">
+        <span class="btn-text">Dashboard</span>
+      </a>
+      <button class="btn btn-primary" id="toggleAI" title="Toggle AI Chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span class="btn-text">AI Chat</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Explorer</div>
+      </div>
+      <div class="file-tree" id="fileTree"></div>
+    </aside>
+
+    <main class="workspace">
+      <div class="tabs-container">
+        <div class="tabs" id="tabs"></div>
+        <button class="btn btn-ghost btn-icon" id="newTabBtn" title="New tab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="split-view">
+        <div class="panel panel-top">
+          <div class="editor-container" id="editorContainer"></div>
+        </div>
+
+        <div class="resizer" id="resizer"></div>
+
+        <div class="panel panel-bottom" id="terminalPanel">
+          <div class="terminal">
+            <div class="terminal-output" id="terminalOutput"></div>
+            <div class="terminal-input-container">
+              <span class="terminal-prompt-symbol">❯</span>
+              <input type="text" class="terminal-input" id="terminalInput" placeholder="JS, or 'help' | 'sh &lt;cmd&gt;' for real commands | 'ai &lt;prompt&gt;'" autocomplete="off">
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="ai-sidebar collapsed" id="aiSidebar">
+      <div class="ai-header">
+        <div class="ai-header-left">
+          <div class="ai-icon">🧠</div>
+          <div>
+            <div class="ai-title">AI Assistant</div>
+            <div class="ai-status" id="aiStatus">Checking...</div>
+            <div class="ai-route-badge" id="aiRouteBadge"></div>
+          </div>
+        </div>
+        <div>
+          <button class="btn btn-ghost btn-icon" id="clearAIChat" title="Clear chat">🗑️</button>
+          <button class="btn btn-ghost btn-icon" id="closeAISidebar" title="Close">✕</button>
+        </div>
+      </div>
+
+      <div class="ai-chat" id="aiChatMessages">
+        <div class="ai-message system">Hi! I'm routed through SAS Hub's squad router. Ask me anything about your code, or attach a file for context.</div>
+      </div>
+
+      <div class="ai-input-container">
+        <textarea class="ai-input" id="aiInput" placeholder="Ask AI... (Shift+Enter for new line)" rows="1"></textarea>
+        <div class="ai-actions">
+          <button class="ai-context-btn" id="attachContextBtn" title="Attach current file as context">📎 Context</button>
+          <button class="btn btn-primary" id="sendAI" title="Send message">Send</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="modal" id="newFileModal">
+    <div class="modal-header">Create New File</div>
+    <input type="text" class="modal-input" id="newFileNameInput" placeholder="filename.js" autofocus>
+    <div class="modal-actions">
+      <button class="btn" id="cancelNewFile">Cancel</button>
+      <button class="btn btn-primary" id="confirmNewFile">Create</button>
+    </div>
+  </div>
+
+<script>
+  /**
+   * SAS Workstation Terminal — TermStudio, integrated with SAS Hub.
+   *
+   * Changes from stock TermStudio:
+   *  - AI.call() routes through SAS's POST /api/ask (squad router) by default,
+   *    with a flag to fall back to direct Ollama.
+   *  - New `sh <cmd>` / `!<cmd>` terminal command executes real commands via
+   *    SAS's POST /api/shell (existing whitelist enforced server-side).
+   *  - Auth header attached to both SAS calls; reads token the same way
+   *    dashboard.html does (window.SAS_AUTH_TOKEN, else localStorage 'sas_token').
+   */
+
+  // ========== SAS INTEGRATION CONFIG ==========
+  const SAS = {
+    // Set to false to bypass SAS routing and call Ollama directly at :11434 instead.
+    USE_SAS_ROUTING: true,
+    askUrl: '/api/ask',
+    shellUrl: '/api/shell',
+    ollamaUrl: 'http://localhost:11434/api',
+    defaultModel: 'codellama',
+
+    // Mirrors dashboard.html's auth pattern: prefer a global token, fall back to
+    // localStorage. Adjust here if dashboard.html uses a different mechanism —
+    // this is the ONE place to change it.
+    authHeaders() {
+      const token = window.SAS_AUTH_TOKEN || localStorage.getItem('sas_token') || '';
+      return token ? { 'Authorization': 'Bearer ' + token } : {};
+    }
+  };
+
+  // ========== STATE MANAGEMENT ==========
+  const STATE = {
+    files: {},
+    tabs: [],
+    activeTabId: null,
+    sidebarCollapsed: false,
+    aiSidebarCollapsed: true,
+    commandHistory: [],
+    historyIndex: -1,
+    isResizing: false,
+    aiChatHistory: []
+  };
+
+  // ========== DOM ELEMENTS ==========
+  const DOM = {
+    sidebar: document.getElementById('sidebar'),
+    toggleSidebar: document.getElementById('toggleSidebar'),
+    fileTree: document.getElementById('fileTree'),
+    tabs: document.getElementById('tabs'),
+    newTabBtn: document.getElementById('newTabBtn'),
+    editorContainer: document.getElementById('editorContainer'),
+    terminalOutput: document.getElementById('terminalOutput'),
+    terminalInput: document.getElementById('terminalInput'),
+    terminalPanel: document.getElementById('terminalPanel'),
+    resizer: document.getElementById('resizer'),
+    newFileBtn: document.getElementById('newFileBtn'),
+    runCodeBtn: document.getElementById('runCodeBtn'),
+    overlay: document.getElementById('overlay'),
+    newFileModal: document.getElementById('newFileModal'),
+    newFileNameInput: document.getElementById('newFileNameInput'),
+    confirmNewFile: document.getElementById('confirmNewFile'),
+    cancelNewFile: document.getElementById('cancelNewFile'),
+    toggleAI: document.getElementById('toggleAI'),
+    aiSidebar: document.getElementById('aiSidebar'),
+    aiChatMessages: document.getElementById('aiChatMessages'),
+    aiInput: document.getElementById('aiInput'),
+    sendAI: document.getElementById('sendAI'),
+    clearAIChat: document.getElementById('clearAIChat'),
+    closeAISidebar: document.getElementById('closeAISidebar'),
+    attachContextBtn: document.getElementById('attachContextBtn'),
+    aiStatus: document.getElementById('aiStatus'),
+    aiRouteBadge: document.getElementById('aiRouteBadge')
+  };
+
+  // ========== STORAGE MANAGER ==========
+  const Storage = {
+    save() {
+      localStorage.setItem('termstudio_files', JSON.stringify(STATE.files));
+      localStorage.setItem('termstudio_tabs', JSON.stringify(STATE.tabs.map(t => ({
+        id: t.id, fileId: t.fileId, type: t.type
+      }))));
+      localStorage.setItem('termstudio_history', JSON.stringify(STATE.commandHistory.slice(-100)));
+      localStorage.setItem('termstudio_ai_history', JSON.stringify(STATE.aiChatHistory.slice(-50)));
+    },
+
+    load() {
+      try {
+        const files = localStorage.getItem('termstudio_files');
+        const tabs = localStorage.getItem('termstudio_tabs');
+        const history = localStorage.getItem('termstudio_history');
+        const aiHistory = localStorage.getItem('termstudio_ai_history');
+
+        if (files) STATE.files = JSON.parse(files);
+        if (tabs) {
+          const tabsData = JSON.parse(tabs);
+          STATE.tabs = tabsData.map(td => ({ ...td, editor: null, canvas: null }));
+        }
+        if (history) STATE.commandHistory = JSON.parse(history);
+        if (aiHistory) STATE.aiChatHistory = JSON.parse(aiHistory);
+
+        if (Object.keys(STATE.files).length === 0) this.createDefaults();
+      } catch (e) {
+        console.error('Failed to load from storage:', e);
+        this.createDefaults();
+      }
+    },
+
+    createDefaults() {
+      const demoFileId = 'file_' + Date.now();
+      STATE.files[demoFileId] = {
+        id: demoFileId,
+        name: 'welcome.js',
+        content: `// Welcome to the SAS Workstation Terminal
+// This is your JavaScript playground + real shell + squad-routed AI
+
+console.log('Hello from SAS Workstation!');
+
+// 'sh <cmd>' in the terminal below runs REAL commands via SAS's /api/shell
+// 'ai <prompt>' asks SAS's squad router (same routing as the dashboard)
+// Open the AI sidebar (top right) for full chat with file context
+
+const canvas = getCanvas();
+const ctx = canvas.getContext('2d');
+ctx.fillStyle = '#8b5cf6';
+ctx.fillRect(50, 50, 200, 150);
+console.log('Canvas ready.');`,
+        type: 'js',
+        created: Date.now(),
+        modified: Date.now()
+      };
+    }
+  };
+
+  // ========== FILE MANAGER ==========
+  const FileManager = {
+    create(name, content = '') {
+      const id = 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const type = name.split('.').pop() || 'txt';
+
+      STATE.files[id] = { id, name, content, type, created: Date.now(), modified: Date.now() };
+
+      Storage.save();
+      this.renderFileTree();
+      return id;
+    },
+
+    delete(fileId) {
+      delete STATE.files[fileId];
+      TabManager.closeTabsForFile(fileId);
+      Storage.save();
+      this.renderFileTree();
+    },
+
+    update(fileId, content) {
+      if (STATE.files[fileId]) {
+        STATE.files[fileId].content = content;
+        STATE.files[fileId].modified = Date.now();
+        Storage.save();
+      }
+    },
+
+    renderFileTree() {
+      const files = Object.values(STATE.files).sort((a, b) => a.name.localeCompare(b.name));
+
+      DOM.fileTree.innerHTML = files.map(file => `
+        <div class="file-item ${this.getActiveFileId() === file.id ? 'active' : ''}" data-file-id="${file.id}">
+          <span class="file-icon">${this.getFileIcon(file.type)}</span>
+          <span>${file.name}</span>
+        </div>
+      `).join('');
+
+      DOM.fileTree.querySelectorAll('.file-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const fileId = item.dataset.fileId;
+          TabManager.openFile(fileId);
+          if (window.innerWidth <= 768) UIManager.toggleSidebar(false);
+        });
+      });
+    },
+
+    getFileIcon(type) {
+      const icons = { js: '📄', ts: '📄', json: '📋', md: '📝', html: '🌐', css: '🎨', java: '☕', py: '🐍', txt: '📄' };
+      return icons[type] || '📄';
+    },
+
+    getActiveFileId() {
+      const activeTab = STATE.tabs.find(t => t.id === STATE.activeTabId);
+      return activeTab?.fileId;
+    }
+  };
+
+  // ========== TAB MANAGER ==========
+  const TabManager = {
+    create(type = 'editor', fileId = null) {
+      const id = 'tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const tab = { id, type, fileId, editor: null, canvas: null };
+
+      STATE.tabs.push(tab);
+      this.renderTabs();
+      this.activateTab(id);
+      this.createTabView(tab);
+      Storage.save();
+      return id;
+    },
+
+    openFile(fileId) {
+      const existingTab = STATE.tabs.find(t => t.fileId === fileId);
+      if (existingTab) { this.activateTab(existingTab.id); return; }
+      const file = STATE.files[fileId];
+      if (!file) return;
+      this.create('editor', fileId);
+    },
+
+    activateTab(tabId) {
+      STATE.activeTabId = tabId;
+      this.renderTabs();
+      this.showTabView(tabId);
+      Storage.save();
+    },
+
+    closeTab(tabId) {
+      const index = STATE.tabs.findIndex(t => t.id === tabId);
+      if (index === -1) return;
+
+      STATE.tabs.splice(index, 1);
+
+      if (STATE.activeTabId === tabId) {
+        if (STATE.tabs.length > 0) this.activateTab(STATE.tabs[Math.max(0, index - 1)].id);
+        else STATE.activeTabId = null;
+      }
+
+      this.renderTabs();
+      this.destroyTabView(tabId);
+      Storage.save();
+    },
+
+    closeTabsForFile(fileId) {
+      const tabsToClose = STATE.tabs.filter(t => t.fileId === fileId);
+      tabsToClose.forEach(t => this.closeTab(t.id));
+    },
+
+    renderTabs() {
+      DOM.tabs.innerHTML = STATE.tabs.map(tab => {
+        const file = tab.fileId ? STATE.files[tab.fileId] : null;
+        const name = file ? file.name : (tab.type === 'canvas' ? 'Canvas' : 'Untitled');
+        return `
+          <button class="tab ${tab.id === STATE.activeTabId ? 'active' : ''}" data-tab-id="${tab.id}">
+            <span>${name}</span>
+            <span class="tab-close" data-close-id="${tab.id}">✕</span>
+          </button>
+        `;
+      }).join('');
+
+      DOM.tabs.querySelectorAll('.tab').forEach(tabEl => {
+        tabEl.addEventListener('click', (e) => {
+          if (e.target.dataset.closeId) {
+            e.stopPropagation();
+            this.closeTab(e.target.dataset.closeId);
+          } else {
+            this.activateTab(tabEl.dataset.tabId);
+          }
+        });
+      });
+    },
+
+    createTabView(tab) {
+      const viewEl = document.createElement('div');
+      viewEl.className = 'editor-view';
+      viewEl.id = `view-${tab.id}`;
+
+      if (tab.type === 'canvas') {
+        viewEl.innerHTML = `
+          <div class="canvas-container">
+            <canvas id="canvas-${tab.id}" width="800" height="500"></canvas>
+          </div>
+        `;
+        tab.canvas = viewEl.querySelector('canvas');
+      } else {
+        const file = STATE.files[tab.fileId];
+        viewEl.innerHTML = `<textarea class="editor-textarea" id="editor-${tab.id}" spellcheck="false">${file ? file.content : ''}</textarea>`;
+        tab.editor = viewEl.querySelector('textarea');
+
+        tab.editor.addEventListener('input', () => {
+          if (tab.fileId) FileManager.update(tab.fileId, tab.editor.value);
+        });
+
+        tab.editor.addEventListener('keydown', (e) => {
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = tab.editor.selectionStart;
+            const end = tab.editor.selectionEnd;
+            tab.editor.value = tab.editor.value.substring(0, start) + '  ' + tab.editor.value.substring(end);
+            tab.editor.selectionStart = tab.editor.selectionEnd = start + 2;
+          }
+        });
+      }
+
+      DOM.editorContainer.appendChild(viewEl);
+    },
+
+    showTabView(tabId) {
+      DOM.editorContainer.querySelectorAll('.editor-view').forEach(v => v.classList.remove('active'));
+      const viewEl = document.getElementById(`view-${tabId}`);
+      if (viewEl) viewEl.classList.add('active');
+      FileManager.renderFileTree();
+    },
+
+    destroyTabView(tabId) {
+      const viewEl = document.getElementById(`view-${tabId}`);
+      if (viewEl) viewEl.remove();
+    },
+
+    getActiveTab() {
+      return STATE.tabs.find(t => t.id === STATE.activeTabId);
+    },
+
+    createCanvasTab() {
+      const existingCanvas = STATE.tabs.find(t => t.type === 'canvas');
+      if (existingCanvas) { this.activateTab(existingCanvas.id); return existingCanvas.id; }
+      return this.create('canvas');
+    }
+  };
+
+  // ========== TERMINAL ==========
+  const Terminal = {
+    init() {
+      this.print('SAS Workstation Terminal v1.0', 'info');
+      this.print('Type "help" for commands. "sh <cmd>" runs real shell commands via SAS. "ai <prompt>" asks the squad router.', 'info');
+      this.print('');
+    },
+
+    print(text, type = 'output') {
+      const line = document.createElement('div');
+      line.className = `terminal-line terminal-${type}`;
+      line.textContent = text;
+      DOM.terminalOutput.appendChild(line);
+      DOM.terminalOutput.scrollTop = DOM.terminalOutput.scrollHeight;
+    },
+
+    printCommand(cmd) {
+      const line = document.createElement('div');
+      line.className = 'terminal-line';
+      line.innerHTML = `<span class="terminal-prompt">❯</span> <span class="terminal-command">${this.escapeHtml(cmd)}</span>`;
+      DOM.terminalOutput.appendChild(line);
+      DOM.terminalOutput.scrollTop = DOM.terminalOutput.scrollHeight;
+    },
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    },
+
+    clear() { DOM.terminalOutput.innerHTML = ''; },
+
+    executeJS(code) {
+      const getCanvas = () => {
+        const tab = TabManager.getActiveTab();
+        if (tab && tab.type === 'canvas' && tab.canvas) return tab.canvas;
+        const canvasTabId = TabManager.createCanvasTab();
+        const canvasTab = STATE.tabs.find(t => t.id === canvasTabId);
+        return canvasTab.canvas;
+      };
+
+      try {
+        const func = new Function('console', 'getCanvas', code);
+        const customConsole = {
+          log: (...args) => this.print(args.map(a => this.stringify(a)).join(' '), 'output-text'),
+          error: (...args) => this.print(args.map(a => this.stringify(a)).join(' '), 'error'),
+          warn: (...args) => this.print(args.map(a => this.stringify(a)).join(' '), 'info'),
+          info: (...args) => this.print(args.map(a => this.stringify(a)).join(' '), 'info')
+        };
+
+        const result = func(customConsole, getCanvas);
+        if (result !== undefined) this.print('← ' + this.stringify(result), 'success');
+      } catch (error) {
+        this.print('Error: ' + error.message, 'error');
+      }
+    },
+
+    stringify(obj) {
+      if (typeof obj === 'object') {
+        try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
+      }
+      return String(obj);
+    },
+
+    async execRealShell(cmd) {
+      this.print(`$ ${cmd}`, 'real');
+      try {
+        const res = await fetch(SAS.shellUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...SAS.authHeaders() },
+          body: JSON.stringify({ command: cmd })
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          this.print(data.error || `Shell error: HTTP ${res.status}`, 'error');
+          return;
+        }
+
+        if (data.stdout) this.print(data.stdout, 'output-text');
+        if (data.stderr) this.print(data.stderr, 'error');
+        if (!data.stdout && !data.stderr) this.print('(no output)', 'output-text');
+      } catch (e) {
+        this.print(`⚠️ Could not reach ${SAS.shellUrl}: ${e.message}`, 'error');
+      }
+    },
+
+    executeCommand(input) {
+      const trimmed = input.trim();
+      if (!trimmed) return;
+
+      STATE.commandHistory.push(trimmed);
+      if (STATE.commandHistory.length > 100) STATE.commandHistory.shift();
+      STATE.historyIndex = STATE.commandHistory.length;
+      Storage.save();
+
+      this.printCommand(trimmed);
+
+      // Real-shell passthrough via 'sh <cmd>' or '!<cmd>'
+      if (trimmed.startsWith('!')) {
+        this.execRealShell(trimmed.slice(1).trim());
+        return;
+      }
+
+      const args = trimmed.split(' ');
+      const cmd = args[0].toLowerCase();
+
+      switch (cmd) {
+        case 'help':
+          this.print('Available commands:', 'info');
+          this.print('  help          - Show this help');
+          this.print('  clear         - Clear terminal');
+          this.print('  ls            - List files');
+          this.print('  run <file>    - Execute JS file (sandboxed)');
+          this.print('  draw          - Open canvas');
+          this.print('  new <name>    - Create new file');
+          this.print('  cat <file>    - Show file contents');
+          this.print('  ai <prompt>   - Ask AI via SAS squad router (uses current file context)');
+          this.print('  sh <cmd>      - Run a REAL command via SAS /api/shell (whitelisted)');
+          this.print('  !<cmd>        - Shorthand for sh <cmd>');
+          this.print('');
+          this.print('Or type JavaScript directly (sandboxed, no filesystem access).');
+          break;
+
+        case 'clear':
+          this.clear();
+          break;
+
+        case 'ls': {
+          const files = Object.values(STATE.files);
+          if (files.length === 0) this.print('No files found', 'output-text');
+          else files.forEach(f => this.print(`  ${f.name}`, 'output-text'));
+          break;
+        }
+
+        case 'run': {
+          if (args.length < 2) { this.print('Usage: run <filename>', 'error'); break; }
+          const fileName = args.slice(1).join(' ');
+          const file = Object.values(STATE.files).find(f => f.name === fileName);
+          if (file) { this.print(`Running ${file.name}...`, 'info'); this.executeJS(file.content); }
+          else this.print(`File not found: ${fileName}`, 'error');
+          break;
+        }
+
+        case 'draw':
+          TabManager.createCanvasTab();
+          this.print('Canvas view opened', 'success');
+          break;
+
+        case 'new': {
+          if (args.length < 2) { this.print('Usage: new <filename>', 'error'); break; }
+          const fileName = args.slice(1).join(' ');
+          FileManager.create(fileName);
+          this.print(`Created ${fileName}`, 'success');
+          break;
+        }
+
+        case 'cat': {
+          if (args.length < 2) { this.print('Usage: cat <filename>', 'error'); break; }
+          const fileName = args.slice(1).join(' ');
+          const file = Object.values(STATE.files).find(f => f.name === fileName);
+          if (file) this.print(file.content, 'output-text');
+          else this.print(`File not found: ${fileName}`, 'error');
+          break;
+        }
+
+        case 'sh': {
+          if (args.length < 2) { this.print('Usage: sh <command>', 'error'); break; }
+          this.execRealShell(args.slice(1).join(' '));
+          break;
+        }
+
+        case 'ai': {
+          if (args.length < 2) {
+            this.print('Usage: ai <your question>', 'error');
+            this.print('Example: ai explain this code or review for bugs', 'info');
+            break;
+          }
+          const prompt = args.slice(1).join(' ');
+          const activeTab = TabManager.getActiveTab();
+          let context = '';
+          if (activeTab && activeTab.fileId) {
+            const file = STATE.files[activeTab.fileId];
+            context = `Current file: ${file.name}\n\n${file.content.substring(0, 3000)}`;
+          }
+          this.print('🤖 Asking AI...', 'info');
+          AI.call(prompt, context).then(reply => this.print(reply, 'output-text'));
+          break;
+        }
+
+        default:
+          this.executeJS(trimmed);
+      }
+    },
+
+    navigateHistory(direction) {
+      if (STATE.commandHistory.length === 0) return;
+
+      if (direction === 'up') STATE.historyIndex = Math.max(0, STATE.historyIndex - 1);
+      else STATE.historyIndex = Math.min(STATE.commandHistory.length, STATE.historyIndex + 1);
+
+      if (STATE.historyIndex < STATE.commandHistory.length) DOM.terminalInput.value = STATE.commandHistory[STATE.historyIndex];
+      else DOM.terminalInput.value = '';
+    }
+  };
+
+  // ========== AI INTEGRATION ==========
+  const AI = {
+    async call(prompt, context = '', model = null) {
+      if (SAS.USE_SAS_ROUTING) {
+        return this.callSAS(prompt, context);
+      }
+      return this.callOllamaDirect(prompt, context, model);
+    },
+
+    // Routed through SAS Hub's squad router: model selection, resource policy,
+    // and cloud fallback are all handled server-side, same as the dashboard/chat UI.
+    async callSAS(prompt, context = '') {
+      try {
+        const fullPrompt = context ? `Context from current file:\n${context}\n\nUser request: ${prompt}` : prompt;
+
+        const response = await fetch(SAS.askUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...SAS.authHeaders() },
+          body: JSON.stringify({ prompt: fullPrompt, task_type: 'code' })
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => '');
+          throw new Error(`SAS /api/ask error: ${response.status} ${errBody}`.trim());
+        }
+
+        const data = await response.json();
+        // SAS's /api/ask reply field name may vary — check response/reply/answer/text.
+        return data.response || data.reply || data.answer || data.text || 'No response from SAS.';
+      } catch (e) {
+        return `⚠️ Could not reach SAS at ${SAS.askUrl}.\n\nFalling back is disabled (SAS.USE_SAS_ROUTING=true). Set it to false in this file to use direct Ollama instead.\n\nError: ${e.message}`;
+      }
+    },
+
+    // Fallback / bypass path: talk to Ollama directly, exactly like stock TermStudio.
+    async callOllamaDirect(prompt, context = '', model = null) {
+      try {
+        const fullPrompt = context ? `Context from current file:\n${context}\n\nUser request: ${prompt}` : prompt;
+
+        const response = await fetch(`${SAS.ollamaUrl}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: model || SAS.defaultModel,
+            prompt: fullPrompt,
+            stream: false,
+            options: { temperature: 0.7, num_predict: 1024 }
+          })
+        });
+
+        if (!response.ok) throw new Error(`Ollama error: ${response.status}`);
+
+        const data = await response.json();
+        return data.response || 'No response from model.';
+      } catch (e) {
+        return `⚠️ Could not connect to Ollama at ${SAS.ollamaUrl}.\n\nMake sure Ollama is running locally and the model "${SAS.defaultModel}" is pulled.\n\nError: ${e.message}`;
+      }
+    }
+  };
+
+  // ========== AI CHAT MANAGER ==========
+  const AIChat = {
+    addMessage(role, content) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `ai-message ${role}`;
+      msgDiv.textContent = content;
+      DOM.aiChatMessages.appendChild(msgDiv);
+      DOM.aiChatMessages.scrollTop = DOM.aiChatMessages.scrollHeight;
+
+      STATE.aiChatHistory.push({ role, content, timestamp: Date.now() });
+      if (STATE.aiChatHistory.length > 50) STATE.aiChatHistory.shift();
+      Storage.save();
+    },
+
+    clearChat() {
+      DOM.aiChatMessages.innerHTML = '<div class="ai-message system">Chat cleared. How can I help with your code?</div>';
+      STATE.aiChatHistory = [];
+      Storage.save();
+    },
+
+    async sendMessage() {
+      const input = DOM.aiInput.value.trim();
+      if (!input) return;
+
+      this.addMessage('user', input);
+      DOM.aiInput.value = '';
+
+      const thinkingDiv = document.createElement('div');
+      thinkingDiv.className = 'ai-message assistant';
+      thinkingDiv.textContent = 'Thinking...';
+      DOM.aiChatMessages.appendChild(thinkingDiv);
+      DOM.aiChatMessages.scrollTop = DOM.aiChatMessages.scrollHeight;
+
+      let context = '';
+      const activeTab = TabManager.getActiveTab();
+      if (activeTab && activeTab.fileId) {
+        const file = STATE.files[activeTab.fileId];
+        context = `File: ${file.name} (${file.type})\n\n${file.content.substring(0, 4000)}`;
+      }
+
+      try {
+        const reply = await AI.call(input, context);
+        thinkingDiv.remove();
+        this.addMessage('assistant', reply);
+      } catch (err) {
+        thinkingDiv.remove();
+        this.addMessage('assistant', 'Sorry, there was an error: ' + err.message);
+      }
+    },
+
+    attachCurrentFileContext() {
+      const activeTab = TabManager.getActiveTab();
+      if (!activeTab || !activeTab.fileId) { this.addMessage('system', 'No file open to attach.'); return; }
+      const file = STATE.files[activeTab.fileId];
+      this.addMessage('system', `Attached context from: ${file.name}`);
+    },
+
+    loadHistory() {
+      if (STATE.aiChatHistory.length === 0) return;
+      DOM.aiChatMessages.innerHTML = '';
+      STATE.aiChatHistory.forEach(msg => {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `ai-message ${msg.role}`;
+        msgDiv.textContent = msg.content;
+        DOM.aiChatMessages.appendChild(msgDiv);
+      });
+      DOM.aiChatMessages.scrollTop = DOM.aiChatMessages.scrollHeight;
+    }
+  };
+
+  // ========== UI MANAGER ==========
+  const UIManager = {
+    init() {
+      DOM.toggleSidebar.addEventListener('click', () => this.toggleSidebar());
+
+      DOM.overlay.addEventListener('click', () => {
+        this.toggleSidebar(false);
+        this.toggleAISidebar(false);
+      });
+
+      DOM.newFileBtn.addEventListener('click', () => this.showNewFileModal());
+      DOM.runCodeBtn.addEventListener('click', () => this.runActiveFile());
+      DOM.newTabBtn.addEventListener('click', () => TabManager.create('editor'));
+
+      DOM.terminalInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const input = DOM.terminalInput.value;
+          DOM.terminalInput.value = '';
+          Terminal.executeCommand(input);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          Terminal.navigateHistory('up');
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          Terminal.navigateHistory('down');
+        }
+      });
+
+      DOM.cancelNewFile.addEventListener('click', () => this.hideNewFileModal());
+      DOM.confirmNewFile.addEventListener('click', () => this.createNewFile());
+      DOM.newFileNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.createNewFile();
+        if (e.key === 'Escape') this.hideNewFileModal();
+      });
+
+      this.initResizer();
+
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          Terminal.print('File auto-saved', 'success');
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          this.runActiveFile();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          this.toggleAISidebar();
+        }
+      });
+
+      DOM.toggleAI.addEventListener('click', () => this.toggleAISidebar());
+      DOM.closeAISidebar.addEventListener('click', () => this.toggleAISidebar(false));
+      DOM.clearAIChat.addEventListener('click', () => AIChat.clearChat());
+      DOM.sendAI.addEventListener('click', () => AIChat.sendMessage());
+
+      DOM.aiInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          AIChat.sendMessage();
+        }
+      });
+
+      DOM.attachContextBtn.addEventListener('click', () => AIChat.attachCurrentFileContext());
+
+      setTimeout(() => AIChat.loadHistory(), 100);
+    },
+
+    toggleSidebar(show) {
+      STATE.sidebarCollapsed = show === undefined ? !STATE.sidebarCollapsed : !show;
+      DOM.sidebar.classList.toggle('collapsed', STATE.sidebarCollapsed);
+
+      if (window.innerWidth <= 768) {
+        DOM.overlay.classList.toggle('active', !STATE.sidebarCollapsed);
+      }
+    },
+
+    toggleAISidebar(show) {
+      STATE.aiSidebarCollapsed = show === undefined ? !STATE.aiSidebarCollapsed : !show;
+      DOM.aiSidebar.classList.toggle('collapsed', STATE.aiSidebarCollapsed);
+
+      if (!STATE.aiSidebarCollapsed) setTimeout(() => DOM.aiInput.focus(), 300);
+      if (window.innerWidth <= 768 && !STATE.aiSidebarCollapsed) DOM.overlay.classList.add('active');
+    },
+
+    showNewFileModal() {
+      DOM.newFileModal.classList.add('active');
+      DOM.overlay.classList.add('active');
+      DOM.newFileNameInput.value = '';
+      DOM.newFileNameInput.focus();
+    },
+
+    hideNewFileModal() {
+      DOM.newFileModal.classList.remove('active');
+      if (window.innerWidth > 768) DOM.overlay.classList.remove('active');
+    },
+
+    createNewFile() {
+      const name = DOM.newFileNameInput.value.trim();
+      if (name) {
+        const fileId = FileManager.create(name);
+        TabManager.openFile(fileId);
+        this.hideNewFileModal();
+      }
+    },
+
+    runActiveFile() {
+      const activeTab = TabManager.getActiveTab();
+      if (activeTab && activeTab.fileId) {
+        const file = STATE.files[activeTab.fileId];
+        if (file) {
+          Terminal.print(`Running ${file.name}...`, 'info');
+          Terminal.executeJS(file.content);
+          DOM.terminalInput.focus();
+        }
+      }
+    },
+
+    initResizer() {
+      let startY, startHeight;
+
+      const onMouseDown = (e) => {
+        STATE.isResizing = true;
+        startY = e.clientY || (e.touches && e.touches[0].clientY);
+        startHeight = DOM.terminalPanel.offsetHeight;
+        DOM.resizer.classList.add('dragging');
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('touchmove', onMouseMove);
+        document.addEventListener('touchend', onMouseUp);
+      };
+
+      const onMouseMove = (e) => {
+        if (!STATE.isResizing) return;
+        const y = e.clientY || (e.touches && e.touches[0].clientY);
+        const diff = startY - y;
+        const newHeight = Math.max(150, Math.min(window.innerHeight * 0.7, startHeight + diff));
+        DOM.terminalPanel.style.height = newHeight + 'px';
+      };
+
+      const onMouseUp = () => {
+        STATE.isResizing = false;
+        DOM.resizer.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.removeEventListener('touchmove', onMouseMove);
+        document.removeEventListener('touchend', onMouseUp);
+      };
+
+      DOM.resizer.addEventListener('mousedown', onMouseDown);
+      DOM.resizer.addEventListener('touchstart', onMouseDown);
+    }
+  };
+
+  // ========== APP INITIALIZATION ==========
+  function initApp() {
+    Storage.load();
+    UIManager.init();
+    Terminal.init();
+
+    FileManager.renderFileTree();
+
+    if (STATE.tabs.length > 0) {
+      STATE.tabs.forEach(tab => TabManager.createTabView(tab));
+      TabManager.renderTabs();
+      if (STATE.activeTabId && STATE.tabs.find(t => t.id === STATE.activeTabId)) TabManager.showTabView(STATE.activeTabId);
+      else if (STATE.tabs.length > 0) TabManager.activateTab(STATE.tabs[0].id);
+    } else {
+      const welcomeFile = Object.values(STATE.files).find(f => f.name === 'welcome.js');
+      if (welcomeFile) TabManager.openFile(welcomeFile.id);
+    }
+
+    if (window.innerWidth <= 768) {
+      UIManager.toggleSidebar(false);
+      UIManager.toggleAISidebar(false);
+    }
+
+    DOM.terminalInput.focus();
+    DOM.aiRouteBadge.textContent = SAS.USE_SAS_ROUTING ? 'via SAS /api/ask' : 'direct Ollama';
+
+    // Non-blocking connectivity check for whichever path is active.
+    setTimeout(async () => {
+      try {
+        if (SAS.USE_SAS_ROUTING) {
+          const res = await fetch('/api/status', { headers: SAS.authHeaders() });
+          if (res.ok) {
+            DOM.aiStatus.textContent = 'SAS Connected';
+            DOM.aiStatus.style.color = 'var(--success)';
+          } else {
+            DOM.aiStatus.textContent = 'SAS Unreachable';
+            DOM.aiStatus.style.color = 'var(--warning)';
+          }
+        } else {
+          const res = await fetch('http://localhost:11434/api/tags');
+          DOM.aiStatus.textContent = res.ok ? 'Ollama Connected' : 'Ollama Offline';
+          DOM.aiStatus.style.color = res.ok ? 'var(--success)' : 'var(--warning)';
+        }
+      } catch (e) {
+        DOM.aiStatus.textContent = SAS.USE_SAS_ROUTING ? 'SAS Offline' : 'Ollama Offline';
+        DOM.aiStatus.style.color = 'var(--warning)';
+      }
+    }, 1500);
+
+    console.log('%c[SAS Workstation] Initialized. Ctrl/Cmd+K toggles AI chat. Try "sh whoami" in the terminal.', 'color:#64748b');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+  else initApp();
+</script>
+</body>
+</html>
