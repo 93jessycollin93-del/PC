@@ -31,9 +31,13 @@ on:
   workflow_dispatch:
     inputs:
       destination:
-        description: "Destination repo (owner/repo) that Lovable syncs with"
+        description: >-
+          Destination repo (owner/repo) that Lovable syncs with. This replaces
+          the destination's app wholesale, so it is for a Lovable project
+          dedicated to the PC. To update the PC inside Jackie (sasjacky777)
+          instead, refresh its embed — see LOVABLE_SYNC.md.
         required: true
-        default: "93jessycollin93-del/momentum-habit-tracker"
+        default: "yyb84ycgt6-oss/my-pc-companion"
       destination_branch:
         description: "Branch to create or update over there"
         required: true

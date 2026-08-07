@@ -1,110 +1,131 @@
 # Getting PC into Lovable
 
-How to make the Lovable app hold what this repo holds, from a phone, without
-spending Lovable credits.
+Two Lovable projects carry PC, and they take it differently. Picking the wrong
+one costs you an app, so start here.
 
-## The one thing to understand first
+| Lovable project | GitHub repo | What PC is there | How to update it |
+|---|---|---|---|
+| **Jackie** — `sasjacky777.lovable.app` | `yyb84ycgt6-oss/sasjacky777` | The whole PC build embedded under `public/pc-os/`, framed at `/pc` | **Refresh the embed** (below) |
+| **My PC Companion** — `eyeeru.lovable.app` | `yyb84ycgt6-oss/my-pc-companion` | The app itself | The sync workflow (below) |
 
-**Lovable will not import a repo you point it at.** It creates its own GitHub
-repo, pushes its edits up to it, and pulls commits back down. Only that last
-direction is usable from outside. So the way in is: put this code into the repo
-Lovable already made, and let Lovable pull it.
-
-Destination for this project:
-
-```
-93jessycollin93-del/momentum-habit-tracker
-```
-
-That is the GitHub repo the Lovable project syncs with. Lovable reads its
-**default branch**.
+Neither path spends a Lovable credit. Lovable's AI agent is never asked to do
+anything — it just pulls finished code from GitHub.
 
 ## About the token
 
-The sync needs a **GitHub personal access token** — created on github.com, free,
-unlimited, and completely unrelated to Lovable credits. Having no credits left
-on the Lovable account does not block this. Nothing in this path spends a
-credit, because Lovable's AI agent is never asked to do anything; it just pulls
-finished code.
+Both paths need a **GitHub personal access token** — made on github.com, free,
+unlimited, and unrelated to Lovable credits. An empty Lovable balance does not
+block any of this.
 
-You need the token once. After that, syncing is two taps.
+---
 
-## Setup, once
+## Path A — refreshing the PC inside Jackie (`sasjacky777`)
 
-1. On github.com → Settings → Developer settings → Personal access tokens →
+**Use this one to answer "the PC in my app is missing updates."**
+
+Jackie is its own app: 28 pages, 32 Supabase edge functions, its own auth and
+theme. It does not need to become PC — it already *contains* PC. `PCDesktop.tsx`
+iframes `/pc-os/index.html`, and the entire PC build ships under
+`public/pc-os/`. So the PC in Jackie is only ever as current as that directory.
+
+Do **not** point the sync workflow at `sasjacky777`. That replaces the whole
+repo and would destroy the pages and edge functions.
+
+To refresh it:
+
+```bash
+# in the PC repo
+npm run build:pc-os                       # builds with base=/pc-os/, patches manifest
+
+# in the Jackie repo
+rm -rf public/pc-os && mkdir -p public/pc-os
+cp -a <PC>/dist/. public/pc-os/           # the dot matters — .vite/ must come too
+```
+
+Then commit on a branch, push, and merge it. Lovable pulls the default branch.
+
+Three things the build gets right that a hand-copy does not:
+
+- **`--base=/pc-os/`** — a default build writes `/assets/...`, which 404s under
+  the sub-path.
+- **`.vite/manifest.json`** — apps are code-split, and their chunks are not
+  referenced by `index.html`. `sw.js` reads this manifest to precache them, so
+  without it an app you have never opened cannot open offline.
+- **`start_url` / `scope`** — patched to `/pc-os/`. Left at `/`, installing the
+  PC from its own tab launches Jackie's root instead of the PC.
+
+`sw.js` and `index.tsx` are already sub-path aware, so nothing else needs
+touching.
+
+### Checking it before you merge
+
+Serve the directory and boot it:
+
+```bash
+cd <jackie>/public && python3 -m http.server 8899
+# then open http://localhost:8899/pc-os/index.html
+```
+
+The desktop should render styled. If it comes up unstyled, the build lost its
+compiled Tailwind — that is the failure mode this whole path exists to prevent.
+
+---
+
+## Path B — sending PC wholesale to its own Lovable project
+
+For `my-pc-companion`, where PC *is* the app.
+
+**Lovable will not import a repo you point it at.** It creates its own repo,
+pushes its edits up, and pulls commits back down. Only that last direction is
+usable from outside, so the way in is to put the code into the repo Lovable
+already made.
+
+### Setup, once
+
+1. github.com → Settings → Developer settings → Personal access tokens →
    **Fine-grained tokens** → Generate new token.
-   - Repository access: **only** `93jessycollin93-del/momentum-habit-tracker`
+   - Repository access: **only** the destination repo
    - Permissions: **Contents → Read and write**
-   - Copy the token (it is shown once).
 2. In **this** repo → Settings → Secrets and variables → Actions → New
-   repository secret.
-   - Name: `LOVABLE_SYNC_TOKEN`
-   - Value: the token you just copied.
+   repository secret, named `LOVABLE_SYNC_TOKEN`.
 
 The token is only ever read into the git remote URL inside the run, never
 printed, so it cannot leak into the run log.
 
-## Each time you want to push PC over
+### Each time
 
-1. This repo → **Actions** → **Send code to Lovable** → **Run workflow**.
-2. Leave the defaults (destination is prefilled, branch `pc-import`,
-   overwrite off).
-3. Wait. The run **builds the app first** and refuses to send anything if the
-   build fails — you cannot end up with a broken repo on the far side that
-   costs credits to repair.
-4. When it finishes, open the link it prints and merge `pc-import` into the
-   destination's default branch.
-5. Lovable pulls it down on its own.
+1. Actions → **Send code to Lovable** → **Run workflow**.
+2. Leave the defaults (branch `pc-import`, overwrite off).
+3. The run **builds first** and sends nothing if the build fails — you cannot
+   strand a broken tree on the far side.
+4. Merge `pc-import` into the destination's default branch. Lovable pulls it.
 
-Step 4 is deliberate: the push lands on a branch, so you get to look before
-anything the Lovable project serves actually changes.
+### What does not work over there
 
-## What lands, and what it does over there
+PC serves its own Express host (`server.ts`), and the frontend calls it at
+same-origin `/api/*`. Lovable hosts a frontend plus Supabase edge functions —
+there is no Express, so those routes 404:
 
-The build is a plain Vite + React 19 + Tailwind SPA — verified building clean at
-97 app components, `dist/index.html` plus assets. Everything that runs purely in
-the browser works on Lovable unchanged: the window manager, desktop, themes,
-storage/pods, compression and vault subsystems, games, notepad, and the offline
-paths.
-
-**What will not work as-is:** this repo serves its own Express host
-(`server.ts`) and the frontend calls it at same-origin `/api/*`. Lovable hosts a
-frontend plus Supabase edge functions — there is no Express there, so those
-routes 404. Affected:
-
-| Route | Apps that use it |
+| Route | Apps |
 |---|---|
 | `/api/gemini/generate` | Gemini-backed AI, Agent Builder |
-| `/api/jacky/*` (`status`, `assessment`, `ask`, `control`, `squads`, `bots`, `models`) | Mission Control, App Commander, Ask Jackie — these have an offline fallback and degrade rather than break |
-| `/api/ollama/*` | On-Device Models / Model Store |
+| `/api/jacky/*` | Mission Control, Ask Jackie — these fall back offline by design |
+| `/api/ollama/*` | On-Device Models |
 | `/api/term-fs/*`, `/api/shell` | ai-term, terminal file ops |
 | `/api/telegram/send` | notifications, actions |
 | `/api/build/run` | Cloud Deploy |
 | `/api/health/providers` | fallback orchestrator |
-| `/api/flipper/*`, `/api/security/*` | Flipper Zero, security surfaces |
 
-Those surfaces will render but return errors on the calls, except the `jacky`
-ones, which already fall back offline by design (`lib/jackyClient.ts`,
-`lib/jackyFallback.ts`).
+Everything browser-only — window manager, desktop, themes, storage/pods,
+compression and vault, games — works unchanged.
 
-Closing that gap properly means porting those routes to Supabase edge functions
-in the Lovable project — that is the Wave 1 work in `FLEET_PARITY_PLAN.md`, and
-it is a separate job from this sync.
-
-## Two things worth knowing before you merge
-
-- **The destination currently holds a different app.** That repo is the Momentum
-  Habit Tracker project (TanStack Start). PC is Vite. Merging replaces what the
-  Lovable project builds. That is the intent here — just be aware it is not
-  additive, and the habit tracker is what gets replaced.
-- **Stacks differ.** The Lovable project is configured as TanStack Start; this
-  tree is Vite. Lovable builds from `package.json`, so a Vite tree is buildable,
-  but the first pull is the moment to check the preview. If it does not come up,
-  the branch you merged is the thing to revert — the pre-merge branch step above
-  exists exactly so that stays easy.
+Closing that gap means porting those routes to Supabase edge functions. Jackie
+already has 32 of them, including `jacky-proxy`; that is the Wave 1 work in
+`FLEET_PARITY_PLAN.md`, and a separate job from either sync.
 
 ## Related
 
-- `FLEET_PARITY_PLAN.md` — the strategy across PC / Eru / Jackie
-- `PARITY_MATRIX.md` — per-capability status tracker
-- `.github/workflows/sync-to-lovable.yml` — the workflow itself
+- `FLEET_PARITY_PLAN.md` — strategy across PC / Eru / Jackie
+- `PARITY_MATRIX.md` — per-capability status
+- `scripts/build-pc-os-embed.mjs` — the embed build
+- `.github/workflows/sync-to-lovable.yml` — the wholesale sync
