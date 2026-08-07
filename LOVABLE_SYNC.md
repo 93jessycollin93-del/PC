@@ -31,7 +31,18 @@ iframes `/pc-os/index.html`, and the entire PC build ships under
 Do **not** point the sync workflow at `sasjacky777`. That replaces the whole
 repo and would destroy the pages and edge functions.
 
-To refresh it:
+### From a phone
+
+Actions → **Refresh PC inside Jackie** → Run workflow. It rebuilds the PC,
+swaps the embed, **builds Jackie to prove the embed did not break it**, and
+pushes. Set the branch to `SAS-JACKY` to publish directly, or leave it as
+`pc-os-refresh` to look first.
+
+That build check is not ceremony. The embed carries a 21.6 MB on-device AI
+wasm, and Jackie's `vite-plugin-pwa` fails outright on files over its per-file
+precache limit — a broken Lovable preview, repairable only by spending credits.
+
+### By hand
 
 ```bash
 # in the PC repo
@@ -40,9 +51,10 @@ npm run build:pc-os                       # builds with base=/pc-os/, patches ma
 # in the Jackie repo
 rm -rf public/pc-os && mkdir -p public/pc-os
 cp -a <PC>/dist/. public/pc-os/           # the dot matters — .vite/ must come too
+npm run build                             # confirm it still builds
 ```
 
-Then commit on a branch, push, and merge it. Lovable pulls the default branch.
+Then commit on a branch, push, and merge it. Lovable pulls `SAS-JACKY`.
 
 Three things the build gets right that a hand-copy does not:
 
@@ -128,4 +140,5 @@ already has 32 of them, including `jacky-proxy`; that is the Wave 1 work in
 - `FLEET_PARITY_PLAN.md` — strategy across PC / Eru / Jackie
 - `PARITY_MATRIX.md` — per-capability status
 - `scripts/build-pc-os-embed.mjs` — the embed build
-- `.github/workflows/sync-to-lovable.yml` — the wholesale sync
+- `.github/workflows/refresh-pc-in-jackie.yml` — Path A, automated
+- `.github/workflows/sync-to-lovable.yml` — Path B, the wholesale sync
