@@ -94,6 +94,14 @@ jobs:
           cp -a dist/. jackie/public/pc-os/
           echo "Embed is now $(du -sh jackie/public/pc-os | cut -f1)."
 
+      # Regenerated alongside the embed on purpose. Jackie deep-links into the
+      # PC with /pc?app=<id>, and a renamed app turns those links into silent
+      # no-ops — you land on the desktop with nothing open. Jackie's own test
+      # (src/test/pc-deep-links.test.ts) checks the menu against this file, so
+      # a rename surfaces as a failed build here rather than a dead menu there.
+      - name: Regenerate the app roster Jackie links against
+        run: npm run gen:pc-apps -- jackie/src/data/pcApps.ts
+
       # The reason this step exists: the embed carries a 21.6 MB on-device AI
       # wasm, and Jackie's vite-plugin-pwa fails the build outright on files
       # over its per-file precache limit. That is a broken Lovable preview,
@@ -103,6 +111,8 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-audit --no-fund
+          # Names any menu deep link the regenerated roster just invalidated.
+          npx vitest run src/test/pc-deep-links.test.ts
           npm run build
           test -f dist/pc-os/index.html || {
             echo "::error::Jackie built but the PC embed is missing from dist/."
@@ -119,12 +129,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet -- public/pc-os; then
+          if git diff --quiet -- public/pc-os src/data/pcApps.ts; then
             echo "The embed already matches this PC build. Nothing to push."
             exit 0
           fi
 
-          git add public/pc-os
+          git add public/pc-os src/data/pcApps.ts
           git commit -m "Refresh the embedded PC build
 
           Rebuilt from PC ${GITHUB_SHA:0:7} with base=/pc-os/. Jackie's build
