@@ -10,11 +10,16 @@
 #
 # One-time setup:
 #   1. Create a fine-grained personal access token with "Contents: Read and
-#      write" on the destination repo only.
+#      write" on the destination repo only. This is a GitHub token, created on
+#      github.com — it is free, unlimited, and has nothing to do with Lovable
+#      credits.
 #   2. Add it to THIS repo under Settings -> Secrets and variables -> Actions
 #      as a secret named LOVABLE_SYNC_TOKEN.
 #
 # Then: Actions -> "Send code to Lovable" -> Run workflow.
+#
+# The run builds the app before it pushes anything. If the build fails, nothing
+# is sent — see LOVABLE_SYNC.md for the walkthrough.
 #
 # It pushes to a branch by default, so nothing in the destination is
 # overwritten and you can read the result before deciding. Overwriting the
@@ -28,7 +33,7 @@ on:
       destination:
         description: "Destination repo (owner/repo) that Lovable syncs with"
         required: true
-        default: "yyb84ycgt6-oss/my-pc-companion"
+        default: "93jessycollin93-del/momentum-habit-tracker"
       destination_branch:
         description: "Branch to create or update over there"
         required: true
@@ -67,6 +72,28 @@ jobs:
             exit 1
           fi
           echo "Token present."
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # The destination is a repo you cannot easily repair from a phone, and
+      # fixing it inside Lovable costs credits. So prove the tree builds HERE,
+      # before it is sent, rather than discovering it over there.
+      - name: Prove it builds before sending it
+        run: |
+          set -euo pipefail
+          npm run build
+          test -f dist/index.html || {
+            echo "::error::Build produced no dist/index.html — refusing to send."
+            exit 1
+          }
+          echo "Build OK: $(du -sh dist | cut -f1) in dist/."
 
       - name: Push to the Lovable repo
         env:
