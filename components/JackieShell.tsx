@@ -5,7 +5,16 @@ import {
   Palette,
 } from 'lucide-react';
 import { DesktopItem } from '../types';
-import { getAiClient, MODEL_NAME } from '../lib/gemini';
+import { chat, AllProvidersFailedError } from '../lib/ai/gateway';
+
+/** The model the user picked, as `provider:model`. Null → automatic chain. */
+function selectedModelRef(): string | null {
+  try {
+    return localStorage.getItem('jackie_ai_selected_model');
+  } catch {
+    return null;
+  }
+}
 import { createMiniAi, MiniAiContext } from '../src/jackie-core/mini-ai-context';
 import {
   JACKIE_BRAINS, JACKIE_PERSONALITIES,
@@ -156,7 +165,6 @@ export const JackieShell: React.FC<JackieShellProps> = ({
 
       // 3) Otherwise Jackie answers directly, staying herself.
       const locked = !codeChangesUnlocked();
-      const ai = getAiClient();
       const sys =
         `${JACKIE_FOUNDATION}\n\n` +
         `${personality?.systemModifier || ''} ` +
@@ -166,16 +174,32 @@ export const JackieShell: React.FC<JackieShellProps> = ({
           ? `Code-change mode is LOCKED in Settings, so you may plan and explain code but must not claim to have modified the user's code. `
           : `Code-change mode is UNLOCKED. `) +
         `If the user's intent is unclear, ask a focused clarifying question rather than guessing.`;
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: [{ role: 'user', parts: [{ text: `${sys}\n\nUser: ${text}` }] }],
+      // Routed through the gateway rather than one hardcoded endpoint: it
+      // walks every configured provider before giving up, so a rate-limited
+      // free tier or an unreachable relay is survivable instead of fatal.
+      const result = await chat({
+        messages: [
+          { role: 'system', content: sys },
+          { role: 'user', content: text },
+        ],
+        model: selectedModelRef() || undefined,
       });
-      say(response.text?.trim() || 'I’m here — say a little more?');
+      say(result.text?.trim() || 'I’m here — say a little more?');
     } catch (err: any) {
-      say(
-        `My free brain didn’t answer just now${err?.message ? ` (${err.message})` : ''}. ` +
-        `You can switch brains with the ◆ selector, or check API keys in Settings.`
-      );
+      if (err instanceof AllProvidersFailedError && err.unconfigured) {
+        // Nothing is configured at all — the actionable answer is a key, and
+        // the free ones are worth naming outright.
+        say(
+          `I don't have a brain connected yet. Open the AI Providers app and add a key — ` +
+          `Google Gemini, Groq and OpenRouter all have free tiers that need no card. ` +
+          `OpenRouter alone unlocks hundreds of models on a single key.`
+        );
+      } else {
+        say(
+          `I couldn't get an answer just now. ${err?.message || ''} ` +
+          `Try another brain with the ◆ selector, or check Settings → API Keys.`
+        );
+      }
     } finally {
       setBusy(false);
     }

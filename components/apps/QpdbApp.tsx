@@ -182,7 +182,7 @@ Provide ONLY the valid qpdb code inside the '[}' and '{]' boundaries, responding
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'gemini-3.5-flash',
+                    model: 'gemini-2.5-flash',
                     contents: aiPrompt,
                     config: {
                         systemInstruction: systemPrompt,

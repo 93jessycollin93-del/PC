@@ -13,7 +13,7 @@ export const LangChainApp: React.FC = () => {
     const [nodes, setNodes] = useState<WorkflowNode[]>([
         { id: '1', type: 'input', title: 'User Input Query', config: { variable: 'question', placeholder: 'Describe quantum entanglement in simple terms.' } },
         { id: '2', type: 'prompt', title: 'Prompt Template', config: { template: 'You are an elite research mentor. Given the query: {question}, explain it using a friendly, highly descriptive analogy appropriate for university undergraduates.' } },
-        { id: '3', type: 'llm', title: 'LLM Model Core', config: { model: 'gemini-3.5-flash', temperature: '0.7', stream: 'true' } },
+        { id: '3', type: 'llm', title: 'LLM Model Core', config: { model: 'gemini-2.5-flash', temperature: '0.7', stream: 'true' } },
         { id: '4', type: 'tool', title: 'Google Search Tool', config: { enabled: 'true', max_results: '3' } },
         { id: '5', type: 'output', title: 'String Output Parser', config: { format: 'markdown' } }
     ]);
@@ -37,7 +37,7 @@ export const LangChainApp: React.FC = () => {
 
         const configs = {
             prompt: { template: 'Explain the following topic: {topic}' },
-            llm: { model: 'gemini-3.5-flash', temperature: '0.2' },
+            llm: { model: 'gemini-2.5-flash', temperature: '0.2' },
             tool: { name: 'Python Executer', enabled: 'true' },
             output: { format: 'json' }
         };
@@ -101,7 +101,7 @@ Below is the execution state of our chain:
 Please execute this instructions chain and output the response. At the very top, give a 1-sentence analytical commentary explaining what you are doing, then follow with the synthesized output.`;
 
             const res = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: prompt,
             });
 
@@ -131,7 +131,7 @@ Include all correct module imports, prompt formatting, tool binding, and LLM con
 Return ONLY the code block. DO NOT write conversational intro/outro text.`;
 
             const res = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: prompt,
             });
 
@@ -233,12 +233,12 @@ Return ONLY the code block. DO NOT write conversational intro/outro text.`;
                                     {node.type === 'llm' && (
                                         <div className="flex gap-4">
                                             <select
-                                                value={node.config.model || 'gemini-3.5-flash'}
+                                                value={node.config.model || 'gemini-2.5-flash'}
                                                 onChange={e => updateNodeConfig(node.id, 'model', e.target.value)}
                                                 className="bg-zinc-950 border border-zinc-800 px-2 py-1 rounded text-zinc-300 text-[10px] outline-none"
                                             >
-                                                <option value="gemini-3.5-flash">gemini-3.5-flash</option>
-                                                <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+                                                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                                                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                                             </select>
                                             <div className="flex items-center gap-1.5 text-zinc-400 text-[10px]">
                                                 <span>Temp:</span>

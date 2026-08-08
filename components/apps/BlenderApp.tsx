@@ -325,7 +325,7 @@ Please write a highly optimized, fully written, clean bpy script containing prop
 Return ONLY the code block. DO NOT write conversational intro/outro text.`;
 
             const res = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: promptPayload,
             });
 

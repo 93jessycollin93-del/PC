@@ -285,21 +285,21 @@ async function startServer() {
   app.post('/api/ollama/generate', async (req, res) => {
     try {
       const { model, prompt, stream, options } = req.body;
-      let geminiModel = 'gemini-3.5-flash';
+      let geminiModel = 'gemini-2.5-flash';
       const config: any = {
         temperature: options?.temperature || 0.7,
       };
 
       if (model.includes('reasoning') || model.includes('deepseek') || model.includes('high thinking')) {
-        geminiModel = 'gemini-3.1-pro-preview';
+        geminiModel = 'gemini-2.5-pro';
         config.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
       } else if (model.includes('lightweight') || model.includes('flash lite') || model.includes('low-latency')) {
-        geminiModel = 'gemini-3.1-flash-lite';
+        geminiModel = 'gemini-2.0-flash-lite';
       } else if (model.includes('search')) {
-        geminiModel = 'gemini-3.5-flash';
+        geminiModel = 'gemini-2.5-flash';
         config.tools = [{ googleSearch: {} }];
       } else if (model.includes('maps')) {
-        geminiModel = 'gemini-3.5-flash';
+        geminiModel = 'gemini-2.5-flash';
         config.tools = [{ googleMaps: {} }];
       }
 
@@ -325,7 +325,7 @@ async function startServer() {
     try {
       const { model, contents, config } = req.body;
       const response = await ai.models.generateContent({
-        model: model || 'gemini-3.5-flash',
+        model: model || 'gemini-2.5-flash',
         contents,
         config
       });
@@ -691,7 +691,7 @@ async function startServer() {
 
     // Gemini — uses the server's own configured key, real request.
     try {
-      await ai.models.generateContent({ model: 'gemini-3.1-flash-lite', contents: 'ping' });
+      await ai.models.generateContent({ model: 'gemini-2.0-flash-lite', contents: 'ping' });
       results.gemini = { ok: true };
     } catch (e: any) {
       results.gemini = { ok: false, detail: String(e.message || e) };

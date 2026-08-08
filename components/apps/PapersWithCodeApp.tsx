@@ -124,7 +124,7 @@ Respond in raw JSON format. DO NOT use markdown code blocks or wrapper tags. Ens
 ]`;
 
             const res = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: prompt
             });
 
@@ -155,7 +155,7 @@ Provide only the implementation in a single python file. Include a forward pass 
 Return ONLY the code block. DO NOT write conversational intro/outro text.`;
 
             const res = await ai.models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: prompt
             });
 

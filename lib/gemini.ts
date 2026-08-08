@@ -4,7 +4,7 @@
 */
 import { GoogleGenAI, Tool, Type } from "@google/genai";
 
-export const MODEL_NAME = "gemini-3-flash-preview"; 
+export const MODEL_NAME = "gemini-2.5-flash";
 
 let aiClient: any = null;
 
