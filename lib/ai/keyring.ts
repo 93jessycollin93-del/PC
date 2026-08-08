@@ -30,6 +30,8 @@
  * the user edits it.
  */
 
+import { decryptWith, encryptAndStore, isEncrypted, isLocked, lock, reEncrypt, removeEncryption } from './keyringVault';
+
 export type KeyStatus = 'untested' | 'ok' | 'cooling' | 'rejected' | 'error';
 
 export interface KeyEntry {
@@ -56,6 +58,12 @@ export interface Keyring {
 }
 
 const STORAGE_KEY = 'jackie_keyring_v1';
+
+/* Encryption (optional, off by default — see keyringVault.ts).
+   When the vault is enabled the plaintext key above is removed and the ring
+   lives only in `cache` for the session. Reads while locked return EMPTY
+   rather than throwing: a locked vault is a normal state, and every caller
+   already handles "no keys" by asking the user to add one. */
 
 /** Default cooldown when a provider rate-limits without saying for how long. */
 const DEFAULT_COOLDOWN_MS = 60_000;
@@ -89,7 +97,9 @@ let cache: Keyring | null = null;
 
 function read(): Keyring {
     if (cache) return cache;
-    if (typeof localStorage === 'undefined') return { ...EMPTY };
+    if (typeof localStorage === 'undefined') return { ...EMPTY, providers: {} };
+    // Locked vault: the plaintext is not on disk and the session key is gone.
+    if (isLocked()) return { ...EMPTY, providers: {} };
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) {
@@ -129,10 +139,16 @@ function read(): Keyring {
 
 function write(next: Keyring): void {
     cache = next;
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-        /* quota or private mode — keys stay in memory for this session */
+    const serialized = JSON.stringify(next);
+    if (isEncrypted()) {
+        // Never let the plaintext touch disk while encryption is on.
+        void reEncrypt(serialized);
+    } else {
+        try {
+            localStorage.setItem(STORAGE_KEY, serialized);
+        } catch {
+            /* quota or private mode — keys stay in memory for this session */
+        }
     }
     notify();
 }
@@ -389,3 +405,66 @@ export function importKeyring(json: string): { added: number; error?: string } {
         return { added: 0, error: err instanceof Error ? err.message : 'Could not parse that file.' };
     }
 }
+
+/* ── encryption ────────────────────────────────────────────────────────── */
+
+/**
+ * Turn on encryption. The plaintext copy is removed in the same step that
+ * writes the ciphertext, so the two can never both exist on disk.
+ */
+export async function enableEncryption(passphrase: string): Promise<{ ok: boolean; error?: string }> {
+    if (isEncrypted()) return { ok: false, error: 'Already encrypted.' };
+    if (passphrase.length < 8) return { ok: false, error: 'Use at least 8 characters.' };
+    try {
+        const current = JSON.stringify(read());
+        await encryptAndStore(current, passphrase);
+        // Only after the ciphertext is safely written.
+        localStorage.removeItem(STORAGE_KEY);
+        notify();
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Could not encrypt.' };
+    }
+}
+
+/** Unlock for this session. Wrong passphrase changes nothing. */
+export async function unlock(passphrase: string): Promise<{ ok: boolean; error?: string }> {
+    const plain = await decryptWith(passphrase);
+    if (plain === null) return { ok: false, error: 'That passphrase does not open this vault.' };
+    try {
+        const parsed = JSON.parse(plain);
+        cache = parsed?.v === 1 ? parsed : { ...EMPTY, providers: {} };
+    } catch {
+        cache = { ...EMPTY, providers: {} };
+    }
+    notify();
+    return { ok: true };
+}
+
+/** Re-lock now: forget the session key and drop the decrypted ring. */
+export function lockNow(): void {
+    lock();
+    cache = null;
+    notify();
+}
+
+/**
+ * Turn encryption off, restoring the plaintext keyring. Requires the vault
+ * to be unlocked — otherwise there is nothing to restore, and silently
+ * wiping the ciphertext would destroy the keys.
+ */
+export function disableEncryption(): { ok: boolean; error?: string } {
+    if (!isEncrypted()) return { ok: true };
+    if (isLocked()) return { ok: false, error: 'Unlock first — otherwise the keys would be lost.' };
+    const current = cache ?? { ...EMPTY, providers: {} };
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+    } catch {
+        return { ok: false, error: 'Could not write the unencrypted copy.' };
+    }
+    removeEncryption();
+    notify();
+    return { ok: true };
+}
+
+export { isEncrypted, isLocked } from './keyringVault';

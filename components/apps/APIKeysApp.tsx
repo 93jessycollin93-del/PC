@@ -32,6 +32,10 @@ import {
     Plus,
     RefreshCw,
     Trash2,
+    Lock,
+    LockOpen,
+    Shield,
+    ShieldAlert,
     Upload,
     X,
     Zap,
@@ -51,6 +55,15 @@ import {
     type KeyEntry,
 } from '../../lib/ai/keyring';
 import { deleteCustomProvider, listCustomProviders, saveCustomProvider } from '../../lib/ai/customProviders';
+import {
+    disableEncryption,
+    enableEncryption,
+    isEncrypted,
+    isLocked,
+    lockNow,
+    unlock,
+} from '../../lib/ai/keyring';
+import { lockedAt, passphraseStrength, subscribeVault } from '../../lib/ai/keyringVault';
 import { chat } from '../../lib/ai/gateway';
 import { clearModelCache } from '../../lib/ai/discovery';
 
@@ -64,7 +77,7 @@ const TIER: Record<ProviderDef['tier'], { label: string; cls: string }> = {
 
 export const APIKeysApp: React.FC = () => {
     const [tick, setTick] = useState(0);
-    const [tab, setTab] = useState<'providers' | 'others' | 'backup'>('providers');
+    const [tab, setTab] = useState<'providers' | 'others' | 'security' | 'backup'>('providers');
     const [migrated, setMigrated] = useState<number | null>(null);
     const [sweeping, setSweeping] = useState(false);
 
@@ -109,7 +122,7 @@ export const APIKeysApp: React.FC = () => {
                 <h1 className="text-sm font-bold">API Keys</h1>
                 <span className="text-[10px] text-zinc-500">{totalKeys} key{totalKeys === 1 ? '' : 's'} stored</span>
                 <div className="ml-auto flex items-center gap-1">
-                    {(['providers', 'others', 'backup'] as const).map((t) => (
+                    {(['providers', 'others', 'security', 'backup'] as const).map((t) => (
                         <button
                             key={t}
                             onClick={() => setTab(t)}
@@ -153,6 +166,7 @@ export const APIKeysApp: React.FC = () => {
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                        {isLocked() && <LockedBanner onGo={() => setTab('security')} />}
                         <p className="text-[11px] text-zinc-500 mb-1">
                             Keys stay in this browser and are sent only to the provider they belong to.
                             Add several per provider — each one is a separate free allowance, and Jackie
@@ -166,6 +180,7 @@ export const APIKeysApp: React.FC = () => {
             )}
 
             {tab === 'others' && <OthersTab tick={tick} customs={customs} />}
+            {tab === 'security' && <SecurityTab />}
             {tab === 'backup' && <BackupTab />}
         </div>
     );
@@ -667,6 +682,236 @@ const BackupTab: React.FC = () => {
                 </button>
                 {result && <p className="mt-2 text-[10px] text-zinc-400">{result}</p>}
             </div>
+        </div>
+    );
+};
+
+
+/* ── Security ──────────────────────────────────────────────────────────── */
+
+const LockedBanner: React.FC<{ onGo: () => void }> = ({ onGo }) => (
+    <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 p-3 flex items-center gap-2">
+        <Lock size={14} className="text-amber-400 shrink-0" />
+        <div className="min-w-0">
+            <p className="text-xs font-medium text-amber-200">Vault locked</p>
+            <p className="text-[10px] text-amber-300/70">
+                Your keys are encrypted. Nothing can use them until you unlock.
+            </p>
+        </div>
+        <button
+            onClick={onGo}
+            className="ml-auto shrink-0 px-2.5 py-1 rounded bg-amber-800/60 hover:bg-amber-700/60 text-[11px] text-amber-100"
+        >
+            Unlock
+        </button>
+    </div>
+);
+
+const SecurityTab: React.FC = () => {
+    const [, force] = useState(0);
+    useEffect(() => subscribeVault(() => force((n) => n + 1)), []);
+
+    const [pass, setPass] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [exported, setExported] = useState(false);
+
+    const encrypted = isEncrypted();
+    const locked = isLocked();
+    const strength = passphraseStrength(pass);
+
+    async function turnOn() {
+        setError(null);
+        if (pass !== confirm) return setError('The two passphrases do not match.');
+        setBusy(true);
+        const res = await enableEncryption(pass);
+        setBusy(false);
+        if (!res.ok) return setError(res.error || 'Could not enable encryption.');
+        setPass('');
+        setConfirm('');
+    }
+
+    async function doUnlock() {
+        setError(null);
+        setBusy(true);
+        const res = await unlock(pass);
+        setBusy(false);
+        if (!res.ok) return setError(res.error || 'Wrong passphrase.');
+        setPass('');
+    }
+
+    function turnOff() {
+        const res = disableEncryption();
+        if (!res.ok) setError(res.error || 'Could not disable.');
+    }
+
+    function backupFirst() {
+        const blob = new Blob([exportKeyring()], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'jackie-keyring-backup.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        setExported(true);
+    }
+
+    return (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {/* What this does and does not do. Stated plainly, because an
+                overstated security claim is worse than none. */}
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+                <h3 className="text-xs font-bold flex items-center gap-1.5 mb-2">
+                    <Shield size={12} className="text-indigo-400" /> What encryption here buys you
+                </h3>
+                <ul className="text-[10px] text-zinc-400 space-y-1 list-disc pl-4">
+                    <li>
+                        <strong className="text-zinc-300">Protects:</strong> anyone reading this
+                        browser&rsquo;s storage while the vault is locked — a shared or borrowed
+                        device, a synced profile, a stolen laptop.
+                    </li>
+                    <li>
+                        <strong className="text-zinc-300">Does not protect:</strong> anything running
+                        in the page while it is unlocked. The keys must be decrypted to send a
+                        request, so at that moment they are readable in memory.
+                    </li>
+                    <li>
+                        <strong className="text-amber-300">No recovery.</strong> Lose the passphrase
+                        and the keys are gone — a recoverable secret is not encrypted. Export a
+                        backup first.
+                    </li>
+                </ul>
+            </div>
+
+            {!encrypted && (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
+                    <h3 className="text-xs font-bold flex items-center gap-1.5">
+                        <LockOpen size={12} /> Encryption is off
+                    </h3>
+                    <p className="text-[10px] text-zinc-500">
+                        Off by default on purpose: these are usually free-tier keys you can re-issue
+                        in a minute, and a passphrase every session is real friction. Turn it on if
+                        this device is shared or the keys are paid.
+                    </p>
+
+                    <button
+                        onClick={backupFirst}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px]"
+                    >
+                        <Download size={11} /> {exported ? 'Backup downloaded ✓' : '1. Download a backup first'}
+                    </button>
+
+                    <input
+                        type="password"
+                        value={pass}
+                        onChange={(e) => setPass(e.target.value)}
+                        placeholder="2. Choose a passphrase"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-[11px] outline-none focus:border-indigo-500/60 placeholder:text-zinc-700"
+                    />
+                    {pass && (
+                        <p
+                            className={`text-[10px] ${
+                                strength.score >= 3
+                                    ? 'text-emerald-400'
+                                    : strength.score === 2
+                                      ? 'text-teal-400'
+                                      : strength.score === 1
+                                        ? 'text-amber-400'
+                                        : 'text-red-400'
+                            }`}
+                        >
+                            {strength.label}
+                        </p>
+                    )}
+                    <input
+                        type="password"
+                        value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)}
+                        placeholder="3. Type it again"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-[11px] outline-none focus:border-indigo-500/60 placeholder:text-zinc-700"
+                    />
+                    {error && (
+                        <p className="text-[10px] text-red-400 flex items-center gap-1">
+                            <AlertCircle size={10} /> {error}
+                        </p>
+                    )}
+                    <button
+                        onClick={turnOn}
+                        disabled={busy || pass.length < 8 || !exported}
+                        title={!exported ? 'Download a backup first' : undefined}
+                        className="w-full py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-xs font-medium disabled:opacity-40"
+                    >
+                        {busy ? 'Encrypting…' : 'Encrypt my keys'}
+                    </button>
+                </div>
+            )}
+
+            {encrypted && locked && (
+                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 p-3 space-y-2">
+                    <h3 className="text-xs font-bold flex items-center gap-1.5 text-amber-200">
+                        <Lock size={12} /> Vault locked
+                    </h3>
+                    <p className="text-[10px] text-amber-300/70">
+                        Locked {lockedAt() ? new Date(lockedAt()!).toLocaleString() : 'earlier'}.
+                        Nothing can use your keys until you unlock.
+                    </p>
+                    <input
+                        type="password"
+                        value={pass}
+                        onChange={(e) => setPass(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') void doUnlock();
+                        }}
+                        placeholder="passphrase"
+                        autoFocus
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-[11px] outline-none focus:border-amber-500/60 placeholder:text-zinc-700"
+                    />
+                    {error && (
+                        <p className="text-[10px] text-red-400 flex items-center gap-1">
+                            <AlertCircle size={10} /> {error}
+                        </p>
+                    )}
+                    <button
+                        onClick={doUnlock}
+                        disabled={busy || !pass}
+                        className="w-full py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-xs font-medium disabled:opacity-40"
+                    >
+                        {busy ? 'Unlocking…' : 'Unlock'}
+                    </button>
+                </div>
+            )}
+
+            {encrypted && !locked && (
+                <div className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 p-3 space-y-2">
+                    <h3 className="text-xs font-bold flex items-center gap-1.5 text-emerald-200">
+                        <LockOpen size={12} /> Unlocked for this session
+                    </h3>
+                    <p className="text-[10px] text-emerald-300/70">
+                        Your keys are encrypted at rest and available right now. Closing the tab
+                        re-locks them automatically.
+                    </p>
+                    {error && (
+                        <p className="text-[10px] text-red-400 flex items-center gap-1">
+                            <AlertCircle size={10} /> {error}
+                        </p>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={lockNow}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[11px]"
+                        >
+                            <Lock size={11} /> Lock now
+                        </button>
+                        <button
+                            onClick={turnOff}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded bg-zinc-800 hover:bg-red-900/50 hover:text-red-300 text-[11px]"
+                        >
+                            <ShieldAlert size={11} /> Turn encryption off
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
