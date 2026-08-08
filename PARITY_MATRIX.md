@@ -1,7 +1,7 @@
 # Parity Matrix — PC → Eru → Jackie
 
 Living tracker for the Fleet Parity Plan. PC is the reference; this maps every PC
-capability to its status in **Eru** (Base44) and **Jackie** (`ocd-jacky-777`,
+capability to its status in **Eru** (Base44) and **Jackie** (`sasjacky777`,
 Lovable/Supabase). Update the cells as each wave lands.
 
 **Legend** — ❌ not present · 🔶 partial / different impl · ✅ native parity ·
@@ -10,6 +10,13 @@ Lovable/Supabase). Update the cells as each wave lands.
 > Baseline from `FEATURE_AUDIT.md`. Jackie already embeds the whole PC OS and holds
 > the Eru pages, so many of its cells start at 🪟/🔶 rather than ❌. Eru is its own
 > large Base44 app, so several domains start 🔶 (its own take exists) rather than ❌.
+
+> **🪟 is only as good as the embed.** Every 🪟 cell below is served by the PC build
+> sitting in Jackie's `public/pc-os/`, and that copy had drifted far behind this
+> repo — it predated Tailwind moving out of the CDN, and shipped none of the
+> code-split app chunks, so several 🪟 cells were in truth ❌. It is current again
+> and reproducible: `npm run build:pc-os`, or the **Refresh PC inside Jackie**
+> workflow. Before trusting a 🪟, check the embed is current. See `LOVABLE_SYNC.md`.
 
 ## Wave 1 + 2 — real backend bridge & native live surfaces (merged ✅)
 
