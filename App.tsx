@@ -52,6 +52,7 @@ import { ChatHistoryShareApp } from './components/apps/ChatHistoryShareApp';
 import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
 import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
+import { AiProvidersApp } from './components/apps/AiProvidersApp';
 import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
 import { MissionControlApp } from './components/apps/MissionControlApp';
 import { AutomationApp } from './components/apps/AutomationApp';
@@ -174,6 +175,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'codex', name: 'Codex', type: 'app', icon: Code2, appId: 'codex', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-950 border border-emerald-400/30 shadow-md' },
     { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
     { id: 'archiver', name: 'Archiver AI', type: 'app', icon: Archive, appId: 'archiver', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-400/30 shadow-md' },
+    { id: 'ai_providers', name: 'AI Providers', type: 'app', icon: Sparkles, appId: 'ai_providers', bgColor: 'bg-gradient-to-br from-indigo-600 via-violet-700 to-zinc-950 border border-indigo-500/40 shadow-md' },
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
     { id: 'cost_analytics', name: 'Cost Analytics', type: 'app', icon: DollarSign, appId: 'cost_analytics', bgColor: 'bg-gradient-to-br from-yellow-500 via-orange-600 to-red-600 border border-yellow-400/30 shadow-[0_0_15px_rgba(234,179,8,0.3)]' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
@@ -1755,6 +1757,7 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'grok_terminal') content = <GrokTerminalApp />;
                     else if (win.item.appId === 'chat_history_share') content = <ChatHistoryShareApp />;
                     else if (win.item.appId === 'archiver') content = <ArchiverApp />;
+                    else if (win.item.appId === 'ai_providers') content = <AiProvidersApp />;
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
                     else if (win.item.appId === 'cost_analytics') content = <CostAnalyticsApp />;
 

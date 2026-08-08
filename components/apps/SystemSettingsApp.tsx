@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Sliders, Save, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
 import { PCThemePicker } from '../../src/pc-themes/components/PCThemePicker';
+import { clearAllWidgetPositions } from '../../src/desktop/widgetPositions';
 
 interface SystemSettings {
   defaultAiModel: 'claude' | 'gemini' | 'ollama' | 'codex' | 'grok';
@@ -161,6 +162,24 @@ export const SystemSettingsApp: React.FC = () => {
                 Changes apply instantly and persist on this device.
               </p>
               <PCThemePicker />
+            </div>
+
+            {/* Floating widgets. Drag any of them anywhere; this is the way
+                back if one ends up somewhere awkward. */}
+            <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700 text-zinc-200">
+              <label className="block text-sm font-bold text-white mb-1">Floating Widgets</label>
+              <p className="text-[10px] text-zinc-400 mb-3">
+                Every floating widget — the terminal orb, the model bar, the status
+                cluster, the pod chip, the sticky notepad — can be moved. Drag it with
+                a mouse, or press and hold then drag on touch. Double-click a widget to
+                send it back on its own; the button below resets all of them at once.
+              </p>
+              <button
+                onClick={() => clearAllWidgetPositions()}
+                className="flex items-center gap-2 px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-xs text-zinc-100 transition-colors"
+              >
+                <RotateCcw size={12} /> Reset widget positions
+              </button>
             </div>
           </div>
         )}

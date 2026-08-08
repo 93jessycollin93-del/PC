@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, Minus, Maximize2, Minimize2, X, Mic, MicOff, Archive, Save } from 'lucide-react';
 import { getFile, saveFile } from '../lib/storage';
+import { FloatingWidget } from './FloatingWidget';
 import { organizeAndArchiveNote } from '../lib/archivePod';
 
 // A real, persistent sticky notepad that floats above every app window.
@@ -155,13 +156,19 @@ export const StickyNotepadWidget: React.FC = () => {
 
     if (state === 'minimized') {
         return (
-            <button
-                onClick={() => setState('compact')}
-                className="fixed bottom-4 right-4 z-[999999] w-11 h-11 rounded-full bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-900/40 flex items-center justify-center transition-all"
-                title="Open sticky notepad"
+            <FloatingWidget
+                id="sticky-notepad"
+                className="fixed bottom-4 right-4 z-[999999]"
+                title="Drag to move · reset in System Settings"
             >
-                <FileText size={18} className="text-zinc-900" />
-            </button>
+                <button
+                    onClick={() => setState('compact')}
+                    className="w-11 h-11 rounded-full bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-900/40 flex items-center justify-center transition-all"
+                    title="Open sticky notepad"
+                >
+                    <FileText size={18} className="text-zinc-900" />
+                </button>
+            </FloatingWidget>
         );
     }
 
