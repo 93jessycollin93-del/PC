@@ -370,6 +370,59 @@ const themeTravel = await page.evaluate(async () => {
 ok('32. One call reaches a destination with a different mechanism behind it',
     themeTravel === 'win95', `pc-set-theme → ${themeTravel}`);
 
+
+// ── The agent lane ───────────────────────────────────────────────────────
+const agentLane = await page.evaluate(async () => {
+    const t = await import('/lib/backroadTool.ts');
+    const seen = [];
+    const off = (await import('/lib/bus.ts')).bus.on('launch-app', ({ appId }) => seen.push(appId));
+
+    // What an agent actually does: look, then go — no walking through
+    // unrelated apps to reach one.
+    const listed = await t.runBackroadTool('list_destinations', { query: 'cortex' });
+    const opened = await t.runBackroadTool('open_destination', { address: 'app:cortex' });
+
+    // Worst case: a route with a bad stop in the middle.
+    const route = await t.runBackroadTool('open_route', {
+        addresses: ['app:speed_racer', 'app:does_not_exist', 'app:cartographer'],
+    });
+    off();
+    return { listed, opened, route, seen };
+});
+ok('33. An agent can list destinations before choosing one',
+    agentLane.listed.ok && agentLane.listed.destinations.some((d) => d.address === 'app:cortex'),
+    `${agentLane.listed.count} matched`);
+
+ok('34. An agent goes straight to an address and is told what opened',
+    agentLane.opened.ok && agentLane.opened.opened === 'app:cortex' && !!agentLane.opened.detail,
+    agentLane.opened.detail);
+
+ok('35. A route survives a broken stop and still delivers the rest',
+    agentLane.route.detail === 'Opened 2 of 3.' &&
+        agentLane.seen.includes('speed_racer') && agentLane.seen.includes('cartographer'),
+    `${agentLane.route.detail} — reached ${agentLane.seen.join(', ')}`);
+
+const brokenStop = await page.evaluate(async () => {
+    const t = await import('/lib/backroadTool.ts');
+    const r = await t.runBackroadTool('open_destination', { address: 'app:kortexx' });
+    return { ok: r.ok, detail: r.detail, alternatives: r.alternatives ?? [] };
+});
+ok('36. A wrong address answers with a correction, not an exception',
+    brokenStop.ok === false && brokenStop.alternatives.includes('app:cortex'),
+    brokenStop.detail);
+
+const advised = await page.evaluate(async () => {
+    const u = await import('/lib/understudy/predictor.ts');
+    const b = await import('/lib/backroad.ts');
+    u.resetModel();
+    for (let i = 0; i < 4; i += 1) { u.record('cortex'); u.record('speed_racer'); }
+    const r = await b.travel('app:cortex');
+    return r.next;
+});
+ok('37. Arriving somewhere tells the agent what usually comes next, and why',
+    advised.length > 0 && advised[0].source === 'observed' && advised[0].address === 'app:speed_racer',
+    advised.length ? `${advised[0].address} (${advised[0].source})` : 'no hops');
+
 await page.screenshot({ path: 'ten.png', fullPage: false });
 
 console.log('\n' + '─'.repeat(50));

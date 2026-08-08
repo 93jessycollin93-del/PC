@@ -24,9 +24,15 @@ import {
     registerKind,
     resolve,
     resolveOne,
+    manifest,
+    manifestText,
     nearestTo,
+    setNextHopAdvisor,
+    travel,
+    travelAll,
     UnknownDestinationError,
 } from './backroad';
+import { runBackroadTool } from './backroadTool';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -230,5 +236,146 @@ describe('keeping the road true', () => {
         for (const name of imported.split(',').map((n) => n.trim()).filter(Boolean)) {
             expect(road).toMatch(new RegExp(`export (async )?function ${name}\\b`));
         }
+    });
+});
+
+
+describe('the agent lane', () => {
+    beforeEach(() => {
+        clearBackroad();
+        setNextHopAdvisor(null);
+    });
+
+    it('travel() reports what opened, in a sentence an agent can use', async () => {
+        stub('app:data_pods', 'Data Pods');
+        const r = await travel('app:data_pods');
+        expect(r.ok).toBe(true);
+        expect(r.arrived?.address).toBe('app:data_pods');
+        expect(r.detail).toContain('Data Pods');
+    });
+
+    it('travel() never throws on an unknown address — it reports alternatives', async () => {
+        stub('app:data_pods', 'Data Pods');
+        // A thrown error ends an agent's turn. A report lets it try again.
+        const r = await travel('app:data_podz');
+        expect(r.ok).toBe(false);
+        expect(r.alternatives.map((a) => a.address)).toContain('app:data_pods');
+    });
+
+    it('travel() never throws when the destination itself breaks', async () => {
+        register({
+            address: 'app:broken',
+            kind: 'app',
+            label: 'Broken',
+            go: () => {
+                throw new Error('boom');
+            },
+        });
+        const r = await travel('app:broken');
+        expect(r.ok).toBe(false);
+        expect(r.detail).toContain('boom');
+    });
+
+    it('reports declared next hops, labelled as declared', async () => {
+        stub('app:pod_system', 'Pod System');
+        register({
+            address: 'app:data_pods',
+            kind: 'app',
+            label: 'Data Pods',
+            provides: ['app:pod_system'],
+            go: () => {},
+        });
+        const r = await travel('app:data_pods');
+        expect(r.next).toEqual([
+            { address: 'app:pod_system', label: 'Pod System', source: 'declared' },
+        ]);
+    });
+
+    it('reports observed next hops, and never presents them as declared', async () => {
+        stub('app:cortex', 'Offline Cortex');
+        stub('app:speed_racer', 'Speed Racer');
+        setNextHopAdvisor(() => [
+            { address: 'app:speed_racer', label: 'Speed Racer', source: 'observed', confidence: 0.8 },
+        ]);
+        const r = await travel('app:cortex');
+        expect(r.next[0].source).toBe('observed');
+        expect(r.next[0].confidence).toBe(0.8);
+    });
+
+    it('says nothing about next hops when nothing has been learned', async () => {
+        stub('app:cortex', 'Offline Cortex');
+        // Silence beats invention: an agent will act on whatever it is told.
+        const r = await travel('app:cortex');
+        expect(r.next).toEqual([]);
+    });
+
+    it('a route continues past a broken stop and still delivers the rest', async () => {
+        const a = stub('app:one', 'One');
+        const c = stub('app:three', 'Three');
+        const reports = await travelAll(['app:one', 'app:nope', 'app:three']);
+        expect(reports.map((r) => r.ok)).toEqual([true, false, true]);
+        expect(a).toHaveLength(1);
+        expect(c).toHaveLength(1);
+    });
+
+    it('stopOnError halts a route whose later stops depend on earlier ones', async () => {
+        const c = stub('app:three', 'Three');
+        const reports = await travelAll(['app:nope', 'app:three'], { stopOnError: true });
+        expect(reports).toHaveLength(1);
+        expect(c).toHaveLength(0);
+    });
+
+    it('the manifest is filterable, so a prompt is not flooded', () => {
+        stub('app:cortex', 'Offline Cortex');
+        registerKind('theme', [
+            { address: 'theme:win95', kind: 'theme', label: 'Windows 95', go: () => {} },
+        ]);
+        expect(manifest({ kinds: ['app'] }).map((e) => e.address)).toEqual(['app:cortex']);
+        expect(manifestText({ kinds: ['theme'] })).toContain('theme:win95');
+    });
+});
+
+describe('the tool an agent actually calls', () => {
+    beforeEach(() => {
+        clearBackroad();
+        setNextHopAdvisor(null);
+    });
+
+    it('lists destinations it can then open', async () => {
+        stub('app:data_pods', 'Data Pods');
+        const res = (await runBackroadTool('list_destinations', { query: 'pods' })) as {
+            ok: boolean;
+            destinations: { address: string }[];
+        };
+        expect(res.ok).toBe(true);
+        expect(res.destinations.map((d) => d.address)).toContain('app:data_pods');
+    });
+
+    it('opens one destination directly', async () => {
+        const calls = stub('app:data_pods', 'Data Pods');
+        const res = await runBackroadTool('open_destination', { address: 'app:data_pods' });
+        expect(res.ok).toBe(true);
+        expect(calls).toHaveLength(1);
+    });
+
+    it('opens a route and says how much of it worked', async () => {
+        stub('app:one', 'One');
+        stub('app:three', 'Three');
+        const res = (await runBackroadTool('open_route', {
+            addresses: ['app:one', 'app:nope', 'app:three'],
+        })) as { ok: boolean; detail: string };
+        expect(res.ok).toBe(false);
+        expect(res.detail).toBe('Opened 2 of 3.');
+    });
+
+    it('returns a readable result for an unknown tool instead of throwing', async () => {
+        const res = await runBackroadTool('teleport', {});
+        expect(res.ok).toBe(false);
+        expect(String(res.detail)).toContain('teleport');
+    });
+
+    it('handles a missing argument without throwing', async () => {
+        expect((await runBackroadTool('open_destination', {})).ok).toBe(false);
+        expect((await runBackroadTool('open_route', { addresses: [] })).ok).toBe(false);
     });
 });

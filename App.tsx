@@ -20,6 +20,7 @@ import { DraggableWindow } from './components/DraggableWindow';
 import { InkLayer } from './components/InkLayer';
 import { FloatingNav } from './components/FloatingNav';
 import { getAiClient, HOME_TOOLS, MAIL_TOOLS, MODEL_NAME, SYSTEM_INSTRUCTION } from './lib/gemini';
+import { BACKROAD_TOOL, BACKROAD_TOOL_NAMES, runBackroadTool } from './lib/backroadTool';
 import { NotepadApp } from './components/apps/NotepadApp';
 import { CyberneticExportApp } from './components/apps/CyberneticExportApp';
 import { GitHubSyncApp } from './components/apps/GitHubSyncApp';
@@ -85,8 +86,8 @@ import { MemoryFabricApp } from './components/apps/MemoryFabricApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startScheduler as startAmbientAgents } from './lib/ambient/agents';
-import { initUnderstudy } from './lib/understudy/predictor';
-import { registerApps, registerThemes, registerProviders, registerGlobalVerbs, resolveOne, go } from './lib/backroad';
+import { initUnderstudy, predictNext } from './lib/understudy/predictor';
+import { registerApps, registerThemes, registerProviders, registerGlobalVerbs, resolveOne, go, setNextHopAdvisor } from './lib/backroad';
 import { PC_THEMES } from './src/pc-themes/registry';
 import { allProviders } from './lib/ai/catalog';
 import { startNotificationCollector } from './lib/notifications';
@@ -1138,6 +1139,24 @@ export const App: React.FC = () => {
         registerThemes(PC_THEMES.map((t) => ({ id: t.id, label: t.label, era: t.era })));
         registerProviders(allProviders().map((p) => ({ id: p.id, label: p.label })));
         registerGlobalVerbs();
+
+        // Teach the road what tends to follow what, so an agent arriving
+        // somewhere is told what is usually needed next. Sourced from the
+        // Understudy's observed transitions rather than a dependency graph
+        // written by hand: a made-up dependency is worse than none, because
+        // an agent will act on it. With the Understudy off this returns
+        // nothing and the road stays quiet instead of guessing.
+        setNextHopAdvisor((address) =>
+            address.startsWith('app:')
+                ? predictNext(address.slice(4), 3).map((p) => ({
+                      address: `app:${p.appId}`,
+                      label: p.appId.replace(/_/g, ' '),
+                      source: 'observed' as const,
+                      confidence: p.confidence,
+                  }))
+                : [],
+        );
+        return () => setNextHopAdvisor(null);
     }, []);
 
     // Boot the always-on platform engines (idempotent — each guards itself).
@@ -1462,13 +1481,16 @@ export const App: React.FC = () => {
 
             const ai = getAiClient();
             
-            let activeTools = HOME_TOOLS;
+            // The back road rides along with every context. "Open the pod
+            // system" is a reasonable thing to draw on any screen, and the
+            // agent should not have to walk through other apps to do it.
+            let activeTools = [...HOME_TOOLS, BACKROAD_TOOL];
             let contextDescription = 'Desktop (Home Screen)';
 
             if (focusedId) {
                 const focusedWindow = openWindows.find(w => w.id === focusedId);
                 if (focusedWindow?.item.appId === 'mail') {
-                    activeTools = MAIL_TOOLS;
+                    activeTools = [...MAIL_TOOLS, BACKROAD_TOOL];
                     contextDescription = 'Mail App';
                 }
             }
@@ -1501,7 +1523,19 @@ export const App: React.FC = () => {
                     console.log('Tool call:', call.name, call.args);
                     const args = call.args as any;
 
-                    if (call.name === 'delete_item' && args.itemName) {
+                    if (BACKROAD_TOOL_NAMES.includes(call.name)) {
+                        // Straight to the destination — no walking through
+                        // unrelated apps to reach one. The report says what
+                        // opened, so the toast can be specific rather than
+                        // claiming success on faith.
+                        const result = await runBackroadTool(call.name, args ?? {});
+                        messages.push(
+                            <div key={`road-${call.name}-${messages.length}`}>
+                                {String(result.detail ?? (result.ok ? 'Done.' : 'That did not work.'))}
+                            </div>,
+                        );
+                        if (result.ok) actionTaken = true;
+                    } else if (call.name === 'delete_item' && args.itemName) {
                         const itemName = args.itemName.toLowerCase();
                         const { newItems, deleted } = deleteItemRecursively(workingDesktopItems, itemName, true);
                         if (deleted) {
