@@ -25,6 +25,7 @@ import {
     readyProviders,
     type ProviderDef,
 } from './catalog';
+import { record as recordCall } from './telemetry';
 import {
     hasAnyKey,
     listKeys,
@@ -380,9 +381,22 @@ export async function chat(req: ChatRequest): Promise<ChatResult> {
         }
 
         for (const entry of usable) {
+            const startedAt = Date.now();
             try {
                 const text = await callProvider(provider, model, req, entry.key);
                 recordOutcome(provider.id, entry.id, { ok: true });
+                recordCall({
+                    at: startedAt,
+                    provider: provider.id,
+                    model,
+                    keyId: entry.id,
+                    keyLabel: entry.label,
+                    ms: Date.now() - startedAt,
+                    ok: true,
+                    promptChars: req.messages.reduce((n, m) => n + m.content.length, 0),
+                    replyChars: text.length,
+                    fallbacks: attempts.length,
+                });
                 return { text, provider: provider.id, model, keyId: entry.id, attempts };
             } catch (err) {
                 if (req.signal?.aborted) throw err;
@@ -390,6 +404,19 @@ export async function chat(req: ChatRequest): Promise<ChatResult> {
                 const retryAfterSec = err instanceof ProviderHttpError ? err.retryAfterSec : undefined;
                 const reason = describeError(err, provider);
                 recordOutcome(provider.id, entry.id, { ok: false, status, error: reason, retryAfterSec });
+                recordCall({
+                    at: startedAt,
+                    provider: provider.id,
+                    model,
+                    keyId: entry.id,
+                    keyLabel: entry.label,
+                    ms: Date.now() - startedAt,
+                    ok: false,
+                    status,
+                    promptChars: req.messages.reduce((n, m) => n + m.content.length, 0),
+                    replyChars: 0,
+                    fallbacks: attempts.length,
+                });
                 attempts.push({
                     provider: provider.id,
                     model,

@@ -84,6 +84,8 @@ import { AgentTeamConsoleApp } from './components/apps/AgentTeamConsoleApp';
 import { MemoryFabricApp } from './components/apps/MemoryFabricApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
+import { startScheduler as startAmbientAgents } from './lib/ambient/agents';
+import { initUnderstudy } from './lib/understudy/predictor';
 import { startNotificationCollector } from './lib/notifications';
 import { BottomBar } from './components/BottomBar';
 import { StickyNotepadWidget } from './components/StickyNotepadWidget';
@@ -91,7 +93,7 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle, Star, Package } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle, Star, Package, Radar, Dna } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -334,6 +336,20 @@ The cottage felt empty afterwards, the silence deafening. But sometimes, when th
         { id: 'doc1', name: 'Report.docx', type: 'app', icon: FileText, bgColor: 'bg-gradient-to-br from-blue-500 to-blue-700' },
         { id: 'img1', name: 'Vacation.png', type: 'app', icon: ImageIcon, bgColor: 'bg-gradient-to-br from-purple-500 to-purple-700' }
     ] },
+
+    // ── The ten ─────────────────────────────────────────────────────────
+    // Each renders through APP_REGISTRY, so nothing was added to the
+    // dispatch chain below — the registry's documented promise, used.
+    { id: 'budget_radar', name: 'Budget Radar', type: 'app', icon: Radar, appId: 'budget_radar', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-800 to-zinc-950 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]' },
+    { id: 'colosseum', name: 'Colosseum', type: 'app', icon: Trophy, appId: 'colosseum', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-800 to-zinc-950 border border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.35)]' },
+    { id: 'ambient_agents', name: 'Ambient Agents', type: 'app', icon: Bot, appId: 'ambient_agents', bgColor: 'bg-gradient-to-br from-sky-600 via-blue-800 to-zinc-950 border border-sky-500/40 shadow-[0_0_15px_rgba(14,165,233,0.3)]' },
+    { id: 'bus_recorder', name: 'Bus Recorder', type: 'app', icon: Activity, appId: 'bus_recorder', bgColor: 'bg-gradient-to-br from-rose-600 via-red-900 to-zinc-950 border border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
+    { id: 'choreography', name: 'Choreography', type: 'app', icon: Grid2X2, appId: 'choreography', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-900 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
+    { id: 'speed_racer', name: 'Speed Racer', type: 'app', icon: Gauge, appId: 'speed_racer', bgColor: 'bg-gradient-to-br from-lime-500 via-green-800 to-zinc-950 border border-lime-500/40 shadow-[0_0_15px_rgba(132,204,22,0.3)]' },
+    { id: 'cartographer', name: 'Cartographer', type: 'app', icon: Compass, appId: 'cartographer', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-800 to-zinc-950 border border-teal-400/40 shadow-[0_0_15px_rgba(45,212,191,0.3)]' },
+    { id: 'prompt_genome', name: 'Prompt Genome', type: 'app', icon: Dna, appId: 'prompt_genome', bgColor: 'bg-gradient-to-br from-fuchsia-600 via-pink-900 to-zinc-950 border border-fuchsia-500/40 shadow-[0_0_15px_rgba(217,70,239,0.3)]' },
+    { id: 'cortex', name: 'Offline Cortex', type: 'app', icon: Brain, appId: 'cortex', bgColor: 'bg-gradient-to-br from-purple-600 via-fuchsia-900 to-zinc-950 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
+    { id: 'understudy', name: 'The Understudy', type: 'app', icon: Sparkles, appId: 'understudy', bgColor: 'bg-gradient-to-br from-indigo-500 via-violet-900 to-zinc-950 border border-indigo-400/40 shadow-[0_0_15px_rgba(129,140,248,0.3)]' },
     { id: 'projects', name: 'Projects', type: 'folder', icon: Folder, bgColor: 'bg-gradient-to-br from-indigo-400 to-indigo-700', contents: [
         { id: 'p1', name: 'Gemini_Demo.ts', type: 'app', icon: FileText, bgColor: 'bg-gradient-to-br from-cyan-500 to-cyan-700' }
     ]}
@@ -1101,6 +1117,11 @@ export const App: React.FC = () => {
         automationEngine.start();
         schedulerEngine.start();
         startNotificationCollector();
+        // Ambient agents run on their own wall-clock schedule; the Understudy
+        // only attaches if it has been turned on, so a boot with it disabled
+        // registers no listeners at all.
+        startAmbientAgents();
+        initUnderstudy();
     }, []);
 
     // Deep-link support: ?pc=full|half|closed picks the shell mode and

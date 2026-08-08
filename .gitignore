@@ -33,3 +33,8 @@ dist-ssr
 .env.*
 !.env.example
 !.env.*.example
+
+# Test-run screenshots
+/keys.png
+/vault.png
+/ten.png
