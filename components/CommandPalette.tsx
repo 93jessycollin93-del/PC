@@ -3,6 +3,7 @@ import { Search, CornerDownLeft } from 'lucide-react';
 import type { DesktopItem } from '../types';
 import { bus } from '../lib/bus';
 import { searchCommands, groupByCategory, type OfflineCommand } from '../lib/offlineCommands';
+import { go, resolve, type ResolvedDestination } from '../lib/backroad';
 
 /**
  * Command Palette — global ⌘K / Ctrl-K launcher.
@@ -15,24 +16,6 @@ import { searchCommands, groupByCategory, type OfflineCommand } from '../lib/off
 
 interface CommandPaletteProps {
   items: DesktopItem[];
-}
-
-/** Lightweight subsequence fuzzy match with a simple relevance score. */
-function fuzzyScore(query: string, target: string): number {
-  const q = query.toLowerCase();
-  const t = target.toLowerCase();
-  if (!q) return 1;
-  if (t.startsWith(q)) return 1000 - t.length;
-  if (t.includes(q)) return 500 - t.indexOf(q);
-  let qi = 0;
-  let score = 0;
-  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
-    if (t[ti] === q[qi]) {
-      score += 10;
-      qi++;
-    }
-  }
-  return qi === q.length ? score : -1;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ items }) => {
@@ -69,16 +52,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ items }) => {
     }
   }, [open]);
 
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
-    const launchable = items.filter(i => i && i.type === 'app' && i.appId);
-    return launchable
-      .map(item => ({ item, score: fuzzyScore(query, item.name) }))
-      .filter(r => r.score >= 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 8)
-      .map(r => r.item);
-  }, [items, query]);
+  // Searched through the back road rather than a private list with private
+  // ranking. Two things fall out of that: every router now agrees on what
+  // "budget" matches, and the palette reaches destinations it never could —
+  // typing a theme name switches theme, typing a provider opens AI Providers.
+  const results = useMemo(() => (query.trim() ? resolve(query, 8) : []), [query]);
+
+  // The desktop item behind a destination, for its icon and tile colour.
+  // Absent for themes, providers and verbs, which have no tile — those fall
+  // back to a kind badge rather than borrowing an unrelated app's icon.
+  const itemFor = (address: string) => {
+    const appId = address.startsWith('app:') ? address.slice(4) : null;
+    if (!appId) return undefined;
+    return items.find(i => i && (i.appId === appId || i.id === appId)) ?? undefined;
+  };
 
   // Offline commands — actions, not just apps. These are matched by plain
   // string comparison against a static catalog, so they keep working with no
@@ -100,7 +87,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ items }) => {
   // in both modes.
   const entries = useMemo(
     () => [
-      ...results.map(item => ({ kind: 'app' as const, item })),
+      ...results.map(dest => ({ kind: 'app' as const, dest })),
       ...commandResults.map(command => ({ kind: 'command' as const, command })),
     ],
     [results, commandResults]
@@ -117,20 +104,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ items }) => {
     setOpen(false);
   };
 
-  const launch = (item?: DesktopItem) => {
-    if (item && item.appId) {
-      bus.emit('launch-app', { appId: item.appId });
+  const launch = (dest?: ResolvedDestination) => {
+    const target = dest ?? (entries[active]?.kind === 'app' ? entries[active].dest : undefined);
+    if (target) {
+      // One call, whatever the destination turns out to be — the palette no
+      // longer needs to know that an app is a bus emit and a theme is a raw
+      // CustomEvent.
+      void go(target.address);
       setOpen(false);
       return;
     }
     const entry = entries[active];
-    if (!entry) return;
-    if (entry.kind === 'app' && entry.item.appId) {
-      bus.emit('launch-app', { appId: entry.item.appId });
-      setOpen(false);
-    } else if (entry.kind === 'command') {
-      runCommand(entry.command);
-    }
+    if (entry?.kind === 'command') runCommand(entry.command);
   };
 
   const onInputKey = (e: React.KeyboardEvent) => {
@@ -208,22 +193,34 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ items }) => {
           ) : entries.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-zinc-500">No matching apps or commands</div>
           ) : (
-            results.map((item, i) => {
-              const Icon = item.icon;
+            results.map((dest, i) => {
+              const item = itemFor(dest.address);
+              const Icon = item?.icon;
               return (
                 <button
-                  key={item.id}
+                  key={dest.address}
                   onMouseEnter={() => setActive(i)}
-                  onClick={() => launch(item)}
+                  onClick={() => launch(dest)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                     i === active ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
                   }`}
                 >
-                  <span className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${item.bgColor || 'bg-zinc-800'}`}>
-                    {Icon && <Icon size={15} className="text-white" />}
+                  <span className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${item?.bgColor || 'bg-zinc-800'}`}>
+                    {Icon ? (
+                      <Icon size={15} className="text-white" />
+                    ) : (
+                      <span className="text-[9px] uppercase text-zinc-400">{dest.kind.slice(0, 4)}</span>
+                    )}
                   </span>
-                  <span className="flex-1 text-sm text-zinc-200">{item.name}</span>
-                  {i === active && <CornerDownLeft size={14} className="text-zinc-500" />}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm text-zinc-200 truncate">{dest.label}</span>
+                    {dest.kind !== 'app' && (
+                      <span className="block text-[11px] text-zinc-500 truncate">
+                        {dest.description || dest.address}
+                      </span>
+                    )}
+                  </span>
+                  {i === active && <CornerDownLeft size={14} className="text-zinc-500 shrink-0" />}
                 </button>
               );
             })

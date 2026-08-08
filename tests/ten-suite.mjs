@@ -315,6 +315,61 @@ ok('26. excludeProviders keeps a forbidden provider out of the chain',
 ok('27. An exclusion cannot be routed around by naming the provider',
     excluded.named !== 'groq', `answered by ${excluded.named}`);
 
+
+// ── The back road ────────────────────────────────────────────────────────
+// Unit tests cover the module; these check the thing unit tests cannot —
+// that the running app actually registered its real roster into it.
+const road = await page.evaluate(async () => {
+    const m = await import('/lib/backroad.ts');
+    return { total: m.destinations().length, kinds: m.countByKind() };
+});
+ok('28. The live app registers its whole roster on the back road',
+    road.total > 100 && road.kinds.app > 100,
+    `${road.total} addresses — ${Object.entries(road.kinds).map(([k, n]) => `${n} ${k}`).join(', ')}`);
+
+ok('29. Themes, providers and verbs are addressable too',
+    road.kinds.theme >= 20 && road.kinds.provider >= 10 && road.kinds.verb >= 4,
+    `${road.kinds.theme} themes, ${road.kinds.provider} providers, ${road.kinds.verb} verbs`);
+
+const travelled = await page.evaluate(async () => {
+    const m = await import('/lib/backroad.ts');
+    const seen = [];
+    const off = (await import('/lib/bus.ts')).bus.on('launch-app', ({ appId }) => seen.push(appId));
+    await m.go('app:cortex');       // exact address
+    await m.go('offline cortex');   // plain phrase
+    off();
+    return seen;
+});
+ok('30. go() travels by exact address AND by plain phrase',
+    travelled.length === 2 && travelled.every((a) => a === 'cortex'), travelled.join(', '));
+
+const unknown = await page.evaluate(async () => {
+    const m = await import('/lib/backroad.ts');
+    try {
+        await m.go('app:kortexx');
+        return { threw: false, nearest: [] };
+    } catch (e) {
+        return { threw: true, nearest: (e.nearest ?? []).map((n) => n.address) };
+    }
+});
+ok('31. A misspelled address fails loudly AND says what it meant',
+    unknown.threw && unknown.nearest.includes('app:cortex'),
+    unknown.nearest.length ? `suggested ${unknown.nearest.join(', ')}` : 'no near match');
+
+const themeTravel = await page.evaluate(async () => {
+    const m = await import('/lib/backroad.ts');
+    let got = null;
+    const h = (e) => { got = e.detail?.themeId; };
+    window.addEventListener('pc-set-theme', h);
+    // A theme is a raw CustomEvent, not a bus channel. That the caller does
+    // not need to know this is the entire point of the road.
+    await m.go('theme:win95');
+    window.removeEventListener('pc-set-theme', h);
+    return got;
+});
+ok('32. One call reaches a destination with a different mechanism behind it',
+    themeTravel === 'win95', `pc-set-theme → ${themeTravel}`);
+
 await page.screenshot({ path: 'ten.png', fullPage: false });
 
 console.log('\n' + '─'.repeat(50));

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { GitBranch, Circle, Radio, Trash2, HardDrive } from 'lucide-react';
+import { GitBranch, Circle, Radio, Trash2, HardDrive, Signpost, CornerDownLeft } from 'lucide-react';
 import { bypass, type BypassEvent, type ChannelStats } from '../../lib/bypass';
+import { countByKind, destinations, go, resolve, subscribeBackroad, type ResolvedDestination } from '../../lib/backroad';
 import { measureQuota, requestPersistence, formatBytes, type QuotaReport } from '../../src/storage/quota';
 
 /**
@@ -76,6 +77,8 @@ export const BypassApp: React.FC = () => {
           {channels.length} channels. No app imports another — everything travels here.
         </p>
       </div>
+
+      <BackroadPanel />
 
       <div className="px-3 py-2 border-b border-zinc-800 shrink-0 text-[11px]">
         <div className="flex items-center gap-1.5 text-zinc-400">
@@ -153,3 +156,69 @@ export const BypassApp: React.FC = () => {
 };
 
 export default BypassApp;
+
+
+/**
+ * The back road, in the same window as the spine it rides.
+ *
+ * Bypass answers "what is connected". This answers "where can I go, and does
+ * that address actually lead anywhere" — which is the question that used to
+ * need a source-code read.
+ */
+const BackroadPanel: React.FC = () => {
+  const [tick, setTick] = useState(0);
+  const [query, setQuery] = useState('');
+  useEffect(() => subscribeBackroad(() => setTick(t => t + 1)), []);
+
+  const counts = React.useMemo(() => countByKind(), [tick]);
+  const total = React.useMemo(() => destinations().length, [tick]);
+  const hits: ResolvedDestination[] = React.useMemo(
+    () => (query.trim() ? resolve(query, 6) : []),
+    [query, tick]
+  );
+
+  return (
+    <div className="px-3 py-2 border-b border-zinc-800 shrink-0">
+      <div className="flex items-center gap-2">
+        <Signpost size={13} className="text-sky-400 shrink-0" />
+        <span className="text-[12px] flex-1">Back road</span>
+        <span className="text-[11px] text-zinc-500">{total} addresses</span>
+      </div>
+      <p className="text-[11px] text-zinc-500 mt-1">
+        {Object.entries(counts)
+          .map(([kind, n]) => `${n} ${kind}`)
+          .join(' · ') || 'nothing registered yet'}
+        {' — every router resolves through this one lane.'}
+      </p>
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Try an address or a name — cortex, win95, groq…"
+        className="mt-1.5 w-full px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-[11px] outline-none focus:border-sky-700"
+      />
+      {hits.length > 0 && (
+        <div className="mt-1 space-y-0.5">
+          {hits.map(h => (
+            <button
+              key={h.address}
+              onClick={() => void go(h.address)}
+              className="w-full flex items-center gap-2 px-2 py-1 rounded text-left hover:bg-zinc-800/60"
+            >
+              <span className="text-[11px] text-zinc-200 flex-1 truncate">{h.label}</span>
+              <code className="text-[10px] text-zinc-500 shrink-0">{h.address}</code>
+              <span className="text-[10px] text-sky-400 shrink-0 tabular-nums">
+                {Math.round(h.score * 100)}
+              </span>
+              <CornerDownLeft size={11} className="text-zinc-600 shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+      {query.trim() && hits.length === 0 && (
+        <p className="text-[11px] text-amber-500/80 mt-1">
+          Nothing is registered at that address.
+        </p>
+      )}
+    </div>
+  );
+};

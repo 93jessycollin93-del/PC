@@ -86,6 +86,9 @@ import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
 import { startScheduler as startAmbientAgents } from './lib/ambient/agents';
 import { initUnderstudy } from './lib/understudy/predictor';
+import { registerApps, registerThemes, registerProviders, registerGlobalVerbs, resolveOne, go } from './lib/backroad';
+import { PC_THEMES } from './src/pc-themes/registry';
+import { allProviders } from './lib/ai/catalog';
 import { startNotificationCollector } from './lib/notifications';
 import { BottomBar } from './components/BottomBar';
 import { StickyNotepadWidget } from './components/StickyNotepadWidget';
@@ -1112,6 +1115,31 @@ export const App: React.FC = () => {
     };
 
 
+    // The back road's app on-ramp. Registered from `desktopItems` rather than
+    // from a list written here, so custom apps, folders and generated apps are
+    // reachable the moment they exist — a hand-written roster could never know
+    // about them. Re-runs on change, so a deleted app stops being reachable.
+    useEffect(() => {
+        const flat: { id: string; appId?: string; name: string }[] = [];
+        const walk = (items: (DesktopItem | null)[]) => {
+            for (const item of items) {
+                if (!item) continue;
+                flat.push({ id: item.id, appId: item.appId, name: item.name });
+                if (item.type === 'folder' && item.contents) walk(item.contents);
+            }
+        };
+        walk(desktopItems);
+        registerApps(flat);
+    }, [desktopItems]);
+
+    // The other on-ramps. Themes and providers are read from the modules that
+    // own them; the verbs are the ones not tied to any single destination.
+    useEffect(() => {
+        registerThemes(PC_THEMES.map((t) => ({ id: t.id, label: t.label, era: t.era })));
+        registerProviders(allProviders().map((p) => ({ id: p.id, label: p.label })));
+        registerGlobalVerbs();
+    }, []);
+
     // Boot the always-on platform engines (idempotent — each guards itself).
     useEffect(() => {
         automationEngine.start();
@@ -1151,6 +1179,19 @@ export const App: React.FC = () => {
         if (item) {
             if (pc === null) setPcMode('half');
             handleLaunch(item);
+            return;
+        }
+        // No exact id. Jackie's menu deep-links in from another repo, so a
+        // renamed app used to land here as a silent no-op — the desktop opens
+        // with nothing on it and no way to tell why. The back road gets one
+        // attempt, but only on a confident match: opening the WRONG app is a
+        // worse answer than opening none.
+        const near = resolveOne(app, 0.8);
+        if (near) {
+            if (pc === null) setPcMode('half');
+            void go(near.address);
+        } else {
+            console.warn(`[deep-link] Nothing reachable for ?app=${app}`);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);

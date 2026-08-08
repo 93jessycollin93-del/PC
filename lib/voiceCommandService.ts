@@ -9,6 +9,7 @@
  */
 
 import { bus } from './bus';
+import { go, resolveOne } from './backroad';
 import { automationEngine } from './automation';
 
 export interface VoiceCommand {
@@ -190,6 +191,8 @@ class VoiceCommandService {
     const command = this.matchCommand(transcript);
     if (command) {
       this.executeCommand(command, transcript);
+    } else if (this.tryBackroad(transcript)) {
+      // Handled — see tryBackroad.
     } else {
       // Try to interpret as dictation for focused app
       bus.emit('voice-dictate', { text: transcript });
@@ -211,6 +214,27 @@ class VoiceCommandService {
       }
     }
     return null;
+  }
+
+  /**
+   * Last resort before treating speech as dictation: "open X" on the back road.
+   *
+   * Registered voice commands only cover what someone thought to register, so
+   * "open the cortex" did nothing unless a cortex command existed. The back
+   * road already knows every app, theme and provider by name, so the phrase
+   * can simply be looked up.
+   *
+   * Only fires on an explicit travel verb and a confident match. Speech
+   * recognition mishears constantly, and a desktop that opens a random app
+   * because it half-heard a word is worse than one that ignores you.
+   */
+  private tryBackroad(transcript: string): boolean {
+    const m = transcript.match(/^(?:open|launch|start|go to|show me|take me to)\s+(?:the\s+)?(.+)$/i);
+    if (!m) return false;
+    const dest = resolveOne(m[1].trim(), 0.8);
+    if (!dest) return false;
+    void go(dest.address);
+    return true;
   }
 
   /**
