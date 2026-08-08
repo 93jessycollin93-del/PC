@@ -288,6 +288,33 @@ for (const [id, marker] of TEN) {
 ok('25. Launching each of the ten renders its app', notRendered.length === 0,
     notRendered.length ? `blank: ${notRendered.join(', ')}` : 'ten of ten');
 
+
+// ── The policy hook the gateway gained for Momentum's spend gate ─────────
+// Test 25 opened a fresh page, so the pool seeded at the top is gone.
+await page.evaluate(async () => {
+    const kr = await import('/lib/ai/keyring.ts');
+    kr.invalidate();
+    kr.addKey('groq', 'gsk_test_one', 'primary');
+    kr.addKey('cerebras', 'csk_test_two', 'second');
+    kr.addKey('mistral', 'msk_test_three', 'third');
+});
+const excluded = await page.evaluate(async () => {
+    const { chat } = await import('/lib/ai/gateway.ts');
+    const a = await chat({ messages: [{ role: 'user', content: 'hi' }], excludeProviders: ['groq'] });
+    // An exclusion a caller could route around by naming the provider
+    // would not be an exclusion.
+    const b = await chat({
+        messages: [{ role: 'user', content: 'hi' }],
+        model: 'groq:llama-3.3-70b-versatile',
+        excludeProviders: ['groq'],
+    });
+    return { auto: a.provider, named: b.provider };
+});
+ok('26. excludeProviders keeps a forbidden provider out of the chain',
+    excluded.auto !== 'groq', `answered by ${excluded.auto}`);
+ok('27. An exclusion cannot be routed around by naming the provider',
+    excluded.named !== 'groq', `answered by ${excluded.named}`);
+
 await page.screenshot({ path: 'ten.png', fullPage: false });
 
 console.log('\n' + '─'.repeat(50));

@@ -46,6 +46,16 @@ export interface ChatRequest {
     temperature?: number;
     maxTokens?: number;
     signal?: AbortSignal;
+    /**
+     * Provider ids this call may not use.
+     *
+     * A policy hook, not a preference: a caller that is forbidden to spend
+     * money needs paid providers removed from the chain *before* the call,
+     * because refusing afterwards is refusing something that already
+     * happened. Applies to the explicit `model` too — an exclusion that a
+     * caller could route around by naming the provider would not be one.
+     */
+    excludeProviders?: string[];
 }
 
 export interface ChatResult {
@@ -330,13 +340,16 @@ export async function chat(req: ChatRequest): Promise<ChatResult> {
     // Build the candidate chain: the explicit choice first, then the rest.
     const candidates: { provider: ProviderDef; model: string }[] = [];
 
+    const excluded = new Set(req.excludeProviders ?? []);
+
     if (req.model) {
         const ref = parseModelRef(req.model);
         const p = ref && getProvider(ref.provider);
-        if (p) candidates.push({ provider: p, model: ref!.model });
+        if (p && !excluded.has(p.id)) candidates.push({ provider: p, model: ref!.model });
     }
 
     for (const p of readyProviders()) {
+        if (excluded.has(p.id)) continue;
         if (candidates.some((c) => c.provider.id === p.id)) continue;
         const model = preferredModelFor(p);
         if (model) candidates.push({ provider: p, model });
