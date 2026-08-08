@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { FloatingWidget } from './FloatingWidget';
 import { Terminal as TerminalIcon, Power, ChevronDown, ChevronUp, X, AlertTriangle, Check } from 'lucide-react';
 
 interface GlobalTerminalProps {
@@ -16,7 +17,6 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({ onStateChange })
     ]);
     const [inputValue, setInputValue] = useState('');
     const outputEndRef = useRef<HTMLDivElement>(null);
-    const terminalRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
         outputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -102,8 +102,9 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({ onStateChange })
     return (
         <>
             {/* Global Terminal Widget */}
-            <div
-                ref={terminalRef}
+            <FloatingWidget
+                id="global-terminal"
+                title="Drag to move · reset in System Settings"
                 className={`fixed z-[9999] transition-all duration-300 ${
                     isMinimized ? 'bottom-4 right-4' : 'bottom-4 right-4 w-96 h-96'
                 }`}
@@ -208,7 +209,7 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({ onStateChange })
                         )}
                     </div>
                 )}
-            </div>
+            </FloatingWidget>
 
             {/* Warning Modal */}
             {showWarning && (

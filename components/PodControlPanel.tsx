@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useReducer, useState } from 'react';
 import { Boxes, ChevronDown, Link2, Moon, Play, Plus, Trash2, Unlink, X, Zap } from 'lucide-react';
+import { FloatingWidget } from './FloatingWidget';
 import {
   getPodControlCenter,
   formatBytes,
@@ -108,7 +109,7 @@ export const PodControlPanel: React.FC<PodControlPanelProps> = ({ openWindows })
   };
 
   return (
-    <div className="fixed bottom-16 left-3 z-[3985] font-sans text-zinc-200 select-none">
+    <FloatingWidget id="pod-control" title="Drag to move · reset in System Settings" className="fixed bottom-16 left-3 z-[3985] font-sans text-zinc-200 select-none">
       {/* Expanded panel */}
       {open && center && (
         <div className="mb-2 w-[340px] max-w-[calc(100vw-1.5rem)] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
@@ -338,6 +339,6 @@ export const PodControlPanel: React.FC<PodControlPanelProps> = ({ openWindows })
           </>
         )}
       </button>
-    </div>
+    </FloatingWidget>
   );
 };

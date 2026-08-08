@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useDraggableWidget } from '../src/desktop/useDraggableWidget';
 import { Settings, Edit2, X, Plus, Pencil, MousePointer2, LayoutGrid, Eraser, Loader2, Play, Bot, Terminal, Gamepad2, Layout, ArrowLeft, Move, Pin, Monitor, Search, BookOpen } from 'lucide-react';
 import { DesktopItem } from '../types';
 import { bus } from '../lib/bus';
@@ -90,128 +91,21 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
 
     const pinnedApps = pinnedAppIds.map(id => apps.find(a => a.id === id)).filter(Boolean) as DesktopItem[];
 
-    // Position dragging state
-    const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
-        const saved = localStorage.getItem('nav_position_v1');
-        return saved ? JSON.parse(saved) : null;
-    });
-
-    const [isDragging, setIsDragging] = useState(false);
-    const [holdProgress, setHoldProgress] = useState(0);
-    const [isHolding, setIsHolding] = useState(false);
-
-    const navRef = useRef<HTMLDivElement>(null);
-    const holdTimeoutRef = useRef<any>(null);
-    const holdIntervalRef = useRef<any>(null);
-    const dragStartOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        // Only trigger on primary pointer click/touch
-        if (e.button !== 0) return;
-        
-        setIsHolding(true);
-        setHoldProgress(0);
-        
-        const startX = e.clientX;
-        const startY = e.clientY;
-        
-        holdTimeoutRef.current = setTimeout(() => {
-            setIsHolding(false);
-            setHoldProgress(0);
-            setIsDragging(true);
-            
-            if (navigator.vibrate) {
-                try { navigator.vibrate(50); } catch (err) {}
-            }
-            
-            if (navRef.current) {
-                const rect = navRef.current.getBoundingClientRect();
-                dragStartOffsetRef.current = {
-                    x: startX - rect.left,
-                    y: startY - rect.top
-                };
-                setPosition({ x: rect.left, y: rect.top });
-            }
-        }, 1500);
-
-        const startTime = Date.now();
-        holdIntervalRef.current = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min((elapsed / 1500) * 100, 100);
-            setHoldProgress(progress);
-            if (progress >= 100) {
-                if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
-            }
-        }, 30);
-    };
-
-    const handlePointerUp = () => {
-        if (holdTimeoutRef.current) {
-            clearTimeout(holdTimeoutRef.current);
-            holdTimeoutRef.current = null;
-        }
-        if (holdIntervalRef.current) {
-            clearInterval(holdIntervalRef.current);
-            holdIntervalRef.current = null;
-        }
-        setIsHolding(false);
-        setHoldProgress(0);
-    };
-
-    const handlePointerLeave = () => {
-        if (!isDragging) {
-            if (holdTimeoutRef.current) {
-                clearTimeout(holdTimeoutRef.current);
-                holdTimeoutRef.current = null;
-            }
-            if (holdIntervalRef.current) {
-                clearInterval(holdIntervalRef.current);
-                holdIntervalRef.current = null;
-            }
-            setIsHolding(false);
-            setHoldProgress(0);
-        }
-    };
-
-    const handleDoubleClick = () => {
-        setPosition(null);
-        localStorage.removeItem('nav_position_v1');
-    };
-
-    useEffect(() => {
-        if (!isDragging) return;
-
-        const handlePointerMove = (e: PointerEvent) => {
-            const newX = e.clientX - dragStartOffsetRef.current.x;
-            const newY = e.clientY - dragStartOffsetRef.current.y;
-            
-            // Constraint bounds to stay on-screen
-            const boundedX = Math.max(10, Math.min(newX, window.innerWidth - 150));
-            const boundedY = Math.max(10, Math.min(newY, window.innerHeight - 50));
-            
-            const newPos = { x: boundedX, y: boundedY };
-            setPosition(newPos);
-            localStorage.setItem('nav_position_v1', JSON.stringify(newPos));
-        };
-
-        const handleGlobalPointerUp = () => {
-            setIsDragging(false);
-        };
-
-        window.addEventListener('pointermove', handlePointerMove);
-        window.addEventListener('pointerup', handleGlobalPointerUp);
-        return () => {
-            window.removeEventListener('pointermove', handlePointerMove);
-            window.removeEventListener('pointerup', handleGlobalPointerUp);
-        };
-    }, [isDragging]);
-
-    useEffect(() => {
-        return () => {
-            if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
-            if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
-        };
-    }, []);
+    // Position, drag and persistence come from the shared widget primitive
+    // (src/desktop/useDraggableWidget). This component used to carry its own
+    // ~95-line copy, which is why it was the only movable widget in the shell
+    // — and why it alone used a 1.5s hold, never re-clamped after a rotation,
+    // and rewrote localStorage on every pointer move.
+    const {
+        ref: navRef,
+        handlers: dragHandlers,
+        style: dragStyle,
+        isDragging,
+        isArming,
+        position,
+        hasCustomPosition,
+        resetPosition,
+    } = useDraggableWidget({ id: 'floating-nav' });
 
     const getLibraryPanelStyle = () => {
         if (!position) return undefined;
@@ -236,23 +130,14 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
             {/* The Floating Nav Bar */}
             <div 
                 ref={navRef}
-                style={position ? {
-                    position: 'fixed',
-                    left: `${position.x}px`,
-                    top: `${position.y}px`,
-                    margin: 0,
-                    transform: 'none',
-                    zIndex: 4000,
-                    transition: isDragging ? 'none' : 'all 0.2s ease-out'
-                } : undefined}
+                {...dragHandlers}
+                style={dragStyle ? { ...dragStyle, margin: 0, transform: 'none', zIndex: 4000, transition: isDragging ? 'none' : 'all 0.2s ease-out' } : undefined}
                 className={`flex flex-row items-center gap-1.5 bg-zinc-950/70 backdrop-blur-2xl border ${isDragging ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.5)] scale-[1.01]' : 'border-zinc-800/50'} py-1 px-2.5 rounded-full shadow-[0_0_20px_rgba(0,0,0,0.5)] pointer-events-auto select-none transition-all duration-200`}
             >
                 {/* Drag Handle Move Button */}
-                <div 
-                    onPointerDown={handlePointerDown}
-                    onPointerUp={handlePointerUp}
-                    onPointerLeave={handlePointerLeave}
-                    onDoubleClick={handleDoubleClick}
+                <div
+                    onDoubleClick={hasCustomPosition ? resetPosition : undefined}
+                    title="Drag to move · double-click to reset"
                     className="relative flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0"
                 >
                     <button
@@ -260,7 +145,7 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
                         className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
                             isDragging 
                                 ? 'bg-indigo-600 text-white scale-105 shadow-[0_0_10px_rgba(99,102,241,0.5)]' 
-                                : isHolding 
+                                : isArming 
                                     ? 'bg-zinc-800 text-zinc-200 scale-95' 
                                     : 'bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700'
                         }`}
@@ -269,9 +154,12 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
                         <Move className={`w-3.5 h-3.5 ${isDragging ? 'animate-pulse' : ''}`} />
                     </button>
                     
-                    {/* Progress Ring */}
-                    {isHolding && (
-                        <svg className="absolute inset-0 w-7 h-7 -rotate-90 pointer-events-none">
+                    {/* Hold-to-move ring. Indeterminate rather than a
+                        progress sweep: the hold is now 500ms (platform
+                        standard) instead of 1.5s, and a determinate ring over
+                        half a second reads as a flicker. */}
+                    {isArming && (
+                        <svg className="absolute inset-0 w-7 h-7 -rotate-90 pointer-events-none animate-spin">
                             <circle
                                 cx="14"
                                 cy="14"
@@ -288,9 +176,8 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({ apps, onLaunchApp, ink
                                 strokeWidth="1.5"
                                 fill="transparent"
                                 strokeDasharray={`${2 * Math.PI * 12}`}
-                                strokeDashoffset={`${2 * Math.PI * 12 * (1 - holdProgress / 100)}`}
+                                strokeDashoffset={`${2 * Math.PI * 12 * 0.75}`}
                                 strokeLinecap="round"
-                                className="transition-all duration-75"
                             />
                         </svg>
                     )}
