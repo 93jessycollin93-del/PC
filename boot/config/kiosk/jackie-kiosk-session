@@ -1,0 +1,20 @@
+#!/bin/sh
+# X session for the kiosk: no screen blanking, a WM so fullscreen behaves,
+# then the browser shell itself.
+set -eu
+
+xset s off
+xset -dpms
+xset s noblank
+
+# Openbox gives WebKitGTK a real window manager to negotiate fullscreen with.
+# Without one, some drivers leave the window at its natural size.
+openbox &
+OPENBOX_PID=$!
+
+cleanup() {
+    kill "$OPENBOX_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+exec python3 /usr/local/bin/jackie-kiosk.py

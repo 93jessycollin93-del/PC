@@ -1,0 +1,27 @@
+[Unit]
+Description=Jackie's PC kiosk session
+After=jackie-pc.service systemd-user-sessions.service
+Wants=jackie-pc.service
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+Type=simple
+User=jackie
+Group=jackie
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Environment=JACKIE_KIOSK_URL=http://127.0.0.1:5000/
+# Xorg refuses to start from a non-seat session unless the wrapper allows it;
+# chroot-setup.sh writes allowed_users=anybody to match.
+ExecStart=/usr/bin/xinit /usr/local/bin/jackie-kiosk-session -- /usr/bin/X :0 vt1 -keeptty -nolisten tcp
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

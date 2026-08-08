@@ -1,0 +1,37 @@
+#!/bin/sh
+# Keep the app server's port reachable only from the machine itself.
+#
+# server.ts hardcodes app.listen(PORT, '0.0.0.0') and its requireAuth() helper
+# returns true whenever JACKIE_API_TOKEN is unset -- which is how we ship, so
+# that the bundled frontend keeps working. That combination would otherwise
+# expose /api/shell/exec to anyone on the same Wi-Fi. This closes that.
+set -eu
+
+PORT="${JACKIE_PORT:-5000}"
+TABLE="jackie-pc"
+
+start() {
+    nft add table inet "$TABLE" 2>/dev/null || true
+    nft flush table inet "$TABLE"
+    nft -f - <<EOF
+table inet ${TABLE} {
+    chain input {
+        type filter hook input priority -10; policy accept;
+        iif "lo" tcp dport ${PORT} accept
+        tcp dport ${PORT} drop
+    }
+}
+EOF
+    echo "jackie-firewall: port ${PORT} restricted to loopback"
+}
+
+stop() {
+    nft delete table inet "$TABLE" 2>/dev/null || true
+    echo "jackie-firewall: rules removed"
+}
+
+case "${1:-start}" in
+    start) start ;;
+    stop) stop ;;
+    *) echo "usage: $0 {start|stop}" >&2; exit 2 ;;
+esac
