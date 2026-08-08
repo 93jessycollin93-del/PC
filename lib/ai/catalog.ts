@@ -35,6 +35,9 @@
  * xAI, OpenAI, GitHub Models and Ollama. Google and Anthropic each need their
  * own, and the Jackie relay has its own thin envelope.
  */
+import { addKey, listKeys, nextUsableKey } from './keyring';
+import { customProviderDefs } from './customProviders';
+
 export type WireFormat = 'openai' | 'gemini' | 'anthropic' | 'jackie-relay';
 
 /** How the key is presented. */
@@ -63,6 +66,8 @@ export interface ProviderDef {
   /** Ordering for the automatic fallback chain; lower is tried first. */
   priority: number;
   notes?: string;
+  /** True for user-added providers (the "Others" section). */
+  custom?: boolean;
 }
 
 export const PROVIDERS: ProviderDef[] = [
@@ -279,10 +284,17 @@ export const PROVIDERS: ProviderDef[] = [
   },
 ];
 
-const byId = new Map(PROVIDERS.map((p) => [p.id, p]));
+/**
+ * Every provider: the built-ins above plus anything the user added in the
+ * "Others" section. Recomputed per call rather than cached, because a custom
+ * provider added in Settings must be usable immediately, without a reload.
+ */
+export function allProviders(): ProviderDef[] {
+    return [...PROVIDERS, ...customProviderDefs()].sort((a, b) => a.priority - b.priority);
+}
 
 export function getProvider(id: string): ProviderDef | undefined {
-    return byId.get(id);
+    return allProviders().find((p) => p.id === id);
 }
 
 /** A fully-qualified model reference: `provider:model-id`. */
@@ -298,7 +310,7 @@ export function parseModelRef(ref: string): ModelRef | null {
     if (idx <= 0) return null;
     const provider = ref.slice(0, idx);
     const model = ref.slice(idx + 1);
-    if (!provider || !model || !byId.has(provider)) return null;
+    if (!provider || !model || !getProvider(provider)) return null;
     return { provider, model };
 }
 
@@ -307,39 +319,29 @@ export function formatModelRef(provider: string, model: string): string {
 }
 
 /* ── keys ──────────────────────────────────────────────────────────────
-   Keys are the user's own, held in this browser. They are never bundled,
-   never sent anywhere except the provider they belong to. */
+   Storage lives in `keyring.ts`, which holds MANY keys per provider and
+   tracks each one's health. These wrappers are what the rest of the app
+   calls, so no call site needs to know about rotation. */
 
-const KEY_PREFIX = 'jackie_ai_key_';
-
+/** The key to use right now, honouring cooldowns. Null when none is usable. */
 export function getApiKey(providerId: string): string | null {
-    const p = byId.get(providerId);
-    if (!p?.keyName) return null;
-    try {
-        return localStorage.getItem(KEY_PREFIX + p.keyName) || null;
-    } catch {
-        return null;
-    }
+    return nextUsableKey(providerId)?.key ?? null;
 }
 
+/** Add a key to a provider's pool. */
 export function setApiKey(providerId: string, key: string): void {
-    const p = byId.get(providerId);
-    if (!p?.keyName) return;
-    try {
-        if (key) localStorage.setItem(KEY_PREFIX + p.keyName, key);
-        else localStorage.removeItem(KEY_PREFIX + p.keyName);
-    } catch {
-        /* private mode — the key just will not persist */
-    }
+    const trimmed = key.trim();
+    if (!trimmed) return;
+    addKey(providerId, trimmed);
 }
 
 /** Does this provider have what it needs to be called right now? */
 export function isProviderReady(p: ProviderDef): boolean {
     if (p.auth.kind === 'none') return true;
-    return !!getApiKey(p.id);
+    return listKeys(p.id).length > 0;
 }
 
 /** Providers that can actually be called, best first. */
 export function readyProviders(): ProviderDef[] {
-    return PROVIDERS.filter(isProviderReady).sort((a, b) => a.priority - b.priority);
+    return allProviders().filter(isProviderReady).sort((a, b) => a.priority - b.priority);
 }

@@ -20,13 +20,18 @@
  * model id, a CORS refusal or a rate limit.
  */
 import {
-    getApiKey,
     getProvider,
     parseModelRef,
-    PROVIDERS,
     readyProviders,
     type ProviderDef,
 } from './catalog';
+import {
+    hasAnyKey,
+    listKeys,
+    recordOutcome,
+    usableKeys,
+    type KeyEntry,
+} from './keyring';
 
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
@@ -47,13 +52,18 @@ export interface ChatResult {
     /** Which provider/model actually answered. */
     provider: string;
     model: string;
-    /** Every provider tried before this one, and why it failed. */
+    /** Which key in the provider's pool answered; null for keyless providers.
+     *  Lets the UI prove a specific key works rather than just "something did". */
+    keyId: string | null;
+    /** Every provider/key tried before this one, and why each failed. */
     attempts: AttemptFailure[];
 }
 
 export interface AttemptFailure {
     provider: string;
     model: string;
+    /** Which key failed, when the provider has a pool. */
+    keyLabel?: string;
     reason: string;
 }
 
@@ -72,7 +82,9 @@ export class AllProvidersFailedError extends Error {
         super(
             unconfigured
                 ? 'No AI provider is set up yet. Open AI Providers and add a key — Google Gemini, Groq and OpenRouter all have free tiers that need no card.'
-                : `No AI provider could answer. ${attempts.map((a) => `${a.provider}: ${a.reason}`).join(' · ')}`,
+                : `No AI provider could answer. ${attempts
+                      .map((a) => `${a.provider}${a.keyLabel ? ` (${a.keyLabel})` : ''}: ${a.reason}`)
+                      .join(' · ')}`,
         );
         this.name = 'AllProvidersFailedError';
         this.attempts = attempts;
@@ -82,9 +94,8 @@ export class AllProvidersFailedError extends Error {
 
 /* ── helpers ───────────────────────────────────────────────────────────── */
 
-function authHeaders(p: ProviderDef): Record<string, string> {
+function authHeaders(p: ProviderDef, key: string | null): Record<string, string> {
     const headers: Record<string, string> = { 'content-type': 'application/json' };
-    const key = getApiKey(p.id);
     if (p.auth.kind === 'bearer' && key) headers.Authorization = `Bearer ${key}`;
     if (p.auth.kind === 'header' && key) headers[p.auth.name] = key;
 
@@ -123,6 +134,18 @@ function describeError(err: unknown, p: ProviderDef): string {
     return String(err);
 }
 
+/** A provider error that kept its HTTP status, so rotation can react to it. */
+export class ProviderHttpError extends Error {
+    status: number;
+    retryAfterSec?: number;
+    constructor(message: string, status: number, retryAfterSec?: number) {
+        super(message);
+        this.name = 'ProviderHttpError';
+        this.status = status;
+        this.retryAfterSec = retryAfterSec;
+    }
+}
+
 async function readError(res: Response): Promise<string> {
     let detail = '';
     try {
@@ -148,16 +171,34 @@ async function readError(res: Response): Promise<string> {
     return `HTTP ${res.status}${hint}${detail ? `: ${String(detail).slice(0, 200)}` : ''}`;
 }
 
+/** Build the typed error, preserving Retry-After when the provider sends it. */
+async function httpError(res: Response): Promise<ProviderHttpError> {
+    const message = await readError(res);
+    const header = res.headers.get('retry-after');
+    // Retry-After is either seconds or an HTTP date; both appear in the wild.
+    let retryAfterSec: number | undefined;
+    if (header) {
+        const asNumber = Number(header);
+        if (Number.isFinite(asNumber)) retryAfterSec = asNumber;
+        else {
+            const when = Date.parse(header);
+            if (!Number.isNaN(when)) retryAfterSec = Math.max(0, Math.round((when - Date.now()) / 1000));
+        }
+    }
+    return new ProviderHttpError(message, res.status, retryAfterSec);
+}
+
 /* ── wire adapters ─────────────────────────────────────────────────────── */
 
 async function callOpenAiCompatible(
     p: ProviderDef,
     model: string,
     req: ChatRequest,
+    key: string | null,
 ): Promise<string> {
     const res = await fetch(p.endpoint, {
         method: 'POST',
-        headers: authHeaders(p),
+        headers: authHeaders(p, key),
         signal: req.signal,
         body: JSON.stringify({
             model,
@@ -166,14 +207,14 @@ async function callOpenAiCompatible(
             ...(req.maxTokens ? { max_tokens: req.maxTokens } : {}),
         }),
     });
-    if (!res.ok) throw new Error(await readError(res));
+    if (!res.ok) throw await httpError(res);
     const data = await res.json();
     const text = data?.choices?.[0]?.message?.content;
     if (typeof text !== 'string') throw new Error('response had no message content');
     return text;
 }
 
-async function callGemini(p: ProviderDef, model: string, req: ChatRequest): Promise<string> {
+async function callGemini(p: ProviderDef, model: string, req: ChatRequest, key: string | null): Promise<string> {
     // Gemini separates the system instruction and calls the assistant "model".
     const system = req.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
     const contents = req.messages
@@ -185,7 +226,7 @@ async function callGemini(p: ProviderDef, model: string, req: ChatRequest): Prom
 
     const res = await fetch(`${p.endpoint}/${model}:generateContent`, {
         method: 'POST',
-        headers: authHeaders(p),
+        headers: authHeaders(p, key),
         signal: req.signal,
         body: JSON.stringify({
             contents,
@@ -196,7 +237,7 @@ async function callGemini(p: ProviderDef, model: string, req: ChatRequest): Prom
             },
         }),
     });
-    if (!res.ok) throw new Error(await readError(res));
+    if (!res.ok) throw await httpError(res);
     const data = await res.json();
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     const text = parts.map((x: { text?: string }) => x.text ?? '').join('').trim();
@@ -204,7 +245,7 @@ async function callGemini(p: ProviderDef, model: string, req: ChatRequest): Prom
     return text;
 }
 
-async function callAnthropic(p: ProviderDef, model: string, req: ChatRequest): Promise<string> {
+async function callAnthropic(p: ProviderDef, model: string, req: ChatRequest, key: string | null): Promise<string> {
     const system = req.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
     const messages = req.messages
         .filter((m) => m.role !== 'system')
@@ -212,7 +253,7 @@ async function callAnthropic(p: ProviderDef, model: string, req: ChatRequest): P
 
     const res = await fetch(p.endpoint, {
         method: 'POST',
-        headers: authHeaders(p),
+        headers: authHeaders(p, key),
         signal: req.signal,
         body: JSON.stringify({
             model,
@@ -223,7 +264,7 @@ async function callAnthropic(p: ProviderDef, model: string, req: ChatRequest): P
             temperature: req.temperature ?? 0.7,
         }),
     });
-    if (!res.ok) throw new Error(await readError(res));
+    if (!res.ok) throw await httpError(res);
     const data = await res.json();
     const text = (data?.content ?? [])
         .map((b: { text?: string }) => b.text ?? '')
@@ -241,7 +282,7 @@ async function callJackieRelay(p: ProviderDef, model: string, req: ChatRequest):
         signal: req.signal,
         body: JSON.stringify({ model, contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
     });
-    if (!res.ok) throw new Error(await readError(res));
+    if (!res.ok) throw await httpError(res);
     // A static host answers /api/* with index.html, so a 200 is not proof of
     // a relay. Parsing as JSON is what actually distinguishes them.
     const body = await res.text();
@@ -256,14 +297,19 @@ async function callJackieRelay(p: ProviderDef, model: string, req: ChatRequest):
     return data.response;
 }
 
-async function callProvider(p: ProviderDef, model: string, req: ChatRequest): Promise<string> {
+async function callProvider(
+    p: ProviderDef,
+    model: string,
+    req: ChatRequest,
+    key: string | null,
+): Promise<string> {
     switch (p.wire) {
         case 'openai':
-            return callOpenAiCompatible(p, model, req);
+            return callOpenAiCompatible(p, model, req, key);
         case 'gemini':
-            return callGemini(p, model, req);
+            return callGemini(p, model, req, key);
         case 'anthropic':
-            return callAnthropic(p, model, req);
+            return callAnthropic(p, model, req, key);
         case 'jackie-relay':
             return callJackieRelay(p, model, req);
         default:
@@ -296,26 +342,80 @@ export async function chat(req: ChatRequest): Promise<ChatResult> {
     }
 
     for (const { provider, model } of candidates) {
-        // A provider that needs a key it does not have is a configuration
-        // fact, not a network attempt — say so without burning a request.
-        if (provider.auth.kind !== 'none' && !getApiKey(provider.id)) {
+        // Keyless providers (local Ollama, the server relay) get one attempt
+        // with no key at all.
+        if (provider.auth.kind === 'none') {
+            try {
+                const text = await callProvider(provider, model, req, null);
+                return { text, provider: provider.id, model, keyId: null, attempts };
+            } catch (err) {
+                if (req.signal?.aborted) throw err;
+                attempts.push({ provider: provider.id, model, reason: describeError(err, provider) });
+            }
+            continue;
+        }
+
+        const pool = listKeys(provider.id);
+        if (pool.length === 0) {
             attempts.push({ provider: provider.id, model, reason: 'no API key set' });
             continue;
         }
-        try {
-            const text = await callProvider(provider, model, req);
-            return { text, provider: provider.id, model, attempts };
-        } catch (err) {
-            if (req.signal?.aborted) throw err;
-            attempts.push({ provider: provider.id, model, reason: describeError(err, provider) });
+
+        // ── The rotation, and the reason multiple keys are worth having ──
+        // Sticky order: ride the first healthy key until it rate-limits, then
+        // the next takes over. Draining one free allowance fully beats
+        // spreading requests across every account and exhausting them all at
+        // once. `usableKeys` already excludes cooling and rejected keys.
+        const usable = usableKeys(provider.id);
+        if (usable.length === 0) {
+            const cooling = pool.filter((k) => k.cooldownUntil && k.cooldownUntil > Date.now());
+            attempts.push({
+                provider: provider.id,
+                model,
+                reason: cooling.length
+                    ? `all ${pool.length} key(s) rate limited — retry in ${Math.ceil((Math.min(...cooling.map((k) => k.cooldownUntil!)) - Date.now()) / 1000)}s`
+                    : `all ${pool.length} key(s) were rejected — check them in API Keys`,
+            });
+            continue;
+        }
+
+        for (const entry of usable) {
+            try {
+                const text = await callProvider(provider, model, req, entry.key);
+                recordOutcome(provider.id, entry.id, { ok: true });
+                return { text, provider: provider.id, model, keyId: entry.id, attempts };
+            } catch (err) {
+                if (req.signal?.aborted) throw err;
+                const status = err instanceof ProviderHttpError ? err.status : undefined;
+                const retryAfterSec = err instanceof ProviderHttpError ? err.retryAfterSec : undefined;
+                const reason = describeError(err, provider);
+                recordOutcome(provider.id, entry.id, { ok: false, status, error: reason, retryAfterSec });
+                attempts.push({
+                    provider: provider.id,
+                    model,
+                    keyLabel: keyLabelOf(entry, pool),
+                    reason,
+                });
+
+                // A 404 means the MODEL is wrong, not the key — trying the same
+                // request on four more keys of the same provider would fail
+                // identically and burn four requests to learn nothing.
+                if (status === 404 || status === 400) break;
+            }
         }
     }
 
     // "Unconfigured" means nothing that needs a key has one. The keyless
     // providers (local Ollama, the server relay) failing on their own does not
     // tell the user anything they can act on.
-    const hasAnyKey = PROVIDERS.some((p) => p.auth.kind !== 'none' && !!getApiKey(p.id));
-    throw new AllProvidersFailedError(attempts, !hasAnyKey);
+    throw new AllProvidersFailedError(attempts, !hasAnyKey());
+}
+
+/** A short human handle for a key, for error text — never the secret itself. */
+function keyLabelOf(entry: KeyEntry, pool: KeyEntry[]): string {
+    if (entry.label) return entry.label;
+    const index = pool.findIndex((k) => k.id === entry.id);
+    return `key ${index + 1}`;
 }
 
 /** The model to use for a provider when the user has not chosen one. */
