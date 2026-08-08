@@ -1,0 +1,31 @@
+[Unit]
+Description=eYe OS security posture check
+Documentation=file:/opt/eye-os/bin/eye-audit
+# Last, so it sees the finished system: firewall loaded, secrets provisioned,
+# services running, late hardening applied.
+After=eye-harden.service eye-kiosk.service eye-pc.service
+Wants=eye-harden.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/eye-os/bin/eye-audit --brief
+# A failing check is a report, not a broken boot — the machine should still
+# come up so you can log in and fix it. `systemctl status eye-audit-boot`
+# and the journal carry the result either way.
+SuccessExitStatus=0 1
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=yes
+ProtectHome=yes
+# AF_NETLINK is required, not optional: the audit shells out to `nft` and `ss`
+# and both talk to the kernel over netlink. Restricting this unit to AF_UNIX
+# made `nft list table` fail, and the audit reported "no inet eye table —
+# egress is unrestricted" on a machine whose firewall was loaded correctly.
+# A verification tool that cannot reach what it verifies reports failure for
+# its own reasons, which is worse than not running.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=graphical.target

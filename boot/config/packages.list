@@ -1,0 +1,51 @@
+# Packages installed into the live system.
+# Lines starting with # and blank lines are ignored by chroot-setup.sh.
+
+# --- live boot machinery ---
+linux-image-generic
+initramfs-tools
+casper
+systemd-sysv
+init
+sudo
+# casper's initramfs hooks shell out to lsb_release; minbase does not have it.
+lsb-release
+# Without zstd, update-initramfs falls back to gzip -- a bigger initrd and a
+# slower decompress on every boot.
+zstd
+
+# --- graphics stack ---
+xserver-xorg-core
+xserver-xorg-legacy
+xserver-xorg-input-libinput
+xserver-xorg-video-all
+xinit
+x11-xserver-utils
+openbox
+
+# --- the kiosk browser ---
+# Ubuntu ships chromium and firefox only as snap stubs, which cannot be
+# installed in a chroot, so the kiosk is built on WebKitGTK instead.
+gir1.2-webkit2-4.1
+gir1.2-gtk-3.0
+python3-gi
+python3-gi-cairo
+# GTK reads its settings from compiled GSettings schemas; without these two,
+# casper's boot logs an error and GTK falls back to defaults.
+libglib2.0-bin
+gsettings-desktop-schemas
+# Provides install-keymap, which casper-bottom calls while setting up the console.
+console-setup
+
+# --- app runtime ---
+nodejs
+
+# --- system plumbing ---
+network-manager
+nftables
+ca-certificates
+fonts-dejavu-core
+fonts-liberation
+locales
+less
+nano

@@ -1,0 +1,156 @@
+# Rebuild the PC and update the copy embedded inside Jackie.
+#
+# Jackie (sasjacky777.lovable.app) does not need to become the PC — it already
+# contains it. `PCDesktop.tsx` frames `/pc-os/index.html` at `/pc`, and the
+# whole PC build ships under `public/pc-os/`. So the PC inside Jackie is only
+# ever as current as that one directory, and it fell far enough behind to
+# predate Tailwind moving out of the CDN and into the bundle.
+#
+# It fell behind because refreshing it was a manual build-and-copy. This does
+# it from the Actions tab instead, which works from a phone.
+#
+# DO NOT use "Send code to Lovable" for Jackie. That pushes this repo over the
+# destination wholesale and would destroy Jackie's own pages and Supabase edge
+# functions. This workflow only replaces public/pc-os/.
+#
+# One-time setup:
+#   1. Create a fine-grained personal access token with "Contents: Read and
+#      write" on yyb84ycgt6-oss/sasjacky777. It is a GitHub token — free, and
+#      unrelated to Lovable credits.
+#   2. Add it to THIS repo under Settings -> Secrets and variables -> Actions
+#      as a secret named LOVABLE_SYNC_TOKEN.
+#
+# Then: Actions -> "Refresh PC inside Jackie" -> Run workflow.
+
+name: Refresh PC inside Jackie
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: "Jackie's repo (owner/repo)"
+        required: true
+        default: "yyb84ycgt6-oss/sasjacky777"
+      destination_branch:
+        description: >-
+          Branch to push to over there. Lovable pulls the default branch
+          (SAS-JACKY), so pushing straight to it publishes. Use a scratch
+          branch first if you would rather look before it goes live.
+        required: true
+        default: "pc-os-refresh"
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the PC
+        uses: actions/checkout@v4
+
+      - name: Confirm the token is present
+        env:
+          TOKEN: ${{ secrets.LOVABLE_SYNC_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::LOVABLE_SYNC_TOKEN is not set on this repository."
+            echo "It needs Contents: Read and write on ${{ inputs.destination }}."
+            exit 1
+          fi
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Build the PC for the /pc-os/ sub-path
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run build:pc-os
+          test -f dist/index.html
+          test -f dist/.vite/manifest.json   # sw.js needs this to precache route chunks
+          echo "PC build OK: $(du -sh dist | cut -f1)"
+
+      - name: Check out Jackie
+        env:
+          TOKEN: ${{ secrets.LOVABLE_SYNC_TOKEN }}
+          DESTINATION: ${{ inputs.destination }}
+        run: |
+          set -euo pipefail
+          # The token lives only in the remote URL, never on a command line or
+          # in a log line, so it cannot land in the run output.
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/${DESTINATION}.git" jackie
+
+      - name: Swap in the fresh build
+        run: |
+          set -euo pipefail
+          rm -rf jackie/public/pc-os
+          mkdir -p jackie/public/pc-os
+          # The trailing dot copies dotfiles too — .vite/ must come across.
+          cp -a dist/. jackie/public/pc-os/
+          echo "Embed is now $(du -sh jackie/public/pc-os | cut -f1)."
+
+      # Regenerated alongside the embed on purpose. Jackie deep-links into the
+      # PC with /pc?app=<id>, and a renamed app turns those links into silent
+      # no-ops — you land on the desktop with nothing open. Jackie's own test
+      # (src/test/pc-deep-links.test.ts) checks the menu against this file, so
+      # a rename surfaces as a failed build here rather than a dead menu there.
+      - name: Regenerate the app roster Jackie links against
+        run: npm run gen:pc-apps -- jackie/src/data/pcApps.ts
+
+      # The reason this step exists: the embed carries a 21.6 MB on-device AI
+      # wasm, and Jackie's vite-plugin-pwa fails the build outright on files
+      # over its per-file precache limit. That is a broken Lovable preview,
+      # repairable only by spending credits. Catch it here instead.
+      - name: Prove Jackie still builds with it
+        working-directory: jackie
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          # Names any menu deep link the regenerated roster just invalidated.
+          npx vitest run src/test/pc-deep-links.test.ts
+          npm run build
+          test -f dist/pc-os/index.html || {
+            echo "::error::Jackie built but the PC embed is missing from dist/."
+            exit 1
+          }
+          echo "Jackie build OK, embed present in dist/."
+
+      - name: Commit and push
+        env:
+          BRANCH: ${{ inputs.destination_branch }}
+        working-directory: jackie
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- public/pc-os src/data/pcApps.ts; then
+            echo "The embed already matches this PC build. Nothing to push."
+            exit 0
+          fi
+
+          git add public/pc-os src/data/pcApps.ts
+          git commit -m "Refresh the embedded PC build
+
+          Rebuilt from PC ${GITHUB_SHA:0:7} with base=/pc-os/. Jackie's build
+          was verified against this embed before pushing."
+
+          git push origin "HEAD:refs/heads/${BRANCH}"
+          echo "Pushed to ${BRANCH}."
+
+      - name: Say what to do next
+        env:
+          DESTINATION: ${{ inputs.destination }}
+          BRANCH: ${{ inputs.destination_branch }}
+        run: |
+          if [ "$BRANCH" = "SAS-JACKY" ]; then
+            echo "Pushed straight to the default branch — Lovable pulls it on its own."
+          else
+            echo "Merge ${BRANCH} into SAS-JACKY for Lovable to pick it up:"
+            echo "  https://github.com/${DESTINATION}/compare/SAS-JACKY...${BRANCH}?expand=1"
+          fi

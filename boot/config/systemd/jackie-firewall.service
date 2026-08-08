@@ -1,0 +1,16 @@
+[Unit]
+Description=Restrict Jackie's PC app server to loopback
+Before=jackie-pc.service
+DefaultDependencies=no
+After=nftables.service systemd-sysctl.service
+Wants=network-pre.target
+Before=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/jackie-firewall start
+ExecStop=/usr/local/sbin/jackie-firewall stop
+
+[Install]
+WantedBy=multi-user.target
