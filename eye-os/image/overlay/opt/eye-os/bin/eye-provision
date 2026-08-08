@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""
+First-boot provisioning: generates the per-machine secrets that must not be
+baked into an image.
+
+A token shipped inside the image is the same token on every machine that was
+ever flashed from it, which makes it worth exactly nothing. This runs once, on
+the machine, and writes /etc/eye-os/session.env root-owned 0600.
+
+Idempotent: an existing file is left alone, so this can stay enabled and run
+on every boot without rotating the token out from under a running session.
+"""
+
+from __future__ import annotations
+
+import os
+import secrets
+import stat
+import sys
+from pathlib import Path
+
+ENV_FILE = Path("/etc/eye-os/session.env")
+
+# The session server reads these names. They are the PC application's own
+# spelling and are deliberately not renamed here — eYe OS configures that
+# application, it does not fork it.
+TEMPLATE = """\
+# Generated on first boot by eye-provision. Machine-specific — do not copy
+# this file to another machine, and do not commit it anywhere.
+#
+# JACKIE_API_TOKEN gates the session server's shell, build and filesystem
+# routes. eye-hostd holds it and injects it on proxied requests, so it never
+# reaches the browser. Anything that talks to port 5000 without it is refused.
+JACKIE_API_TOKEN={token}
+
+# Only the loopback origin the kiosk actually loads from.
+JACKIE_ALLOWED_ORIGINS=http://127.0.0.1:7788,http://localhost:7788
+
+# Left off deliberately: this lets the session server drive the container
+# runtime, which on an appliance is a direct path from a web request to root
+# on the host. Turn it on only if you know you want that.
+JACKIE_ALLOW_DOCKER=false
+"""
+
+
+def main() -> int:
+    if ENV_FILE.exists():
+        mode = stat.S_IMODE(ENV_FILE.stat().st_mode)
+        if mode & 0o077:
+            # Present but readable by others is worse than absent, because it
+            # looks provisioned. Tighten rather than warn.
+            ENV_FILE.chmod(0o600)
+            print(f"eye-provision: tightened {ENV_FILE} from {mode:o} to 600", flush=True)
+        else:
+            print(f"eye-provision: {ENV_FILE} already provisioned", flush=True)
+        return 0
+
+    ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
+    token = secrets.token_urlsafe(48)
+
+    # Written 0600 from the start via os.open — creating it readable and
+    # chmod-ing after leaves a window where any local process can read it.
+    fd = os.open(ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(TEMPLATE.format(token=token))
+    except Exception:
+        ENV_FILE.unlink(missing_ok=True)
+        raise
+
+    os.chown(ENV_FILE, 0, 0)
+    print(f"eye-provision: generated {ENV_FILE} (token is {len(token)} chars)", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

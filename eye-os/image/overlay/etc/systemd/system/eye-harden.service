@@ -1,0 +1,27 @@
+[Unit]
+Description=eYe OS late-boot hardening
+Documentation=file:/etc/eye-os/hardening.conf
+# Runs last on purpose: locking module loading before the session's drivers
+# are in would leave the machine without a display or input.
+#
+# Ordered after the session's units, NOT after graphical.target. Being
+# WantedBy= a target and After= the same target is a cycle — the target waits
+# for this unit and this unit waits for the target — and systemd resolves it
+# by deleting a job. It picked eye-audit-boot, so the posture check silently
+# never ran while the boot otherwise looked healthy.
+After=eye-kiosk.service eye-pc.service eye-hostd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/eye-os/bin/eye-harden
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=yes
+ProtectHome=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=graphical.target

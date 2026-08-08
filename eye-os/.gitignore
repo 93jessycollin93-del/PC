@@ -1,0 +1,14 @@
+# Build output — everything here is reproducible from build.sh.
+shell/node_modules/
+shell/dist/
+image/out/
+
+# A built image is gigabytes; it never belongs in git.
+*.img
+*.ext4
+vmlinuz
+initrd.img
+
+# py_compile output from `make check`
+__pycache__/
+*.pyc

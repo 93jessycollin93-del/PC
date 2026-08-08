@@ -1,0 +1,91 @@
+[Unit]
+Description=eYe OS session server (the PC application's Express backend)
+# Only runs when the PC session was actually built into this image. A shell
+# or recovery image simply has no such file and this unit stays inert.
+ConditionPathExists=/opt/eye-os/pc/server.cjs
+After=network.target eye-firewall.service eye-provision.service
+Wants=eye-firewall.service
+# Hard requirement, not a Wants: starting the session server before its token
+# exists would run it with the shell, build and filesystem routes wide open.
+Requires=eye-provision.service
+Before=eye-hostd.service
+
+[Service]
+Type=simple
+User=eye
+Group=eye
+WorkingDirectory=/opt/eye-os/pc
+ExecStart=/usr/bin/node /opt/eye-os/pc/server.cjs
+Environment=NODE_ENV=production
+Environment=PORT=5000
+# The application reads its provider keys from the environment. This file is
+# root-owned 0600 and absent by default, so a machine with no keys still
+# boots — the AI apps just report no provider rather than failing to start.
+EnvironmentFile=-/etc/eye-os/session.env
+Restart=always
+RestartSec=3
+
+# This process holds the API keys and talks to the internet, so it gets the
+# tightest confinement of anything on the machine.
+#
+# It binds 0.0.0.0 and that is not changed here: the application's source is
+# the author's business, and the input chain in firewall.nft is what makes
+# the bind harmless. Enforcing it underneath rather than editing the app is
+# the whole argument for putting security at this layer.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+ReadWritePaths=/var/lib/eye-os
+
+# The application creates and writes ./data relative to its working
+# directory. /opt is read-only under ProtectSystem=strict and stays that way —
+# the install tree is what the session executes, and making it writable to
+# satisfy a data directory would hand anything that compromises the renderer a
+# way to rewrite the next boot.
+#
+# So the path exists where the application expects it and the storage lives on
+# the data partition instead. Without this the process throws an unhandled
+# EACCES from an async mkdir a few seconds after start and exits 1.
+BindPaths=/var/lib/eye-os/pc-data:/opt/eye-os/pc/data
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+# No SystemCallFilter=, deliberately, and this is a real gap — see
+# docs/SECURITY.md.
+#
+# Node 18 running this bundle is killed with SIGSYS during startup under
+# SystemCallFilter=@system-service, before it prints a line. That was
+# established by bisection on a booted image rather than by reasoning: three
+# variants of this unit ran side by side, one with no confinement, one with
+# only the two seccomp directives, one with every Protect*/Restrict* setting
+# below and no seccomp. Only the seccomp variant died. Splitting it again
+# showed SystemCallArchitectures=native is fine and SystemCallFilter is what
+# kills it.
+#
+# The exact syscall is still unidentified — the kernel emitted no type=1326
+# record to name it — so allowing it explicitly is not yet possible, and
+# guessing at the filter is what produced two wrong fixes before this one.
+#
+# What remains in force is everything the bisect proved safe: strict
+# filesystem protection, an empty capability set, no new privileges, address
+# family and namespace restrictions, and native-architecture-only syscalls.
+# That is meaningful confinement, but it is not syscall filtering, and this
+# comment exists so nobody reads the block below and assumes otherwise.
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

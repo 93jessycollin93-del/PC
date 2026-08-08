@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""
+Loads the nftables ruleset, then fills the allowed-egress sets from
+/etc/eye-os/allowed-egress.conf.
+
+Resolution happens here, once, rather than per connection: nftables matches
+addresses, not names. That is a real limitation and worth stating plainly —
+a destination behind rotating IPs (most large CDNs) needs a CIDR block or a
+periodic reload, and a hostname that resolves differently later will be
+denied until this runs again.
+
+Failing closed is deliberate. If the config cannot be read or the ruleset
+cannot be loaded, this exits non-zero without touching the live ruleset, and
+the unit's default-deny stays in force. A firewall that opens up when its
+configuration is broken is not a firewall.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import socket
+import subprocess
+import sys
+from pathlib import Path
+
+RULESET = Path("/etc/eye-os/firewall.nft")
+ALLOWLIST = Path("/etc/eye-os/allowed-egress.conf")
+TABLE = "inet eye"
+
+
+def log(message: str) -> None:
+    print(f"eye-firewall: {message}", flush=True)
+
+
+def read_entries() -> list[str]:
+    if not ALLOWLIST.is_file():
+        log(f"{ALLOWLIST} missing — egress stays fully closed")
+        return []
+    entries = []
+    for raw in ALLOWLIST.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if line:
+            entries.append(line)
+    return entries
+
+
+def resolve(entry: str) -> tuple[list[str], list[str]]:
+    """Returns (v4, v6) literals for one allowlist entry."""
+    # Already an address or a network — no DNS involved.
+    try:
+        network = ipaddress.ip_network(entry, strict=False)
+        literal = str(network) if network.prefixlen != network.max_prefixlen else str(network.network_address)
+        return ([literal], []) if network.version == 4 else ([], [literal])
+    except ValueError:
+        pass
+
+    v4: list[str] = []
+    v6: list[str] = []
+    try:
+        for family, _, _, _, sockaddr in socket.getaddrinfo(entry, None):
+            if family == socket.AF_INET:
+                v4.append(sockaddr[0])
+            elif family == socket.AF_INET6:
+                v6.append(sockaddr[0])
+    except socket.gaierror as error:
+        # A name that will not resolve is not fatal: the rest of the
+        # allowlist still applies, and this one stays denied.
+        log(f"could not resolve {entry!r} ({error}) — leaving it denied")
+    return sorted(set(v4)), sorted(set(v6))
+
+
+def nft(*args: str) -> None:
+    subprocess.run(["nft", *args], check=True)
+
+
+def main() -> int:
+    if not RULESET.is_file():
+        log(f"{RULESET} missing — refusing to run with no ruleset")
+        return 1
+
+    try:
+        nft("-f", str(RULESET))
+    except subprocess.CalledProcessError as error:
+        log(f"failed to load ruleset ({error}) — leaving the live ruleset alone")
+        return 1
+    log("ruleset loaded, egress default-deny in force")
+
+    v4: list[str] = []
+    v6: list[str] = []
+    for entry in read_entries():
+        got4, got6 = resolve(entry)
+        if got4 or got6:
+            log(f"allow {entry} -> {', '.join(got4 + got6)}")
+        v4.extend(got4)
+        v6.extend(got6)
+
+    for setname, values in (("allowed_egress_v4", v4), ("allowed_egress_v6", v6)):
+        if not values:
+            continue
+        try:
+            nft("add", "element", *TABLE.split(), setname, "{" + ", ".join(sorted(set(values))) + "}")
+        except subprocess.CalledProcessError as error:
+            log(f"could not populate {setname}: {error}")
+            return 1
+
+    total = len(set(v4)) + len(set(v6))
+    log(f"{total} destination(s) permitted" if total else "no destinations permitted — fully closed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

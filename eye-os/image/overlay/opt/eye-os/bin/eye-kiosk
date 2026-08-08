@@ -1,0 +1,180 @@
+#!/bin/sh
+# Launches the session: a Wayland kiosk compositor with exactly one client.
+#
+# cage is a compositor that hosts a single window, fullscreen, with no
+# decorations, no way to minimise it and nothing behind it. That is the whole
+# difference between "a browser showing a web page" and "the machine's UI" —
+# there is no desktop underneath to fall back to.
+#
+# The browser is whichever one the image was built with. cage is what makes
+# the session a kiosk, so the choice only changes the flags used to suppress
+# the browser's own chrome.
+
+set -eu
+
+URL="${EYE_URL:-http://127.0.0.1:7788/}"
+PROFILE="${EYE_PROFILE:-/var/lib/eye-os/browser}"
+
+mkdir -p "$PROFILE"
+
+# Wait for the host agent before painting anything: a browser caches a failed
+# load, so racing it produces a permanent error page rather than a retry.
+probe() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsS --max-time 1 "${URL}api/fs/health" >/dev/null 2>&1
+  else
+    # /dev/tcp is a bash feature and this runs under dash, so the fallback
+    # goes through python3 — which the image already carries for the agent.
+    python3 - "$URL" <<'PY' >/dev/null 2>&1
+import sys, urllib.request
+urllib.request.urlopen(sys.argv[1] + "api/fs/health", timeout=1).read()
+PY
+  fi
+}
+
+tries=0
+while [ "$tries" -lt 50 ]; do
+  probe && break
+  tries=$((tries + 1))
+  sleep 0.2
+done
+
+find_browser() {
+  for candidate in cog chromium chromium-browser epiphany-browser epiphany; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+BROWSER="$(find_browser)" || {
+  echo "eye-kiosk: no browser installed" >&2
+  exit 1
+}
+
+# Chromium's GPU sandbox has no working path under cage on a bare image, and
+# the browser is the only client of a single-purpose machine, so the sandbox
+# is buying nothing here. Leaving it on costs a black screen.
+case "$BROWSER" in
+  cog)
+    set -- "$BROWSER" --platform=wl "$URL"
+    ;;
+  chromium | chromium-browser)
+    set -- "$BROWSER" \
+      --kiosk \
+      --app="$URL" \
+      --user-data-dir="$PROFILE" \
+      --ozone-platform=wayland \
+      --enable-features=UseOzonePlatform \
+      --no-first-run \
+      --no-default-browser-check \
+      --noerrdialogs \
+      --disable-infobars \
+      --disable-session-crashed-bubble \
+      --disable-pinch \
+      --overscroll-history-navigation=0 \
+      --disable-features=TranslateUI,MediaRouter \
+      --no-sandbox \
+      --check-for-update-interval=31536000
+    ;;
+  epiphany-browser | epiphany)
+    # Deliberately NOT --application-mode.
+    #
+    # Application mode looks like what a kiosk wants — it drops the URL bar
+    # and tab strip — but it is built for installed web apps and needs two
+    # things an appliance does not have: a profile directory named
+    # org.gnome.Epiphany.WebApp_*, and a matching .desktop file registered
+    # with xdg-desktop-portal. Without the portal it fails with "Required
+    # desktop file not available" and exits. Under cage that takes the
+    # compositor down with it, and the resulting restart loop looks exactly
+    # like a graphics failure.
+    #
+    # cage is already the kiosk: one fullscreen window, no decorations,
+    # nothing behind it. The cost of dropping application mode is Epiphany's
+    # own toolbar staying visible. For a chrome-free session build a Debian
+    # image instead (SUITE=bookworm), where the browser is real Chromium and
+    # --kiosk does the job properly.
+    export GDK_BACKEND=wayland
+    # No accessibility bus on an appliance; without this GTK logs a failure
+    # for every launch and slows startup waiting on a service that is absent.
+    export GTK_A11Y=none
+    EPIPHANY_PROFILE="$PROFILE/epiphany"
+    mkdir -p "$EPIPHANY_PROFILE"
+    set -- "$BROWSER" --profile="$EPIPHANY_PROFILE" "$URL"
+    ;;
+esac
+
+echo "eye-kiosk: starting $* " >&2
+
+# wlroots needs a renderer, and which one works depends on hardware this
+# image cannot know about in advance.
+#
+# On a machine with a working DRI driver the default (GLES over EGL) is what
+# you want. On a VM without 3D, or on a GPU this image ships no driver for,
+# EGL fails to initialize and cage exits immediately with "Failed to create
+# DRM backend" — a black screen that systemd then restarts forever.
+#
+# LIBGL_ALWAYS_SOFTWARE does not fix that: Mesa refuses it when the EGL
+# device is a real DRM node ("Not allowed to force software rendering when
+# API explicitly selects a hardware device"). WLR_RENDERER=pixman does not
+# either — it avoids EGL but cannot supply the DRM backend's texture formats.
+#
+# What does work anywhere there is a KMS device is Mesa's kms_swrast driver:
+# scanout through KMS, rendering on the CPU. So try the default once, and
+# fall back to that rather than loop on a black screen.
+# -s makes cage span all outputs; -- separates the client.
+#
+# dbus-run-session wraps the whole session because WebKit sandboxes its web
+# process behind xdg-dbus-proxy, and a proxy with no bus to proxy exits 1 —
+# taking the browser, and therefore cage, down with it. The unit sets
+# XDG_RUNTIME_DIR and PAMName=login gives it a logind session, but neither
+# puts DBUS_SESSION_BUS_ADDRESS in the environment, and that is what the proxy
+# reads. Confirmed on a booted machine: bwrap and bwrap --unshare-user both
+# succeed there, and the bus address is simply unset.
+try_cage() {
+  if command -v dbus-run-session >/dev/null 2>&1; then
+    dbus-run-session -- cage -s -- "$@"
+  else
+    cage -s -- "$@"
+  fi
+}
+
+# Three renderers, weakest requirements last. Each is a subshell so its
+# environment does not leak into the next attempt.
+#
+#   1. default        GLES over EGL on the real driver — what you want when
+#                     the GPU has one.
+#   2. kms_swrast     GLES over EGL, rendering on the CPU. Covers a GPU with
+#                     no 3D driver, provided EGL itself can initialize.
+#   3. pixman         wlroots composites in software and never asks for EGL
+#                     at all. Covers the case where EGL cannot initialize —
+#                     a plain virtio-gpu with no virgl, for instance, where
+#                     stage 2 still fails with "failed to create dri2 screen".
+#
+# Slower at each step and correct at all of them. A machine that reaches
+# stage 3 paints; without it, it restart-loops on a black screen forever.
+# Set once, at top level: wlroots needs it to accept a software renderer at
+# all, and it is harmless on the hardware path. Only the renderer-selecting
+# variables differ between stages, so only those go in a subshell.
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+
+if [ -z "${EYE_FORCE_SOFTWARE_GL:-}" ]; then
+  try_cage "$@" && exit 0
+  echo "eye-kiosk: default renderer failed, retrying with software GL" >&2
+fi
+
+(
+  export MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
+  try_cage "$@"
+) && exit 0
+
+echo "eye-kiosk: software GL failed, retrying with CPU compositing (pixman)" >&2
+export WLR_RENDERER=pixman
+# Not `exec try_cage`: exec replaces the process with an external program and
+# cannot run a shell function, so that spelling fails with "try_cage: not
+# found" and takes the last fallback stage with it. Call it, then exit on its
+# status.
+try_cage "$@"
+exit $?
