@@ -77,6 +77,69 @@ export const APP_REGISTRY: Partial<Record<AppId, AppDefinition>> = {
         Component: lazyApp(() => import('../components/apps/FleetApp').then(m => ({ default: m.FleetApp }))),
         props: () => ({}),
     },
+    /**
+     * Twelve agent apps behind one launcher entry. The hub is a router — the
+     * twelve components are unchanged and still resolve by their own appId, so
+     * a deep link to `agent_builder` opens exactly what it always did.
+     *
+     * Wide by default: the hub spends 176px on its rail, so the section gets
+     * the same room it had as a standalone window.
+     */
+    agents_hub: {
+        defaultSize: { width: 1000, height: 680 },
+        Component: lazyApp(() => import('../components/apps/AgentsHubApp').then(m => ({ default: m.AgentsHubApp }))),
+        props: () => ({}),
+    },
+
+    // ── The twelve the hub routes to ────────────────────────────────────
+    // These moved here from App.tsx's dispatch chain, which imported all of
+    // them statically. That mattered once the hub existed: a `React.lazy`
+    // section cannot code-split a module the shell already pulled into its
+    // own bundle, so the hub's laziness was cosmetic until these imports
+    // left App.tsx. Each still opens directly by appId — the hub is a way in,
+    // not the only one. (`fleet`, above, was always registry-only.)
+    agent_builder: {
+        defaultSize: { width: 960, height: 660 },
+        Component: lazyApp(() => import('../components/apps/AgentBuilderApp').then(m => ({ default: m.AgentBuilderApp }))),
+        props: () => ({}),
+    },
+    agent_team_console: {
+        defaultSize: { width: 960, height: 660 },
+        Component: lazyApp(() => import('../components/apps/AgentTeamConsoleApp').then(m => ({ default: m.AgentTeamConsoleApp }))),
+        props: () => ({}),
+    },
+    agent_orchestration: {
+        defaultSize: { width: 1000, height: 680 },
+        Component: lazyApp(() => import('../components/apps/AgentOrchestrationDashboard').then(m => ({ default: m.AgentOrchestrationDashboard }))),
+        props: () => ({}),
+    },
+    small_agent_fleet: {
+        defaultSize: { width: 900, height: 640 },
+        Component: lazyApp(() => import('../components/apps/SmallAgentFleetApp').then(m => ({ default: m.SmallAgentFleetApp }))),
+        props: () => ({}),
+    },
+    // Default export only — the named-export shape the others use is absent
+    // here, and importing `m.FleetAtlasApp` would resolve to undefined.
+    fleet_atlas: {
+        defaultSize: { width: 900, height: 640 },
+        Component: lazyApp(() => import('../components/apps/FleetAtlasApp')),
+        props: () => ({}),
+    },
+    consensus_lab: {
+        defaultSize: { width: 1000, height: 700 },
+        Component: lazyApp(() => import('../components/apps/MultiAgentConsensusLab').then(m => ({ default: m.MultiAgentConsensusLab }))),
+        props: () => ({}),
+    },
+    'agentic-vision': {
+        defaultSize: { width: 960, height: 660 },
+        Component: lazyApp(() => import('../components/apps/AgenticVisionApp').then(m => ({ default: m.AgenticVisionApp }))),
+        props: () => ({}),
+    },
+    bot_studio: {
+        defaultSize: { width: 960, height: 660 },
+        Component: lazyApp(() => import('../components/apps/BotStudioApp').then(m => ({ default: m.BotStudioApp }))),
+        props: () => ({}),
+    },
     knowledge: {
         defaultSize: { width: 560, height: 640 },
         Component: lazyApp(() => import('../components/apps/KnowledgeApp').then(m => ({ default: m.KnowledgeApp }))),

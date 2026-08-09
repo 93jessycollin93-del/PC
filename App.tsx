@@ -41,11 +41,8 @@ import { SuperSayenApp } from './components/apps/SuperSayenApp';
 import { DataPodsApp } from './components/apps/DataPodsApp';
 import { AiTermApp } from './components/apps/AiTermApp';
 import { JackyV3App } from './components/apps/JackyV3App';
-import FleetAtlasApp from './components/apps/FleetAtlasApp';
 import { LlmEnvironmentApp } from './components/apps/LlmEnvironmentApp';
-import { SmallAgentFleetApp } from './components/apps/SmallAgentFleetApp';
 import { ModelRouterApp } from './components/apps/ModelRouterApp';
-import { AgentBuilderApp } from './components/apps/AgentBuilderApp';
 import { ClaudeAssistantApp } from './components/apps/ClaudeAssistantApp';
 import { CodexApp } from './components/apps/CodexApp';
 import { GrokTerminalApp } from './components/apps/GrokTerminalApp';
@@ -82,7 +79,6 @@ import { ActivityCenterApp } from './components/apps/ActivityCenterApp';
 import { VoiceCommandsApp } from './components/apps/VoiceCommandsApp';
 import { ClipboardManagerApp } from './components/apps/ClipboardManagerApp';
 import { TimeMachineApp } from './components/apps/TimeMachineApp';
-import { AgentTeamConsoleApp } from './components/apps/AgentTeamConsoleApp';
 import { MemoryFabricApp } from './components/apps/MemoryFabricApp';
 import { automationEngine } from './lib/automation';
 import { schedulerEngine } from './lib/scheduler';
@@ -105,14 +101,11 @@ import { BuildVaultApp } from './components/apps/BuildVaultApp';
 import { AiDataResolverApp } from './components/apps/AiDataResolverApp';
 import { FunctionCallKitchenApp } from './components/apps/FunctionCallKitchenApp';
 import { FlashUiApp } from './components/apps/FlashUiApp';
-import { AgenticVisionApp } from './components/apps/AgenticVisionApp';
 import { UniversalAppSimulator } from './components/apps/UniversalAppSimulator';
 import { PodSystemApp } from './components/apps/PodSystemApp';
 import { CloudDeployApp } from './components/apps/CloudDeployApp';
-import { BotStudioApp } from './components/apps/BotStudioApp';
 import { QpdbApp } from './components/apps/QpdbApp';
 import { OkseSandbox } from './components/apps/OkseSandbox';
-import { MultiAgentConsensusLab } from './components/apps/MultiAgentConsensusLab';
 import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
 import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
@@ -134,7 +127,6 @@ import { EruApp } from './components/apps/EruApp';
 import { JackieShell, type PcMode } from './components/JackieShell';
 import GlobalKeyboard from './src/components/GlobalKeyboard';
 import { ToolRegistryApp } from './components/apps/ToolRegistryApp';
-import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestrationDashboard';
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
 import { FusionApp } from './components/apps/FusionApp';
 import { GlobalTerminal } from './components/GlobalTerminal';
@@ -163,12 +155,14 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'fusion', name: 'Fusion', type: 'app', icon: Cpu, appId: 'fusion', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-700 to-zinc-950 border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.35)]' },
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
     { id: 'okse_sandbox', name: 'Okse Sandbox', type: 'app', icon: Binary, appId: 'okse_sandbox', bgColor: 'bg-gradient-to-br from-amber-700 via-orange-800 to-zinc-950 border border-amber-500/30 shadow-[0_0_15px_rgba(217,119,6,0.3)]' },
-    { id: 'consensus_lab', name: 'Consensus Lab', type: 'app', icon: Network, appId: 'consensus_lab', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
+    // One entry for twelve agent tools. The twelve components are untouched and
+    // still open by their own appId — this replaces twelve launcher rows with
+    // one, it does not replace the apps. See components/apps/AgentsHubApp.tsx.
+    { id: 'agents_hub', name: 'Agents', type: 'app', icon: Bot, appId: 'agents_hub', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]', featured: true },
     { id: 'cloud_deploy', name: 'Global Deploy', type: 'app', icon: Cloud, appId: 'cloud_deploy', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-800 to-zinc-950 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
     { id: 'app_connector', name: 'App Connector', type: 'app', icon: Layers, appId: 'app_connector', bgColor: 'bg-gradient-to-br from-indigo-600 via-indigo-850 to-zinc-950 border border-indigo-500/30' },
     { id: 'flipper', name: 'Flipper Zero', type: 'app', icon: Radio, appId: 'flipper', bgColor: 'bg-gradient-to-br from-orange-500 to-orange-800' },
     { id: 'termstudio', name: 'TermStudio', type: 'app', icon: Terminal, appId: 'termstudio', bgColor: 'bg-gradient-to-br from-purple-500 to-purple-800' },
-    { id: 'bot_studio', name: 'Offline AI Studio', type: 'app', icon: Bot, appId: 'bot_studio', bgColor: 'bg-gradient-to-br from-emerald-600 to-teal-900 border border-emerald-500/30 shadow-md' },
     { id: 'aiterm', name: 'ai-term', type: 'app', icon: Terminal, appId: 'aiterm', bgColor: 'bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950' },
     { id: 'jacky_v3', name: 'JACKY v3', type: 'app', icon: Compass, appId: 'jacky', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-emerald-950 border border-emerald-500/20 shadow-md', featured: true },
     { id: 'eru', name: 'Eru', type: 'app', icon: Sparkles, appId: 'eru', bgColor: 'bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-700 border border-indigo-400/30 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
@@ -178,7 +172,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'local_mind', name: 'Local Mind', type: 'app', icon: Brain, appId: 'local_mind', bgColor: 'bg-gradient-to-br from-violet-500 via-indigo-600 to-indigo-900 border border-violet-400/30 shadow-md' },
     { id: 'ondevice_models', name: 'Ollama Models', type: 'app', icon: HardDrive, appId: 'ondevice_models', bgColor: 'bg-gradient-to-br from-zinc-700 via-zinc-800 to-black border border-zinc-500/40 shadow-md' },
     { id: 'model_router', name: 'Model Router', type: 'app', icon: Network, appId: 'model_router', bgColor: 'bg-gradient-to-br from-lime-500 via-emerald-600 to-teal-900 border border-lime-400/30 shadow-md' },
-    { id: 'agent_builder', name: 'Agent Builder', type: 'app', icon: Bot, appId: 'agent_builder', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-600 to-purple-950 border border-purple-400/30 shadow-md' },
     { id: 'claude_assistant', name: 'Claude Assistant', type: 'app', icon: Bot, appId: 'claude_assistant', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 border border-indigo-400/30 shadow-md' },
     { id: 'codex', name: 'Codex', type: 'app', icon: Code2, appId: 'codex', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-950 border border-emerald-400/30 shadow-md' },
     { id: 'grok_terminal', name: 'Grok Terminal', type: 'app', icon: Terminal, appId: 'grok_terminal', bgColor: 'bg-gradient-to-br from-green-900 via-emerald-950 to-zinc-950 border border-green-500/30 shadow-md' },
@@ -189,7 +182,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'pc_themes', name: 'Themes', type: 'app', icon: Palette, appId: 'pc_themes', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-blue-900 border border-teal-400/30 shadow-md' },
     { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
-    { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
     { id: 'secrets_vault', name: 'Secrets Vault', type: 'app', icon: Lock, appId: 'secrets_vault', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
     { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
@@ -204,7 +196,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'voice_commands', name: 'Voice Commands', type: 'app', icon: Mic, appId: 'voice_commands', bgColor: 'bg-gradient-to-br from-purple-600 via-pink-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'clipboard_manager', name: 'Clipboard', type: 'app', icon: Copy, appId: 'clipboard_manager', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-zinc-950 border border-teal-500/30 shadow-md' },
     { id: 'time_machine', name: 'Time Machine', type: 'app', icon: RotateCcw, appId: 'time_machine', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
-    { id: 'agent_team_console', name: 'Agent Team', type: 'app', icon: Users, appId: 'agent_team_console', bgColor: 'bg-gradient-to-br from-pink-600 via-rose-700 to-zinc-950 border border-pink-500/30 shadow-md' },
     { id: 'memory_fabric', name: 'Memory Fabric', type: 'app', icon: Brain, appId: 'memory_fabric', bgColor: 'bg-gradient-to-br from-purple-600 via-violet-700 to-zinc-950 border border-purple-500/30 shadow-md' },
     { id: 'openclaw', name: 'OpenClaw Hub', type: 'app', icon: Network, appId: 'openclaw', bgColor: 'bg-gradient-to-br from-blue-700 via-slate-800 to-indigo-950' },
     { id: 'coderabbit', name: 'CodeRabbit AI', type: 'app', icon: Sparkles, appId: 'coderabbit', bgColor: 'bg-gradient-to-br from-amber-500 to-orange-700' },
@@ -217,13 +208,11 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'mail', name: 'Mail', type: 'app', icon: Mail, appId: 'mail', bgColor: 'bg-gradient-to-br from-blue-400 to-blue-700' },
     { id: 'snake', name: 'Game', type: 'app', icon: Gamepad2, appId: 'snake', bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-800' },
     { id: 'pod_system', name: 'Semantic Pod', type: 'app', icon: Layers, appId: 'pod_system', bgColor: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-950 border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]' },
-    { id: 'small_agent_fleet', name: 'Small Agent Fleet', type: 'app', icon: Bot, appId: 'small_agent_fleet', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-950 border border-emerald-500/30 shadow-md' },
     { id: 'cloud_infrastructure', name: 'Cloud Infrastructure', type: 'app', icon: Cloud, appId: 'cloud_infrastructure', bgColor: 'bg-gradient-to-br from-sky-600 via-cyan-600 to-blue-900 border border-sky-400/30 shadow-md' },
     { id: 'chat_history_share', name: 'Chat Share', type: 'app', icon: Share2, appId: 'chat_history_share', bgColor: 'bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-900 border border-cyan-400/30 shadow-md' },
     { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'app', icon: BookOpen, appId: 'semantic_scholar', bgColor: 'bg-gradient-to-br from-blue-500 to-blue-800' },
     { id: 'research_rabbit', name: 'ResearchRabbit AI', type: 'app', icon: Rabbit, appId: 'research_rabbit', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-800' },
     { id: 'slides', name: 'Slides', type: 'app', icon: Presentation, appId: 'slides', bgColor: 'bg-gradient-to-br from-orange-400 to-orange-700' },
-    { id: 'fleet_atlas', name: 'Fleet Atlas', type: 'app', icon: Globe, appId: 'fleet_atlas', bgColor: 'bg-gradient-to-br from-violet-600 via-indigo-800 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.4)]' },
     { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     
     // --- Jessy's 33 Custom Applications ---
@@ -233,7 +222,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'cybernetic67', name: 'Telegram Replica', type: 'app', icon: Send, appId: 'cybernetic67', bgColor: 'bg-gradient-to-br from-blue-500 via-sky-600 to-sky-900 border border-sky-400/20' },
     { id: 'build_vault', name: 'BuildVault', type: 'app', icon: HardDrive, appId: 'build_vault', bgColor: 'bg-gradient-to-br from-amber-500 via-amber-600 to-amber-900 border border-amber-400/20' },
     { id: 'prompt_to_json', name: 'Prompt to JSON', type: 'app', icon: Braces, appId: 'prompt-to-json', bgColor: 'bg-gradient-to-br from-purple-500 via-purple-650 to-indigo-900 border border-purple-400/20' },
-    { id: 'agentic_vision', name: 'Gemini Agentic Vision', type: 'app', icon: Eye, appId: 'agentic-vision', bgColor: 'bg-gradient-to-br from-cyan-500 via-cyan-600 to-blue-900 border border-cyan-400/20' },
     { id: 'flash_ui', name: 'Flash UI', type: 'app', icon: Zap, appId: 'flash-ui', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 border border-indigo-400/20' },
     { id: 'data_resolver', name: 'AI Data Resolver', type: 'app', icon: Database, appId: 'data-resolver', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-900 border border-emerald-400/20' },
     { id: 'function_call_kitchen', name: 'Function Call Kitchen', type: 'app', icon: Cpu, appId: 'function-call-kitchen', bgColor: 'bg-gradient-to-br from-red-500 via-amber-600 to-orange-800 border border-red-400/20' },
@@ -347,16 +335,15 @@ The cottage felt empty afterwards, the silence deafening. But sometimes, when th
     // ── The ten ─────────────────────────────────────────────────────────
     // Each renders through APP_REGISTRY, so nothing was added to the
     // dispatch chain below — the registry's documented promise, used.
+    // Three of the original ten (Ambient Agents, Choreography, Understudy)
+    // now open from the Agents hub instead of their own launcher rows.
     { id: 'budget_radar', name: 'Budget Radar', type: 'app', icon: Radar, appId: 'budget_radar', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-800 to-zinc-950 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]' },
     { id: 'colosseum', name: 'Colosseum', type: 'app', icon: Trophy, appId: 'colosseum', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-800 to-zinc-950 border border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.35)]' },
-    { id: 'ambient_agents', name: 'Ambient Agents', type: 'app', icon: Bot, appId: 'ambient_agents', bgColor: 'bg-gradient-to-br from-sky-600 via-blue-800 to-zinc-950 border border-sky-500/40 shadow-[0_0_15px_rgba(14,165,233,0.3)]' },
     { id: 'bus_recorder', name: 'Bus Recorder', type: 'app', icon: Activity, appId: 'bus_recorder', bgColor: 'bg-gradient-to-br from-rose-600 via-red-900 to-zinc-950 border border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
-    { id: 'choreography', name: 'Choreography', type: 'app', icon: Grid2X2, appId: 'choreography', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-900 to-zinc-950 border border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
     { id: 'speed_racer', name: 'Speed Racer', type: 'app', icon: Gauge, appId: 'speed_racer', bgColor: 'bg-gradient-to-br from-lime-500 via-green-800 to-zinc-950 border border-lime-500/40 shadow-[0_0_15px_rgba(132,204,22,0.3)]' },
     { id: 'cartographer', name: 'Cartographer', type: 'app', icon: Compass, appId: 'cartographer', bgColor: 'bg-gradient-to-br from-teal-500 via-cyan-800 to-zinc-950 border border-teal-400/40 shadow-[0_0_15px_rgba(45,212,191,0.3)]' },
     { id: 'prompt_genome', name: 'Prompt Genome', type: 'app', icon: Dna, appId: 'prompt_genome', bgColor: 'bg-gradient-to-br from-fuchsia-600 via-pink-900 to-zinc-950 border border-fuchsia-500/40 shadow-[0_0_15px_rgba(217,70,239,0.3)]' },
     { id: 'cortex', name: 'Offline Cortex', type: 'app', icon: Brain, appId: 'cortex', bgColor: 'bg-gradient-to-br from-purple-600 via-fuchsia-900 to-zinc-950 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
-    { id: 'understudy', name: 'The Understudy', type: 'app', icon: Sparkles, appId: 'understudy', bgColor: 'bg-gradient-to-br from-indigo-500 via-violet-900 to-zinc-950 border border-indigo-400/40 shadow-[0_0_15px_rgba(129,140,248,0.3)]' },
     { id: 'projects', name: 'Projects', type: 'folder', icon: Folder, bgColor: 'bg-gradient-to-br from-indigo-400 to-indigo-700', contents: [
         { id: 'p1', name: 'Gemini_Demo.ts', type: 'app', icon: FileText, bgColor: 'bg-gradient-to-br from-cyan-500 to-cyan-700' }
     ]}
@@ -537,7 +524,9 @@ export const App: React.FC = () => {
         const initialMap: Record<string, boolean> = {};
         INITIAL_DESKTOP_ITEMS.forEach(item => {
             if (item) {
-                initialMap[item.id] = ['qpdb', 'consensus_lab', 'data_pods', 'how_to_use'].includes(item.id);
+                // `consensus_lab` used to sit here; it now lives inside the
+                // Agents hub, so the hub takes the desktop slot it vacated.
+                initialMap[item.id] = ['qpdb', 'agents_hub', 'data_pods', 'how_to_use'].includes(item.id);
             }
         });
         return initialMap;
@@ -680,6 +669,13 @@ export const App: React.FC = () => {
         }
 
         let initialSize = { width: 960, height: 600 };
+        // Registered apps declare their own `defaultSize`. Until now nothing
+        // read it, so every registry app opened at 960×600 no matter what it
+        // asked for — the field was documentation, not behaviour. The explicit
+        // list below still wins where both exist (they agree today), so this
+        // only changes the apps that had no entry there at all.
+        const registered = item.appId ? getAppDefinition(item.appId as any) : undefined;
+        if (registered) initialSize = { ...registered.defaultSize };
         if (item.appId === 'app_connector') initialSize = { width: 950, height: 620 };
         if (item.appId === 'fusion') initialSize = { width: 1040, height: 680 };
         if (item.url) initialSize = { width: 950, height: 650 };
@@ -698,7 +694,6 @@ export const App: React.FC = () => {
         if (item.appId === 'knowledge_compressor') initialSize = { width: 1000, height: 680 };
         if (item.appId === 'supersayen') initialSize = { width: 1020, height: 700 };
         if (item.appId === 'jacky') initialSize = { width: 1020, height: 700 };
-        if (item.appId === 'fleet_atlas') initialSize = { width: 900, height: 640 };
         if (item.appId === 'llm_environment') initialSize = { width: 440, height: 760 };
         if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
         if (item.appId === 'ui_studio') initialSize = { width: 960, height: 620 };
@@ -1837,20 +1832,14 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'flash-ui') content = <FlashUiApp />;
                     else if (win.item.appId === 'data-resolver') content = <AiDataResolverApp />;
                     else if (win.item.appId === 'function-call-kitchen') content = <FunctionCallKitchenApp />;
-                    else if (win.item.appId === 'agentic-vision') content = <AgenticVisionApp />;
                     else if (win.item.appId === 'pod_system') content = <PodSystemApp />;
                     else if (win.item.appId === 'qpdb') content = <QpdbApp />;
                     else if (win.item.appId === 'okse_sandbox') content = <OkseSandbox />;
-                    else if (win.item.appId === 'consensus_lab') content = <MultiAgentConsensusLab />;
                     else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
-                    else if (win.item.appId === 'bot_studio') content = <BotStudioApp />;
                     else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
-                    else if (win.item.appId === 'fleet_atlas') content = <FleetAtlasApp />;
                     else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
-                    else if (win.item.appId === 'small_agent_fleet') content = <SmallAgentFleetApp />;
                     else if (win.item.appId === 'model_router') content = <ModelRouterApp />;
                     else if (win.item.appId === 'cloud_infrastructure') content = <CloudInfrastructureApp />;
-                    else if (win.item.appId === 'agent_builder') content = <AgentBuilderApp />;
                     else if (win.item.appId === 'claude_assistant') content = <ClaudeAssistantApp />;
                     else if (win.item.appId === 'codex') content = <CodexApp />;
                     else if (win.item.appId === 'grok_terminal') content = <GrokTerminalApp />;
@@ -1869,7 +1858,6 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'ondevice_models') content = <OnDeviceModelsApp />;
                     else if (win.item.appId === 'local_mind') content = <LocalMindApp />;
                     else if (win.item.appId === 'tool_registry') content = <ToolRegistryApp />;
-                    else if (win.item.appId === 'agent_orchestration') content = <AgentOrchestrationDashboard />;
                     else if (win.item.appId === 'system_settings') content = <SystemSettingsApp />;
                     else if (win.item.appId === 'workspace_manager') content = <WorkspaceManagerApp />;
                     else if (win.item.appId === 'storage_stats') content = <StorageStatsApp />;
@@ -1879,7 +1867,6 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'voice_commands') content = <VoiceCommandsApp />;
                     else if (win.item.appId === 'clipboard_manager') content = <ClipboardManagerApp />;
                     else if (win.item.appId === 'time_machine') content = <TimeMachineApp />;
-                    else if (win.item.appId === 'agent_team_console') content = <AgentTeamConsoleApp />;
                     else if (win.item.appId === 'memory_fabric') content = <MemoryFabricApp />;
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
