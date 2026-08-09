@@ -146,10 +146,15 @@ describe('sealed session vault', () => {
 
     it('migrates a legacy plaintext session and removes the old copy', async () => {
         const v = await reset();
-        localStorage.setItem('pc.telegram.session', JSON.stringify('OLD-PLAINTEXT-SESSION'));
+        // Must look like a real StringSession: the migration shape-checks now,
+        // because that key is writable by anything on the origin and a planted
+        // value would otherwise be adopted and then encrypted as if it were
+        // the user's own. See attack.test.ts.
+        const REAL_LOOKING = 'A'.repeat(120);
+        localStorage.setItem('pc.telegram.session', JSON.stringify(REAL_LOOKING));
 
         const recovered = v.takeLegacyPlaintextSession();
-        expect(recovered).toBe('OLD-PLAINTEXT-SESSION');
+        expect(recovered).toBe(REAL_LOOKING);
         // The whole point: the plaintext copy stops existing.
         expect(localStorage.getItem('pc.telegram.session')).toBeNull();
         // And it is not returned twice.

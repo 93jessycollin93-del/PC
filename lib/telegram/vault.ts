@@ -349,6 +349,15 @@ export async function seal(
     secret: string,
     opts: { method: UnlockMethod; passphrase?: string },
 ): Promise<void> {
+    // Refuse to replace a vault nobody has unlocked. Otherwise hostile code on
+    // this origin can swap the user's session for one it controls, and the
+    // user goes on operating the attacker's account believing it is theirs.
+    // Replacing after a successful unlock is fine — that is a re-key.
+    const existing = await readRecord().catch(() => null);
+    if (existing && plaintext === null) {
+        throw new Error('A sealed session already exists. Unlock it first, or forget it, before sealing another.');
+    }
+
     const salt = crypto.getRandomValues(new Uint8Array(32));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const id = installId();
@@ -406,7 +415,27 @@ function penaltyFor(attempts: number): number {
     return Math.min(5_000 * 2 ** (attempts - 3), 300_000);
 }
 
-export async function unseal(opts: { passphrase?: string }): Promise<string> {
+/**
+ * Unlock attempts are serialised.
+ *
+ * The counter is a read-modify-write against IndexedDB, so five guesses fired
+ * in parallel all read the same `failedAttempts` and all write n+1 — five
+ * tries for the price of one, every round, forever. A single-realm promise
+ * chain is enough to close that, and cheap: unlocking is not a hot path.
+ */
+let unsealChain: Promise<unknown> = Promise.resolve();
+
+export function unseal(opts: { passphrase?: string }): Promise<string> {
+    const run = unsealChain.then(
+        () => unsealOnce(opts),
+        () => unsealOnce(opts),
+    );
+    // Keep the chain alive regardless of this attempt's outcome.
+    unsealChain = run.catch(() => undefined);
+    return run;
+}
+
+async function unsealOnce(opts: { passphrase?: string }): Promise<string> {
     const record = await readRecord();
     if (!record) throw new Error('No sealed session on this device.');
 
@@ -488,8 +517,14 @@ export function takeLegacyPlaintextSession(): string | null {
         if (!raw) return null;
         localStorage.removeItem(LEGACY_KEY);
         const parsed: unknown = JSON.parse(raw);
-        const value = typeof parsed === 'string' ? parsed : null;
-        return value && value.length > 0 ? value : null;
+        if (typeof parsed !== 'string') return null;
+        // Shape-check before adopting. This key is writable by anything on the
+        // origin, so a planted value is a way to get the app to adopt — and
+        // then dutifully encrypt — an attacker-supplied session. A real
+        // StringSession is a long base64-ish blob; short or odd input is not
+        // one, and is dropped rather than sealed.
+        const looksLikeSession = parsed.length >= 64 && /^[A-Za-z0-9+/=_-]+$/.test(parsed);
+        return looksLikeSession ? parsed : null;
     } catch {
         localStorage.removeItem(LEGACY_KEY);
         return null;

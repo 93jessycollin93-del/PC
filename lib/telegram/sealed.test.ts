@@ -21,7 +21,7 @@ describe('sealed messages', () => {
         const alice = await party();
         const bob = await party();
 
-        const { wire } = await sealed.seal('meet at the usual place', alice.pub, bob.pub);
+        const { wire } = await sealed.seal('meet at the usual place', alice.pub, bob.pub, alice.id.privateKey);
         const opened = await sealed.open(wire, bob.id.privateKey, bob.pub, alice.pub);
         expect(opened).toBe('meet at the usual place');
     });
@@ -31,7 +31,7 @@ describe('sealed messages', () => {
         const bob = await party();
         const secret = 'ATTACK-AT-DAWN';
 
-        const { wire } = await sealed.seal(secret, alice.pub, bob.pub);
+        const { wire } = await sealed.seal(secret, alice.pub, bob.pub, alice.id.privateKey);
         expect(wire).not.toContain(secret);
         // Nor should it survive a naive base64 decode of the payload.
         expect(atob(wire.slice(wire.indexOf(':') + 1))).not.toContain(secret);
@@ -42,7 +42,7 @@ describe('sealed messages', () => {
         const bob = await party();
         const eve = await party();
 
-        const { wire } = await sealed.seal('for bob only', alice.pub, bob.pub);
+        const { wire } = await sealed.seal('for bob only', alice.pub, bob.pub, alice.id.privateKey);
         await expect(sealed.open(wire, eve.id.privateKey, eve.pub, alice.pub)).rejects.toThrow(
             /could not decrypt/i,
         );
@@ -52,8 +52,8 @@ describe('sealed messages', () => {
         const alice = await party();
         const bob = await party();
 
-        const a = await sealed.seal('same text', alice.pub, bob.pub);
-        const b = await sealed.seal('same text', alice.pub, bob.pub);
+        const a = await sealed.seal('same text', alice.pub, bob.pub, alice.id.privateKey);
+        const b = await sealed.seal('same text', alice.pub, bob.pub, alice.id.privateKey);
         expect(a.wire).not.toBe(b.wire);
         // Both must still open.
         expect(await sealed.open(a.wire, bob.id.privateKey, bob.pub, alice.pub)).toBe('same text');
@@ -67,7 +67,7 @@ describe('sealed messages', () => {
         const bob = await party();
         const carol = await party();
 
-        const { wire } = await sealed.seal('context-bound', alice.pub, bob.pub);
+        const { wire } = await sealed.seal('context-bound', alice.pub, bob.pub, alice.id.privateKey);
         await expect(sealed.open(wire, bob.id.privateKey, bob.pub, carol.pub)).rejects.toThrow(
             /could not decrypt/i,
         );
@@ -76,7 +76,7 @@ describe('sealed messages', () => {
     it('rejects a tampered ciphertext', async () => {
         const alice = await party();
         const bob = await party();
-        const { wire } = await sealed.seal('do not alter me', alice.pub, bob.pub);
+        const { wire } = await sealed.seal('do not alter me', alice.pub, bob.pub, alice.id.privateKey);
 
         // Flip a byte late in the payload (inside the ciphertext, past the
         // ephemeral key and nonce) and the GCM tag must catch it.
@@ -92,10 +92,13 @@ describe('sealed messages', () => {
     it('rejects a truncated payload instead of misreading it', async () => {
         const alice = await party();
         const bob = await party();
-        const { wire } = await sealed.seal('short', alice.pub, bob.pub);
+        const { wire } = await sealed.seal('short', alice.pub, bob.pub, alice.id.privateKey);
         const truncated = wire.slice(0, wire.indexOf(':') + 1) + btoa('too short');
+        // Uniform error on purpose: a distinct "malformed" message would tell
+        // an attacker which part of their payload was rejected. See
+        // attack.test.ts, "survives adversarial junk without leaking".
         await expect(sealed.open(truncated, bob.id.privateKey, bob.pub, alice.pub)).rejects.toThrow(
-            /malformed/i,
+            /could not decrypt/i,
         );
     });
 
@@ -105,8 +108,8 @@ describe('sealed messages', () => {
         const alice = await party();
         const bob = await party();
 
-        const a = await sealed.seal('one', alice.pub, bob.pub);
-        const b = await sealed.seal('two', alice.pub, bob.pub);
+        const a = await sealed.seal('one', alice.pub, bob.pub, alice.id.privateKey);
+        const b = await sealed.seal('two', alice.pub, bob.pub, alice.id.privateKey);
         const ephA = a.wire.slice(a.wire.indexOf(':') + 1).slice(0, 88);
         const ephB = b.wire.slice(b.wire.indexOf(':') + 1).slice(0, 88);
         expect(ephA).not.toBe(ephB);
@@ -138,7 +141,7 @@ describe('sealed messages', () => {
     it('recognises its own wire format and ignores ordinary text', async () => {
         const alice = await party();
         const bob = await party();
-        const { wire } = await sealed.seal('hello', alice.pub, bob.pub);
+        const { wire } = await sealed.seal('hello', alice.pub, bob.pub, alice.id.privateKey);
 
         expect(sealed.isSealedWire(wire)).toBe(true);
         expect(sealed.isSealedWire('just a normal message')).toBe(false);
@@ -171,7 +174,7 @@ describe('sealed messages', () => {
         const bob = await party();
         const text = '🔐 переписка — 中文 — ' + 'x'.repeat(2000);
 
-        const { wire } = await sealed.seal(text, alice.pub, bob.pub);
+        const { wire } = await sealed.seal(text, alice.pub, bob.pub, alice.id.privateKey);
         expect(await sealed.open(wire, bob.id.privateKey, bob.pub, alice.pub)).toBe(text);
         // Must still fit a single Telegram message (4096 chars).
         expect(wire.length).toBeLessThan(4096);

@@ -51,8 +51,16 @@ async function decryptIfSealed(msg: ChatMessage): Promise<ChatMessage> {
             return { ...msg, text: '[sealed message — no key for this conversation]', sealedState: 'failed' };
         }
         const identity = await sealedStore.getIdentity();
-        const plain = await sealed.open(msg.text, identity.privateKey, identity.publicKeyB64, peer.publicKey);
-        return { ...msg, text: plain, sealedState: 'decrypted' };
+        // openChecked, not open: inbound messages get replay and freshness
+        // enforcement. `open` alone would happily accept a captured ciphertext
+        // resent months later.
+        const opened = await sealed.openChecked(
+            msg.text,
+            identity.privateKey,
+            identity.publicKeyB64,
+            peer.publicKey,
+        );
+        return { ...msg, text: opened.text, sealedState: 'decrypted' };
     } catch {
         return { ...msg, text: '[sealed message — could not decrypt]', sealedState: 'failed' };
     }
@@ -119,7 +127,7 @@ export const telegramProvider: ChatProvider = {
                 throw new Error('No key for this conversation yet — send your key first.');
             }
             const identity = await sealedStore.getIdentity();
-            wire = (await sealed.seal(text, identity.publicKeyB64, peer.publicKey)).wire;
+            wire = (await sealed.seal(text, identity.publicKeyB64, peer.publicKey, identity.privateKey)).wire;
             sealedState = 'decrypted';
         }
 

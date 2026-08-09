@@ -21,16 +21,25 @@
  *               X25519 because WebCrypto support for X25519 is still uneven,
  *               and a cipher nobody can run is not security.
  *
- * Per message   The sender generates a NEW ephemeral keypair every time and
- *               does ECDH against the recipient's long-term public key. The
- *               ephemeral private key is discarded immediately.
+ * Per message   TWO Diffie-Hellman operations, mixed:
  *
- *               That gives sender-side forward secrecy: compromising the
- *               sender's device later reveals nothing about messages already
- *               sent, because the key that encrypted them no longer exists
- *               anywhere. This is the sealed-box construction, and it is a
- *               real property — but see the limits below before believing it
- *               is more than it is.
+ *                 DH1 = ECDH(fresh ephemeral private, recipient static public)
+ *                 DH2 = ECDH(sender static private,   recipient static public)
+ *                 key = HKDF(DH1 || DH2, fresh salt, bound context)
+ *
+ *               DH1 supplies forward secrecy — the ephemeral private key is
+ *               discarded immediately, so compromising the sender later
+ *               reveals nothing about messages already sent.
+ *
+ *               DH2 supplies AUTHENTICATION, and it is not optional. An
+ *               earlier version derived from DH1 alone. Public keys are
+ *               public — they are posted into the chat as handshakes — so
+ *               anyone holding Alice's and Bob's public keys could mint a
+ *               ciphertext, and Bob would render it as an authentic
+ *               end-to-end message from Alice. Telegram itself could have
+ *               injected one. Mixing the sender's static key means a valid
+ *               ciphertext is proof of possession of Alice's private key.
+ *               `attack.test.ts` fails against the old construction.
  *
  * KDF           HKDF-SHA256 over the ECDH output, with a fresh 32-byte salt
  *               per message and an `info` that binds both parties'
@@ -47,6 +56,11 @@
  *    decrypts every past message they received. Signal's ratchet fixes that;
  *    this does not. Sender-side forward secrecy is genuine; receiver-side is
  *    not claimed.
+ *  - Replay and freshness are enforced by `openChecked`, not by `open`. Each
+ *    message carries a timestamp and a random id inside the authenticated
+ *    plaintext; `openChecked` rejects duplicates and anything outside the
+ *    freshness window. Call it rather than `open` on anything that arrives
+ *    from the network.
  *  - Metadata is Telegram's, unchanged. Who you talk to, when, how often, and
  *    how long the messages are all remain visible. This encrypts content only.
  *  - Key exchange is only as good as the verification. An attacker who can
@@ -134,32 +148,50 @@ export async function fingerprint(publicKeyB64: string): Promise<string> {
  */
 export async function safetyNumber(ourPublicB64: string, theirPublicB64: string): Promise<string> {
     const [a, b] = [ourPublicB64, theirPublicB64].sort();
+    // SHA-512 so twelve groups can each take THREE distinct bytes. An earlier
+    // version took two bytes per group, capping every group at 65535 — the
+    // leading digit could never exceed 6 — and indexed with `i * 2 % len`,
+    // which wrapped and repeated groups outright. Both are asserted against
+    // in attack.test.ts.
     const digest = new Uint8Array(
-        await crypto.subtle.digest('SHA-256', enc.encode(`${HKDF_INFO_PREFIX}|${a}|${b}`)),
+        await crypto.subtle.digest('SHA-512', enc.encode(`${HKDF_INFO_PREFIX}|${a}|${b}`)),
     );
-    let digits = '';
-    for (let i = 0; i < 30; i += 1) {
-        // Two bytes per group of digits, mod 100000 for five decimal digits.
-        const chunk = ((digest[i * 2 % digest.length] << 8) | digest[(i * 2 + 1) % digest.length]) % 100000;
-        digits += String(chunk).padStart(5, '0');
+    const groups: string[] = [];
+    for (let i = 0; i < 12; i += 1) {
+        const o = i * 3;
+        const chunk = ((digest[o] << 16) | (digest[o + 1] << 8) | digest[o + 2]) % 100000;
+        groups.push(String(chunk).padStart(5, '0'));
     }
-    return (digits.slice(0, 60).match(/.{5}/g) ?? []).join(' ');
+    return groups.join(' ');
 }
 
 /* ------------------------------------------------------------------ crypto */
 
 async function deriveMessageKey(
-    privateKey: CryptoKey,
-    peerPublicKey: CryptoKey,
+    ephemeralOrOurPrivate: CryptoKey,
+    peerEphemeralOrStatic: CryptoKey,
+    staticPrivate: CryptoKey,
+    staticPeerPublic: CryptoKey,
     salt: Uint8Array,
     info: string,
 ): Promise<CryptoKey> {
-    const shared = await crypto.subtle.deriveBits(
-        { name: 'ECDH', public: peerPublicKey },
-        privateKey,
-        256,
+    // DH1: ephemeral <-> recipient static. Supplies forward secrecy.
+    const dh1 = new Uint8Array(
+        await crypto.subtle.deriveBits({ name: 'ECDH', public: peerEphemeralOrStatic }, ephemeralOrOurPrivate, 256),
     );
-    const material = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+    // DH2: sender static <-> recipient static. Supplies AUTHENTICATION — only
+    // a holder of the sender's private key can produce it, which is what makes
+    // a valid ciphertext proof of authorship rather than proof of knowing a
+    // public key. Removing this reintroduces full message forgery.
+    const dh2 = new Uint8Array(
+        await crypto.subtle.deriveBits({ name: 'ECDH', public: staticPeerPublic }, staticPrivate, 256),
+    );
+
+    const ikm = new Uint8Array(dh1.length + dh2.length);
+    ikm.set(dh1, 0);
+    ikm.set(dh2, dh1.length);
+
+    const material = await crypto.subtle.importKey('raw', ikm as BufferSource, 'HKDF', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
         { name: 'HKDF', hash: 'SHA-256', salt: salt as BufferSource, info: enc.encode(info) },
         material,
@@ -167,6 +199,34 @@ async function deriveMessageKey(
         false,
         ['encrypt', 'decrypt'],
     );
+}
+
+/* --------------------------------------------------------------- envelope */
+
+const ENVELOPE_HEADER = 8 + 16; // timestamp (BE ms) + random message id
+
+/** Freshness window. Anything older, or more than a little ahead, is refused. */
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_SKEW_MS = 5 * 60 * 1000;
+
+function packEnvelope(text: string): Uint8Array {
+    const body = enc.encode(text);
+    const out = new Uint8Array(ENVELOPE_HEADER + body.length);
+    const view = new DataView(out.buffer);
+    view.setBigUint64(0, BigInt(Date.now()), false);
+    out.set(crypto.getRandomValues(new Uint8Array(16)), 8);
+    out.set(body, ENVELOPE_HEADER);
+    return out;
+}
+
+function unpackEnvelope(buf: Uint8Array): { timestamp: number; id: string; text: string } {
+    if (buf.length < ENVELOPE_HEADER) throw new Error('Could not decrypt. Wrong key, or the message was altered.');
+    const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    return {
+        timestamp: Number(view.getBigUint64(0, false)),
+        id: toB64(buf.slice(8, ENVELOPE_HEADER)),
+        text: dec.decode(buf.slice(ENVELOPE_HEADER)),
+    };
 }
 
 /**
@@ -184,15 +244,27 @@ export interface SealResult {
     wire: string;
 }
 
+/** Everything a decrypted message carries beyond its text. */
+export interface OpenedMessage {
+    text: string;
+    /** Sender's clock at seal time, in epoch ms. */
+    timestamp: number;
+    /** Random per-message id, used to detect replays. */
+    id: string;
+}
+
+/** Uniform failure. Never say WHICH part of an attacker's attempt was wrong. */
+const OPAQUE = 'Could not decrypt. Wrong key, or the message was altered.';
+
 /**
- * Encrypt `plaintext` to `peerPublicB64`. A fresh ephemeral keypair is used and
- * then dropped, so this exact message cannot be decrypted again by anyone who
- * later compromises the sender.
+ * Encrypt `plaintext` to `peerPublicB64`, authenticated as the holder of
+ * `ourPrivateKey`. A fresh ephemeral keypair is used and then dropped.
  */
 export async function seal(
     plaintext: string,
     ourPublicB64: string,
     peerPublicB64: string,
+    ourPrivateKey: CryptoKey,
 ): Promise<SealResult> {
     const ephemeral = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
         'deriveBits',
@@ -203,13 +275,13 @@ export async function seal(
     const iv = crypto.getRandomValues(new Uint8Array(12));
 
     const context = contextFor(await fingerprint(ourPublicB64), await fingerprint(peerPublicB64));
-    const key = await deriveMessageKey(ephemeral.privateKey, peerKey, salt, context);
+    const key = await deriveMessageKey(ephemeral.privateKey, peerKey, ourPrivateKey, peerKey, salt, context);
 
     const ciphertext = new Uint8Array(
         await crypto.subtle.encrypt(
             { name: 'AES-GCM', iv: iv as BufferSource, additionalData: enc.encode(context) as BufferSource },
             key,
-            enc.encode(plaintext),
+            packEnvelope(plaintext) as BufferSource,
         ),
     );
 
@@ -231,47 +303,132 @@ export function isSealedWire(text: string): boolean {
 }
 
 /**
- * Decrypt a wire string addressed to us. Throws on any failure — a wrong key,
- * a truncated payload and a forged tag are deliberately indistinguishable.
+ * Decrypt a wire string addressed to us and authored by `peerPublicB64`.
+ *
+ * EVERY failure path throws the same message. An earlier version let
+ * `atob` and `importKey` throw their own errors from outside the try, which
+ * told an attacker whether their base64, their curve point, or their key was
+ * the part that failed — an oracle that makes forgery attempts cheaper to
+ * refine. Malformed input is a decryption failure like any other.
+ *
+ * This does NOT check freshness. Use `openChecked` for anything off a network.
  */
+export async function openFull(
+    wire: string,
+    ourPrivateKey: CryptoKey,
+    ourPublicB64: string,
+    peerPublicB64: string,
+): Promise<OpenedMessage> {
+    if (!isSealedWire(wire)) throw new Error('Not a sealed message.');
+
+    try {
+        const payload = fromB64(wire.slice(WIRE_PREFIX.length));
+
+        // 65-byte uncompressed P-256 point + 32 salt + 12 iv + 16-byte tag.
+        if (payload.length < 65 + 32 + 12 + 16) throw new Error(OPAQUE);
+
+        const ephemeralPub = await crypto.subtle.importKey(
+            'raw',
+            payload.slice(0, 65) as BufferSource,
+            { name: 'ECDH', namedCurve: 'P-256' },
+            true,
+            [],
+        );
+        const salt = payload.slice(65, 97);
+        const iv = payload.slice(97, 109);
+        const ciphertext = payload.slice(109);
+
+        const peerStatic = await importPublicKey(peerPublicB64);
+        const context = contextFor(await fingerprint(ourPublicB64), await fingerprint(peerPublicB64));
+        const key = await deriveMessageKey(ourPrivateKey, ephemeralPub, ourPrivateKey, peerStatic, salt, context);
+
+        const buf = new Uint8Array(
+            await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv as BufferSource, additionalData: enc.encode(context) as BufferSource },
+                key,
+                ciphertext as BufferSource,
+            ),
+        );
+        return unpackEnvelope(buf);
+    } catch {
+        throw new Error(OPAQUE);
+    }
+}
+
+/** Backwards-compatible text-only open. */
 export async function open(
     wire: string,
     ourPrivateKey: CryptoKey,
     ourPublicB64: string,
     peerPublicB64: string,
 ): Promise<string> {
-    if (!isSealedWire(wire)) throw new Error('Not a sealed message.');
-    const payload = fromB64(wire.slice(WIRE_PREFIX.length));
+    return (await openFull(wire, ourPrivateKey, ourPublicB64, peerPublicB64)).text;
+}
 
-    // 65-byte uncompressed P-256 point + 32 salt + 12 iv + at least a 16-byte tag.
-    if (payload.length < 65 + 32 + 12 + 16) throw new Error('Sealed message is malformed.');
+/* ---------------------------------------------------------- replay guard */
 
-    const ephemeralPubRaw = payload.slice(0, 65);
-    const salt = payload.slice(65, 97);
-    const iv = payload.slice(97, 109);
-    const ciphertext = payload.slice(109);
+export interface ReplayGuard {
+    /** True when this id has been seen before. */
+    seen(id: string): Promise<boolean>;
+    remember(id: string, timestamp: number): Promise<void>;
+}
 
-    const ephemeralPub = await crypto.subtle.importKey(
-        'raw',
-        ephemeralPubRaw as BufferSource,
-        { name: 'ECDH', namedCurve: 'P-256' },
-        true,
-        [],
-    );
+/**
+ * Default guard: in-memory, bounded. Good enough within a session, and
+ * deliberately replaced by a persistent implementation in `sealedStore.ts` —
+ * an in-memory set forgets across a reload, and an attacker only has to wait
+ * for one.
+ */
+function memoryGuard(): ReplayGuard {
+    const seen = new Map<string, number>();
+    return {
+        async seen(id) {
+            return seen.has(id);
+        },
+        async remember(id, timestamp) {
+            seen.set(id, timestamp);
+            if (seen.size > 5000) {
+                // Drop the oldest half rather than growing without bound.
+                [...seen.entries()]
+                    .sort((a, b) => a[1] - b[1])
+                    .slice(0, 2500)
+                    .forEach(([k]) => seen.delete(k));
+            }
+        },
+    };
+}
 
-    const context = contextFor(await fingerprint(ourPublicB64), await fingerprint(peerPublicB64));
-    const key = await deriveMessageKey(ourPrivateKey, ephemeralPub, salt, context);
+let replayGuard: ReplayGuard = memoryGuard();
 
-    try {
-        const buf = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv: iv as BufferSource, additionalData: enc.encode(context) as BufferSource },
-            key,
-            ciphertext as BufferSource,
-        );
-        return dec.decode(buf);
-    } catch {
-        throw new Error('Could not decrypt. Wrong key, or the message was altered.');
+export function setReplayGuard(guard: ReplayGuard): void {
+    replayGuard = guard;
+}
+
+/**
+ * Decrypt, then refuse anything replayed or outside the freshness window.
+ *
+ * Sound crypto does not prevent a captured ciphertext being resent later — a
+ * sealed "yes, go ahead" is just as valid next week unless something says
+ * otherwise. The timestamp and id live INSIDE the authenticated plaintext, so
+ * neither can be edited without breaking the tag.
+ */
+export async function openChecked(
+    wire: string,
+    ourPrivateKey: CryptoKey,
+    ourPublicB64: string,
+    peerPublicB64: string,
+): Promise<OpenedMessage> {
+    const msg = await openFull(wire, ourPrivateKey, ourPublicB64, peerPublicB64);
+
+    const age = Date.now() - msg.timestamp;
+    if (age > MAX_AGE_MS) throw new Error('Sealed message rejected: too old to be trusted.');
+    if (age < -MAX_SKEW_MS) throw new Error('Sealed message rejected: clock is too far ahead.');
+
+    if (await replayGuard.seen(msg.id)) {
+        throw new Error('Sealed message rejected: replay of a message already received.');
     }
+    await replayGuard.remember(msg.id, msg.timestamp);
+    return msg;
 }
 
 /* ------------------------------------------------------------- handshake */

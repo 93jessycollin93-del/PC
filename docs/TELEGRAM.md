@@ -137,6 +137,22 @@ exchange. The safety number is what closes that.
 | Key change | A different key arriving for a known conversation is stored with `changedAt`, verification is revoked, and the UI says so. Silent acceptance is how key substitution succeeds. |
 | Refusal | Sending in a sealed conversation with no peer key **throws** rather than falling back to plaintext. A silent downgrade is the worst failure this feature could have. |
 
+### Red team
+
+`lib/telegram/attack.test.ts` is written from the attacker's side. Every test
+there ran **red** against an earlier version of this code — they are the
+regression net for vulnerabilities that were real, not hypotheticals.
+
+| Attack | What it did | Fix |
+|---|---|---|
+| **Message forgery** | Key derivation used only an ephemeral key and the *recipient's* static key. Public keys are public — posted into the chat as handshakes — so anyone holding Alice's and Bob's could mint a ciphertext Bob rendered as authentic from Alice. Telegram itself could have injected one. | Mix `ECDH(sender static, recipient static)` into the KDF. A valid ciphertext is now proof of possession of the sender's private key. |
+| **Replay** | A captured sealed "yes, go ahead" stayed valid forever. | Timestamp + random id inside the authenticated plaintext; `openChecked` rejects duplicates and anything outside the freshness window. |
+| **Error oracle** | `atob` and `importKey` threw from outside the `try`, so an attacker learned whether their base64, their curve point, or their key was the part that failed. | Every failure path returns one identical message. |
+| **Safety-number entropy** | Two bytes per group capped each at 65535 — the leading digit could never exceed 6 — and `i * 2 % len` wrapped and repeated groups. | SHA-512, three distinct bytes per group, twelve non-repeating groups. |
+| **Throttle race** | Five parallel guesses all read the same counter and wrote n+1: a free 5× multiplier every round. | Unlock attempts are serialised through a promise chain. |
+| **Session substitution** | `seal()` overwrote an existing vault unconditionally, so hostile code could swap in its own session and the user would operate the attacker's account. | Refuses to replace a sealed vault that has not been unlocked. |
+| **Legacy injection** | The migration adopted anything at the legacy localStorage key — writable by anything on the origin — and dutifully encrypted it. | Shape-checks length and charset before adopting. |
+
 ### What this does not do
 
 - **Not a double ratchet.** Compromising the *recipient's* long-term key
