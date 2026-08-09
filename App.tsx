@@ -51,25 +51,12 @@ import { SystemSettingsApp } from './components/apps/SystemSettingsApp';
 import { ArchiverApp } from './components/apps/ArchiverApp';
 import { APIKeysApp } from './components/apps/APIKeysApp';
 import { AiProvidersApp } from './components/apps/AiProvidersApp';
-import { PermissionBrokerApp } from './components/apps/PermissionBrokerApp';
 import { MissionControlApp } from './components/apps/MissionControlApp';
 import { AutomationApp } from './components/apps/AutomationApp';
 import { NotificationCenterApp } from './components/apps/NotificationCenterApp';
 import { OnDeviceModelsApp } from './components/apps/OnDeviceModelsApp';
 import { LocalMindApp } from './components/apps/LocalMindApp';
 import { BudgetGuardianApp } from './components/apps/BudgetGuardianApp';
-import { SecretsVaultApp } from './components/apps/SecretsVaultApp';
-import { SecurityCenterApp } from './components/apps/SecurityCenterApp';
-import { SelfAuditScannerApp } from './components/apps/SelfAuditScannerApp';
-import { DependencyCVECheckerApp } from './components/apps/DependencyCVECheckerApp';
-import { SecretsHygieneApp } from './components/apps/SecretsHygieneApp';
-import { SecurityEventLogApp } from './components/apps/SecurityEventLogApp';
-import { DataRedactionApp } from './components/apps/DataRedactionApp';
-import { IntegrityMonitorApp } from './components/apps/IntegrityMonitorApp';
-import { AuditTrailApp } from './components/apps/AuditTrailApp';
-import { DataVaultApp } from './components/apps/DataVaultApp';
-import { AnomalyAlertApp } from './components/apps/AnomalyAlertApp';
-import { SessionRecorderApp } from './components/apps/SessionRecorderApp';
 import { WorkspaceManagerApp } from './components/apps/WorkspaceManagerApp';
 import { workspaceProfiles, type WorkspaceProfile } from './lib/workspaceProfiles';
 import { StorageStatsApp } from './components/apps/StorageStatsApp';
@@ -94,10 +81,9 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle, Star, Package, Radar, Dna } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Zap, Database, DollarSign, Sliders, Palette, Mic, Trophy, Target, Bot, ShieldAlert, Archive, Key, Gauge, Bell, Brain, Grid2X2, Activity, Clock, Copy, RotateCcw, Star, Radar, Dna } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
-import { BuildVaultApp } from './components/apps/BuildVaultApp';
 import { AiDataResolverApp } from './components/apps/AiDataResolverApp';
 import { FunctionCallKitchenApp } from './components/apps/FunctionCallKitchenApp';
 import { FlashUiApp } from './components/apps/FlashUiApp';
@@ -106,7 +92,6 @@ import { PodSystemApp } from './components/apps/PodSystemApp';
 import { CloudDeployApp } from './components/apps/CloudDeployApp';
 import { QpdbApp } from './components/apps/QpdbApp';
 import { OkseSandbox } from './components/apps/OkseSandbox';
-import { CyberSecurityRulebookApp } from './components/apps/CyberSecurityRulebookApp';
 import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { UIStudio } from './src/components/apps/UIStudio';
@@ -182,8 +167,6 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
     { id: 'pc_themes', name: 'Themes', type: 'app', icon: Palette, appId: 'pc_themes', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-blue-900 border border-teal-400/30 shadow-md' },
     { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
-    { id: 'secrets_vault', name: 'Secrets Vault', type: 'app', icon: Lock, appId: 'secrets_vault', bgColor: 'bg-gradient-to-br from-red-600 via-rose-700 to-zinc-950 border border-red-500/30 shadow-md' },
-    { id: 'permission_broker', name: 'Permissions', type: 'app', icon: ShieldCheck, appId: 'permission_broker', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-400/30 shadow-md' },
     { id: 'automation', name: 'Automation', type: 'app', icon: Zap, appId: 'automation', bgColor: 'bg-gradient-to-br from-amber-500 via-orange-700 to-zinc-950 border border-amber-400/30 shadow-md' },
     { id: 'notification_center', name: 'Notifications', type: 'app', icon: Bell, appId: 'notification_center', bgColor: 'bg-gradient-to-br from-rose-600 via-pink-700 to-zinc-950 border border-rose-400/30 shadow-md' },
     { id: 'mission_control', name: 'Mission Control', type: 'app', icon: Gauge, appId: 'mission_control', bgColor: 'bg-gradient-to-br from-sky-600 via-indigo-700 to-zinc-950 border border-sky-400/30 shadow-md' },
@@ -216,11 +199,9 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'llm_environment', name: 'LLM Studio', type: 'app', icon: Sparkles, appId: 'llm_environment', bgColor: 'bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700' },
     
     // --- Jessy's 33 Custom Applications ---
-    { id: 'cyber_rulebook', name: 'Cyber Codex', type: 'app', icon: ShieldAlert, appId: 'cyber_rulebook', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-rose-950 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
     { id: 'data_pods', name: 'Data Pods Vault', type: 'app', icon: Database, appId: 'data_pods', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-indigo-900 border border-cyan-400/20' },
     { id: 'telegram', name: 'Telegram', type: 'app', icon: Send, appId: 'telegram', bgColor: 'bg-gradient-to-br from-sky-400 via-sky-600 to-blue-900 border border-sky-300/20' },
     { id: 'cybernetic67', name: 'Telegram Replica', type: 'app', icon: Send, appId: 'cybernetic67', bgColor: 'bg-gradient-to-br from-blue-500 via-sky-600 to-sky-900 border border-sky-400/20' },
-    { id: 'build_vault', name: 'BuildVault', type: 'app', icon: HardDrive, appId: 'build_vault', bgColor: 'bg-gradient-to-br from-amber-500 via-amber-600 to-amber-900 border border-amber-400/20' },
     { id: 'prompt_to_json', name: 'Prompt to JSON', type: 'app', icon: Braces, appId: 'prompt-to-json', bgColor: 'bg-gradient-to-br from-purple-500 via-purple-650 to-indigo-900 border border-purple-400/20' },
     { id: 'flash_ui', name: 'Flash UI', type: 'app', icon: Zap, appId: 'flash-ui', bgColor: 'bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 border border-indigo-400/20' },
     { id: 'data_resolver', name: 'AI Data Resolver', type: 'app', icon: Database, appId: 'data-resolver', bgColor: 'bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-900 border border-emerald-400/20' },
@@ -233,17 +214,10 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'ui_studio', name: 'UI Studio', type: 'app', icon: Palette, appId: 'ui_studio', bgColor: 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.35)]' },
 
     // --- Security Hardening Apps (Phase C & D) ---
-    { id: 'security_center', name: 'Security Center', type: 'app', icon: ShieldAlert, appId: 'security_center', bgColor: 'bg-gradient-to-br from-red-600 via-orange-700 to-zinc-950 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
-    { id: 'self_audit_scanner', name: 'Self-Audit Scanner', type: 'app', icon: AlertTriangle, appId: 'self_audit_scanner', bgColor: 'bg-gradient-to-br from-yellow-600 via-orange-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
-    { id: 'dependency_cve_checker', name: 'CVE Checker', type: 'app', icon: Package, appId: 'dependency_cve_checker', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-700 to-zinc-950 border border-blue-500/30 shadow-md' },
-    { id: 'secrets_hygiene', name: 'Secrets Hygiene', type: 'app', icon: Key, appId: 'secrets_hygiene', bgColor: 'bg-gradient-to-br from-cyan-600 via-teal-700 to-zinc-950 border border-cyan-500/30 shadow-md' },
-    { id: 'security_event_log', name: 'Security Log', type: 'app', icon: AlertTriangle, appId: 'security_event_log', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
-    { id: 'integrity_monitor', name: 'Integrity Monitor', type: 'app', icon: Shield, appId: 'integrity_monitor', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-500/30 shadow-md' },
-    { id: 'audit_trail', name: 'Audit Trail', type: 'app', icon: BookOpen, appId: 'audit_trail', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/30 shadow-md' },
-    { id: 'anomaly_alert', name: 'Anomaly Detector', type: 'app', icon: AlertTriangle, appId: 'anomaly_alert', bgColor: 'bg-gradient-to-br from-red-600 via-pink-700 to-zinc-950 border border-red-500/30 shadow-md' },
-    { id: 'data_vault', name: 'Data Vault', type: 'app', icon: Database, appId: 'data_vault', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-500/30 shadow-md' },
-    { id: 'data_redaction', name: 'Data Redaction', type: 'app', icon: Eye, appId: 'data_redaction', bgColor: 'bg-gradient-to-br from-slate-600 via-zinc-700 to-zinc-950 border border-slate-500/30 shadow-md' },
-    { id: 'session_recorder', name: 'Session Recorder', type: 'app', icon: Clock, appId: 'session_recorder', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+    // Fifteen security tools behind one entry. Same shape as the Agents hub:
+    // the fifteen apps are untouched and still open by their own appId.
+    // See components/apps/SecurityHubApp.tsx.
+    { id: 'security_hub', name: 'Security', type: 'app', icon: ShieldAlert, appId: 'security_hub', bgColor: 'bg-gradient-to-br from-red-600 via-orange-700 to-zinc-950 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
 
     {
         id: 'how_to_use', 
@@ -1828,7 +1802,6 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'app_connector') content = <AppConnectorApp />;
                     else if (win.item.appId === 'cybernetic67') content = <Cybernetic67App />;
                     else if (win.item.appId === 'prompt-to-json') content = <PromptToJsonApp />;
-                    else if (win.item.appId === 'build_vault') content = <BuildVaultApp />;
                     else if (win.item.appId === 'flash-ui') content = <FlashUiApp />;
                     else if (win.item.appId === 'data-resolver') content = <AiDataResolverApp />;
                     else if (win.item.appId === 'function-call-kitchen') content = <FunctionCallKitchenApp />;
@@ -1836,7 +1809,6 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'qpdb') content = <QpdbApp />;
                     else if (win.item.appId === 'okse_sandbox') content = <OkseSandbox />;
                     else if (win.item.appId === 'cloud_deploy') content = <CloudDeployApp />;
-                    else if (win.item.appId === 'cyber_rulebook') content = <CyberSecurityRulebookApp />;
                     else if (win.item.appId === 'llm_environment') content = <LlmEnvironmentApp />;
                     else if (win.item.appId === 'model_router') content = <ModelRouterApp />;
                     else if (win.item.appId === 'cloud_infrastructure') content = <CloudInfrastructureApp />;
@@ -1849,8 +1821,6 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'api_keys') content = <APIKeysApp />;
                     else if (win.item.appId === 'cost_analytics') content = <CostAnalyticsApp />;
 
-                    else if (win.item.appId === 'secrets_vault') content = <SecretsVaultApp />;
-                    else if (win.item.appId === 'permission_broker') content = <PermissionBrokerApp />;
                     else if (win.item.appId === 'mission_control') content = <MissionControlApp />;
                     else if (win.item.appId === 'budget_guardian') content = <BudgetGuardianApp />;
                     else if (win.item.appId === 'automation') content = <AutomationApp />;
@@ -1871,18 +1841,6 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
-                    // Security hardening apps
-                    else if (win.item.appId === 'security_center') content = <SecurityCenterApp />;
-                    else if (win.item.appId === 'self_audit_scanner') content = <SelfAuditScannerApp />;
-                    else if (win.item.appId === 'dependency_cve_checker') content = <DependencyCVECheckerApp />;
-                    else if (win.item.appId === 'secrets_hygiene') content = <SecretsHygieneApp />;
-                    else if (win.item.appId === 'security_event_log') content = <SecurityEventLogApp />;
-                    else if (win.item.appId === 'integrity_monitor') content = <IntegrityMonitorApp />;
-                    else if (win.item.appId === 'audit_trail') content = <AuditTrailApp />;
-                    else if (win.item.appId === 'anomaly_alert') content = <AnomalyAlertApp />;
-                    else if (win.item.appId === 'data_vault') content = <DataVaultApp />;
-                    else if (win.item.appId === 'data_redaction') content = <DataRedactionApp />;
-                    else if (win.item.appId === 'session_recorder') content = <SessionRecorderApp />;
                     // PC shell: theme manager (Display Properties + Update Center)
                     else if (win.item.appId === 'pc_themes') content = <PCThemeManagerApp />;
                     // Checked before the UniversalAppSimulator fallback below: a

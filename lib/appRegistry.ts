@@ -140,6 +140,92 @@ export const APP_REGISTRY: Partial<Record<AppId, AppDefinition>> = {
         Component: lazyApp(() => import('../components/apps/BotStudioApp').then(m => ({ default: m.BotStudioApp }))),
         props: () => ({}),
     },
+
+    // ── Security: the hub and the fifteen it routes to ──────────────────
+    // Moved out of App.tsx's dispatch chain for the same reason the agent
+    // apps were: fifteen static imports in the shell meant the hub's lazy
+    // sections split nothing. The Rulebook alone is 2,300 lines that every
+    // boot used to pay for whether or not anyone opened it.
+    security_hub: {
+        defaultSize: { width: 1040, height: 700 },
+        Component: lazyApp(() => import('../components/apps/SecurityHubApp').then(m => ({ default: m.SecurityHubApp }))),
+        props: () => ({}),
+    },
+    security_center: {
+        defaultSize: { width: 900, height: 640 },
+        Component: lazyApp(() => import('../components/apps/SecurityCenterApp').then(m => ({ default: m.SecurityCenterApp }))),
+        props: () => ({}),
+    },
+    cyber_rulebook: {
+        defaultSize: { width: 1000, height: 700 },
+        Component: lazyApp(() => import('../components/apps/CyberSecurityRulebookApp').then(m => ({ default: m.CyberSecurityRulebookApp }))),
+        props: () => ({}),
+    },
+    self_audit_scanner: {
+        defaultSize: { width: 900, height: 660 },
+        Component: lazyApp(() => import('../components/apps/SelfAuditScannerApp').then(m => ({ default: m.SelfAuditScannerApp }))),
+        props: () => ({}),
+    },
+    dependency_cve_checker: {
+        defaultSize: { width: 900, height: 660 },
+        Component: lazyApp(() => import('../components/apps/DependencyCVECheckerApp').then(m => ({ default: m.DependencyCVECheckerApp }))),
+        props: () => ({}),
+    },
+    secrets_hygiene: {
+        defaultSize: { width: 900, height: 640 },
+        Component: lazyApp(() => import('../components/apps/SecretsHygieneApp').then(m => ({ default: m.SecretsHygieneApp }))),
+        props: () => ({}),
+    },
+    anomaly_alert: {
+        defaultSize: { width: 820, height: 600 },
+        Component: lazyApp(() => import('../components/apps/AnomalyAlertApp').then(m => ({ default: m.AnomalyAlertApp }))),
+        props: () => ({}),
+    },
+    security_event_log: {
+        defaultSize: { width: 940, height: 660 },
+        Component: lazyApp(() => import('../components/apps/SecurityEventLogApp').then(m => ({ default: m.SecurityEventLogApp }))),
+        props: () => ({}),
+    },
+    audit_trail: {
+        defaultSize: { width: 880, height: 620 },
+        Component: lazyApp(() => import('../components/apps/AuditTrailApp').then(m => ({ default: m.AuditTrailApp }))),
+        props: () => ({}),
+    },
+    integrity_monitor: {
+        defaultSize: { width: 820, height: 600 },
+        Component: lazyApp(() => import('../components/apps/IntegrityMonitorApp').then(m => ({ default: m.IntegrityMonitorApp }))),
+        props: () => ({}),
+    },
+    session_recorder: {
+        defaultSize: { width: 900, height: 660 },
+        Component: lazyApp(() => import('../components/apps/SessionRecorderApp').then(m => ({ default: m.SessionRecorderApp }))),
+        props: () => ({}),
+    },
+    build_vault: {
+        defaultSize: { width: 860, height: 620 },
+        Component: lazyApp(() => import('../components/apps/BuildVaultApp').then(m => ({ default: m.BuildVaultApp }))),
+        props: () => ({}),
+    },
+    secrets_vault: {
+        defaultSize: { width: 880, height: 660 },
+        Component: lazyApp(() => import('../components/apps/SecretsVaultApp').then(m => ({ default: m.SecretsVaultApp }))),
+        props: () => ({}),
+    },
+    data_vault: {
+        defaultSize: { width: 880, height: 660 },
+        Component: lazyApp(() => import('../components/apps/DataVaultApp').then(m => ({ default: m.DataVaultApp }))),
+        props: () => ({}),
+    },
+    data_redaction: {
+        defaultSize: { width: 860, height: 620 },
+        Component: lazyApp(() => import('../components/apps/DataRedactionApp').then(m => ({ default: m.DataRedactionApp }))),
+        props: () => ({}),
+    },
+    permission_broker: {
+        defaultSize: { width: 880, height: 640 },
+        Component: lazyApp(() => import('../components/apps/PermissionBrokerApp').then(m => ({ default: m.PermissionBrokerApp }))),
+        props: () => ({}),
+    },
     knowledge: {
         defaultSize: { width: 560, height: 640 },
         Component: lazyApp(() => import('../components/apps/KnowledgeApp').then(m => ({ default: m.KnowledgeApp }))),

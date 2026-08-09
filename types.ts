@@ -10,7 +10,11 @@ declare global {
 }
 
 export type AppId = 'home' | 'mail' | 'slides' | 'snake' | 'folder' | 'notepad' | 'cybernetic_export' | 'github_sync' | 'flipper' | 'termstudio' | 'ollama' | 'openclaw' | 'coderabbit' | 'semantic_scholar' | 'research_rabbit' | 'papers_with_code' | 'langchain' | 'unreal_engine' | 'blender' | 'knowledge_compressor' | 'supersayen' | 'aiterm' | 'jacky' | 'app_connector' | 'data_pods' | 'pod_system' | 'cloud_deploy' | 'consensus_lab' | 'fleet_atlas' | 'llm_environment' | 'small_agent_fleet' | 'model_router' | 'cloud_infrastructure' | 'agent_builder' | 'claude_assistant' | 'codex' | 'grok_terminal' | 'chat_history_share' | 'system_settings' | 'archiver' | 'api_keys' | 'ai_providers' | 'cross_ai_lab' | 'okse_sandbox' | 'knowledge' | 'fleet' | 'bypass' | 'budget_radar' | 'colosseum' | 'ambient_agents' | 'bus_recorder' | 'choreography' | 'speed_racer' | 'cartographer' | 'prompt_genome' | 'cortex' | 'understudy' | 'telegram' | 'agents_hub'
-| 'bot_studio' | 'agent_orchestration' | 'agent_team_console' | 'agentic-vision';
+| 'bot_studio' | 'agent_orchestration' | 'agent_team_console' | 'agentic-vision'
+| 'security_hub' | 'security_center' | 'self_audit_scanner' | 'dependency_cve_checker'
+| 'secrets_hygiene' | 'security_event_log' | 'integrity_monitor' | 'audit_trail'
+| 'anomaly_alert' | 'data_vault' | 'data_redaction' | 'session_recorder'
+| 'secrets_vault' | 'permission_broker' | 'cyber_rulebook' | 'build_vault';
 
 export interface DesktopItem {
     id: string;
