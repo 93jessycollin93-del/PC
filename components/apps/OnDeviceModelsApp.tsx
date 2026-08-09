@@ -4,7 +4,28 @@ import { appStorage } from '../../lib/appStorage';
 import { bus } from '../../lib/bus';
 
 /**
- * On-Device Models — "Choose a Model" downloader.
+ * On-Device Models — a front end for Ollama, not an in-browser downloader.
+ *
+ * WHAT THIS APP IS, SAID PLAINLY
+ * -----------------------------
+ * It does not put a model inside this tab. It asks an Ollama instance running
+ * on your machine to pull one, and streams that download's real progress. So
+ * it needs three things, and if any is missing it can do nothing at all:
+ *
+ *   1. this app served by PC's own Express server (the /api/ollama proxy),
+ *      which means it CANNOT work inside Jackie's iframe embed — those are
+ *      static files with no server behind them;
+ *   2. an Ollama endpoint configured, via OLLAMA_ENDPOINT or the field below;
+ *   3. Ollama actually running at that endpoint.
+ *
+ * It used to discover all of this on mount, record the failure, and then hide
+ * it inside a collapsed "Ollama connection" panel — so the visible result of
+ * pressing Download was nothing, on a button that could never have worked.
+ * The preflight below now states which of the three is missing, before the
+ * button is reachable.
+ *
+ * For a model that genuinely runs in this tab with no external software, see
+ * `lib/localLlm.ts` and the Local AI index finder.
  *
  * The iOS local-AI onboarding experience, backed by a real Ollama instance:
  * pick a small model card, hit Download, watch true byte-level progress
@@ -95,6 +116,14 @@ export const OnDeviceModelsApp: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [installed, setInstalled] = useState<InstalledModel[]>([]);
   const [tagsError, setTagsError] = useState<string | null>(null);
+  /**
+   * Which of the three prerequisites is missing. Kept distinct because the
+   * remedies are completely different — "install Ollama" is useless advice to
+   * someone whose real problem is that there is no server behind this page.
+   */
+  const [bridge, setBridge] = useState<
+    'probing' | 'ready' | 'no-server' | 'not-configured' | 'unreachable'
+  >('probing');
   const [pull, setPull] = useState<PullState>({ status: 'idle', pct: 0, phase: '' });
 
   const tagFor = (m: CatalogModel) => customTags[m.id] || m.tag;
@@ -107,15 +136,34 @@ export const OnDeviceModelsApp: React.FC = () => {
   };
 
   const refreshInstalled = useCallback(async () => {
+    setBridge('probing');
     try {
       const qs = endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : '';
       const r = await fetch(`/api/ollama/tags${qs}`);
+
+      // Served as static files (the Jackie embed, or any host without PC's
+      // Express process): there is no /api route, so this is HTML or a 404
+      // rather than JSON. Parsing it as JSON is what used to fail opaquely.
+      const contentType = r.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setInstalled([]);
+        setBridge('no-server');
+        setTagsError('No PC server behind this page.');
+        return;
+      }
+
       const data = await r.json();
       setInstalled((data.models || []).map((m: { name: string; size?: number }) => ({ name: m.name, size: m.size })));
       setTagsError(data.error || null);
+
+      if (!data.error) setBridge('ready');
+      else if (/no ollama_endpoint configured/i.test(String(data.error))) setBridge('not-configured');
+      else setBridge('unreachable');
     } catch (e) {
       setInstalled([]);
       setTagsError(String(e));
+      // A thrown fetch means the request never completed at all.
+      setBridge('no-server');
     }
   }, [endpoint]);
 
@@ -196,6 +244,60 @@ export const OnDeviceModelsApp: React.FC = () => {
   return (
     <div className="h-full w-full bg-black text-zinc-300 font-sans flex flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-5 pt-8 pb-4">
+        {/* Preflight. Stated before the model list, because a Download button
+            that cannot work is worse than no button. */}
+        {bridge !== 'ready' && bridge !== 'probing' && (
+          <div className="mx-auto mb-5 max-w-xl rounded-lg border border-amber-900/50 bg-amber-950/30 p-3">
+            <p className="text-xs font-semibold text-amber-300">
+              {bridge === 'no-server' && 'This app needs PC\u2019s own server, and it is not there.'}
+              {bridge === 'not-configured' && 'No Ollama endpoint is configured yet.'}
+              {bridge === 'unreachable' && 'Ollama is configured but not answering.'}
+            </p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200/80">
+              {bridge === 'no-server' && (
+                <>
+                  These model downloads are performed by Ollama on your machine and proxied through
+                  PC’s <span className="font-mono">/api/ollama</span> route. This page is being
+                  served as static files, so that route does not exist — which is also why it
+                  cannot work inside the Jackie embed. Run PC with{' '}
+                  <span className="font-mono">npm run dev</span> and open it directly.
+                </>
+              )}
+              {bridge === 'not-configured' && (
+                <>
+                  Set <span className="font-mono">OLLAMA_ENDPOINT</span> in the environment, or put the
+                  address in the Ollama connection field below — usually{' '}
+                  <span className="font-mono">http://localhost:11434</span>.
+                </>
+              )}
+              {bridge === 'unreachable' && (
+                <>
+                  The endpoint is set but nothing answered. Ollama is probably not running — start
+                  it, then press Retry. {tagsError}
+                </>
+              )}
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                onClick={() => void refreshInstalled()}
+                className="rounded border border-amber-700/60 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-900/40"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="rounded border border-amber-700/60 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-900/40"
+              >
+                Connection settings
+              </button>
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-amber-200/50">
+              Nothing here runs a model inside this tab. For that, the Local AI index finder loads a
+              small model into the browser with no external software.
+            </p>
+          </div>
+        )}
+
         {/* Hero */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-16 h-16 rounded-full border-2 border-dotted border-white flex items-center justify-center mb-5">
@@ -301,7 +403,7 @@ export const OnDeviceModelsApp: React.FC = () => {
         )}
         <button
           onClick={download}
-          disabled={pull.status === 'downloading' || !selectedModel}
+          disabled={pull.status === 'downloading' || !selectedModel || bridge !== 'ready'}
           className="w-full max-w-xl mx-auto block rounded-full bg-white text-black font-bold text-base py-3.5 transition-opacity disabled:opacity-90"
         >
           {pull.status === 'downloading' ? (
@@ -314,7 +416,17 @@ export const OnDeviceModelsApp: React.FC = () => {
               <Check size={18} /> Downloaded — pick another
             </span>
           ) : (
-            'Download'
+            bridge === 'probing' ? (
+              'Checking Ollama\u2026'
+            ) : bridge === 'no-server' ? (
+              'Unavailable \u2014 no PC server'
+            ) : bridge === 'not-configured' ? (
+              'Unavailable \u2014 no Ollama endpoint'
+            ) : bridge === 'unreachable' ? (
+              'Unavailable \u2014 Ollama not answering'
+            ) : (
+              'Download'
+            )
           )}
         </button>
         {pull.status === 'downloading' && pull.phase && (
