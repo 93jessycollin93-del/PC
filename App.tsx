@@ -1698,6 +1698,14 @@ Body: ${emailToSummarize.body}`,
             className="h-full w-full bg-black text-os-text font-sans overflow-hidden relative" 
             onPointerDownCapture={handleGlobalPointerDown}
         >
+            {/* The page had no primary heading at all. A desktop shell has no
+                visible place to put one — the whole surface is the app — so it
+                is announced rather than drawn: screen readers and crawlers get
+                a name for the page, and nothing on screen moves. `sr-only` is
+                the readable-but-invisible utility, not `hidden`, which would
+                take it out of the accessibility tree along with everything
+                else and defeat the point. */}
+            <h1 className="sr-only">Jackie&rsquo;s PC — an offline-capable AI workspace</h1>
             <MobileStatusBar
                 openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name }))}
                 onFocusWindow={focusWindow}

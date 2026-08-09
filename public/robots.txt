@@ -1,0 +1,6 @@
+# Jackie's PC is a single-page app: every route renders the same shell, so
+# there is exactly one URL worth indexing and the sitemap says so.
+User-agent: *
+Allow: /
+
+Sitemap: /sitemap.xml

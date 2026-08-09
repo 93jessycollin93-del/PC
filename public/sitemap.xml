@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One entry, deliberately.
+
+  This is a single-page app whose apps open as windows rather than routes, so
+  there are no other URLs to list. A sitemap padded with in-app states would
+  point crawlers at pages that do not exist.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
