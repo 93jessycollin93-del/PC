@@ -17,22 +17,14 @@ import type { ChatMessage, ChatProvider, ChatSummary } from './types';
 
 /* --------------------------------------------------------- sealed messages */
 
-const SEALED_CHATS_KEY = 'pc.telegram.sealed-chats';
-
-/** Chats the user has switched into sealed mode. */
-function sealedChats(): string[] {
-    const raw = safeGetJSON<unknown>(SEALED_CHATS_KEY, []);
-    return isArray(raw) ? (raw as string[]) : [];
-}
-
-export function isSealedChat(chatId: string): boolean {
-    return sealedChats().includes(chatId);
-}
-
-export function setSealedChat(chatId: string, on: boolean): void {
-    const current = sealedChats().filter(id => id !== chatId);
-    safeSetJSON(SEALED_CHATS_KEY, on ? [...current, chatId] : current);
-}
+/**
+ * Sealed mode now lives in IndexedDB beside the key material — see
+ * `sealedStore.PeerRecord.sealed`. It used to be a localStorage array, which
+ * anything on this origin could rewrite: clear the flag and the next message
+ * goes out in the clear while the UI still says end-to-end.
+ */
+export const isSealedChat = sealedStore.isSealed;
+export const setSealedChat = sealedStore.setSealed;
 
 /**
  * Turn a wire message into something the transcript can show.
@@ -66,11 +58,22 @@ async function decryptIfSealed(msg: ChatMessage): Promise<ChatMessage> {
     }
 }
 
-/** Store a peer key that arrived as a handshake; returns true if it was one. */
-export async function ingestHandshake(msg: ChatMessage): Promise<boolean> {
+/**
+ * Store a peer key that arrived as a handshake; returns true if it was one.
+ *
+ * `chatKind` is passed through so the store can refuse group and channel
+ * handshakes: in a group any member can post one, and auto-adopting the first
+ * would let any participant install themselves as the peer for the thread.
+ * A rejected handshake is swallowed — it is not an error the user caused.
+ */
+export async function ingestHandshake(msg: ChatMessage, chatKind: sealedStore.ChatKind = 'user'): Promise<boolean> {
     const key = sealed.readHandshake(msg.text);
     if (!key || msg.outgoing) return false;
-    await sealedStore.acceptPeer(msg.chatId, key);
+    try {
+        await sealedStore.acceptPeer(msg.chatId, key, { chatKind });
+    } catch {
+        return false;
+    }
     return true;
 }
 
@@ -118,7 +121,10 @@ export const telegramProvider: ChatProvider = {
         let wire = text;
         let sealedState: ChatMessage['sealedState'];
 
-        if (isSealedChat(chatId)) {
+        // A handshake must go out in the clear even in a sealed conversation.
+        // Encrypting it under the key it replaces would deadlock rotation: the
+        // peer cannot read the new key without already having it.
+        if (!sealed.isHandshake(text) && (await isSealedChat(chatId))) {
             const peer = await sealedStore.getPeer(chatId);
             if (!peer) {
                 // Refuse rather than quietly downgrade. Sending plaintext from

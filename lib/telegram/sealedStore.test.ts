@@ -8,6 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
+import * as sealed from './sealed';
 
 const g = globalThis as unknown as { indexedDB: IDBFactory };
 
@@ -18,12 +19,23 @@ async function reset() {
     return import('./sealedStore');
 }
 
-const KEY_A = 'A'.repeat(88);
-const KEY_B = 'B'.repeat(88);
+/**
+ * Real P-256 points, not filler. `acceptPeer` validates keys now — storing
+ * junk defers the failure to every future send — so a placeholder string is
+ * rejected exactly as an attacker's would be.
+ */
+let KEY_A = '';
+let KEY_B = '';
+
+async function realKey(): Promise<string> {
+    return sealed.exportPublicKey((await sealed.generateIdentity()).publicKey);
+}
 
 describe('sealed message store', () => {
     beforeEach(async () => {
         await reset();
+        KEY_A = await realKey();
+        KEY_B = await realKey();
     });
 
     it('creates one identity and reuses it', async () => {

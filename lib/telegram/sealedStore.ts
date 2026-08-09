@@ -36,7 +36,19 @@ export interface PeerRecord {
     /** Set when a different key arrived for a chat that already had one. */
     changedAt?: number;
     previousKey?: string;
+    /**
+     * Sealed mode, stored HERE rather than in localStorage.
+     *
+     * It used to live in a loose localStorage array, which anything on this
+     * origin could rewrite — clear the flag and the next message the user
+     * types goes out in the clear while the UI still says end-to-end. Keeping
+     * it beside the key material means turning sealing off is a deliberate
+     * recorded act, not something an attacker achieves by deletion.
+     */
+    sealed?: boolean;
 }
+
+export type ChatKind = 'user' | 'group' | 'channel';
 
 interface IdentityRecord {
     id: string;
@@ -133,7 +145,31 @@ export async function listPeers(): Promise<PeerRecord[]> {
  * `verified` forced back to false. The UI must show that rather than swapping
  * silently — silent acceptance is what makes key substitution work.
  */
-export async function acceptPeer(chatId: string, publicKey: string): Promise<PeerRecord> {
+export async function acceptPeer(
+    chatId: string,
+    publicKey: string,
+    opts: { chatKind?: ChatKind } = {},
+): Promise<PeerRecord> {
+    // Groups and channels: any member can post a handshake, so auto-adopting
+    // the first one lets any participant install themselves as "the peer" for
+    // the whole thread. Sealing is one-to-one only until there is a real
+    // multi-party design.
+    if (opts.chatKind && opts.chatKind !== 'user') {
+        throw new Error('Sealed messaging is direct (one-to-one) only — not available in groups or channels.');
+    }
+
+    // Reflection: bounce our own key back and we would seal to ourselves.
+    // ECDH(ours, ours) succeeds, the transcript looks encrypted and verified,
+    // and the real peer is cut out entirely.
+    const me = await getIdentity();
+    if (publicKey === me.publicKeyB64) {
+        throw new Error('Refusing a handshake that is our own key reflected back.');
+    }
+
+    // Validate before storing. Junk stored now is a failure at every future
+    // send, and an unopenable conversation reads as a crypto bug, not an attack.
+    await sealed.importPublicKey(publicKey);
+
     const existing = await getPeer(chatId);
 
     if (existing && existing.publicKey === publicKey) return existing;
@@ -163,4 +199,30 @@ export async function markVerified(chatId: string): Promise<void> {
 
 export async function forgetPeer(chatId: string): Promise<void> {
     await tx(PEERS_STORE, 'readwrite', s => s.delete(chatId));
+}
+
+/* ------------------------------------------------------------ sealed mode */
+
+export async function isSealed(chatId: string): Promise<boolean> {
+    return Boolean((await getPeer(chatId))?.sealed);
+}
+
+/** Sealing requires a peer key; there is nothing to seal to without one. */
+export async function setSealed(chatId: string, on: boolean): Promise<void> {
+    const peer = await getPeer(chatId);
+    if (!peer) throw new Error('No key for this conversation yet — send your key first.');
+    await tx(PEERS_STORE, 'readwrite', s => s.put({ ...peer, sealed: on }));
+}
+
+/**
+ * Remove the identity and every peer key.
+ *
+ * "Forget" that leaves the identity behind is not forgetting: a later session
+ * silently reuses a key the user believed was destroyed, and every peer who
+ * verified the old safety number still matches.
+ */
+export async function forgetEverything(): Promise<void> {
+    cached = null;
+    await tx(IDENTITY_STORE, 'readwrite', s => s.clear());
+    await tx(PEERS_STORE, 'readwrite', s => s.clear());
 }

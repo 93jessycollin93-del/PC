@@ -267,7 +267,7 @@ export const TelegramApp: React.FC = () => {
 
     const refreshSealed = useCallback(async (chatId: string | null) => {
         if (!chatId || providerId !== 'telegram') return setPeer(null);
-        setSealedOn(isSealedChat(chatId));
+        setSealedOn(await isSealedChat(chatId));
         const p = await sealedStore.getPeer(chatId);
         setPeer(p);
         if (p) {
@@ -294,14 +294,14 @@ export const TelegramApp: React.FC = () => {
         }
     };
 
-    const toggleSealed = () => {
+    const toggleSealed = async () => {
         if (!activeId) return;
-        if (!peer && !sealedOn) {
-            setNotice('No key for this conversation yet. Send yours, and have them send theirs.');
-            return;
+        try {
+            await setSealedChat(activeId, !sealedOn);
+            setSealedOn(!sealedOn);
+        } catch (err) {
+            setNotice(err instanceof Error ? err.message : 'Could not change sealed mode');
         }
-        setSealedChat(activeId, !sealedOn);
-        setSealedOn(!sealedOn);
     };
 
     const openDevices = async () => {
@@ -581,7 +581,7 @@ export const TelegramApp: React.FC = () => {
                                     <div className="border-b border-zinc-800 bg-zinc-900/40">
                                         <div className="flex items-center gap-2 px-3 py-1.5">
                                             <button
-                                                onClick={toggleSealed}
+                                                onClick={() => void toggleSealed()}
                                                 title={
                                                     sealedOn
                                                         ? 'Sealed: Telegram carries ciphertext it cannot read'

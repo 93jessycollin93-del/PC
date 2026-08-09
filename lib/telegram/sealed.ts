@@ -260,12 +260,22 @@ const OPAQUE = 'Could not decrypt. Wrong key, or the message was altered.';
  * Encrypt `plaintext` to `peerPublicB64`, authenticated as the holder of
  * `ourPrivateKey`. A fresh ephemeral keypair is used and then dropped.
  */
+/**
+ * Telegram's own limit is 4096 characters and base64 costs ~33%, so anything
+ * past this cannot be delivered. Failing at the composer beats failing after
+ * the user believes the message was sent.
+ */
+export const MAX_PLAINTEXT_BYTES = 2600;
+
 export async function seal(
     plaintext: string,
     ourPublicB64: string,
     peerPublicB64: string,
     ourPrivateKey: CryptoKey,
 ): Promise<SealResult> {
+    if (enc.encode(plaintext).length > MAX_PLAINTEXT_BYTES) {
+        throw new Error(`Message too long to seal — keep it under ${MAX_PLAINTEXT_BYTES} bytes.`);
+    }
     const ephemeral = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
         'deriveBits',
     ])) as CryptoKeyPair;
@@ -434,6 +444,18 @@ export async function openChecked(
 /* ------------------------------------------------------------- handshake */
 
 const HANDSHAKE_PREFIX = '\u{1F511}PCKEY1:';
+
+/**
+ * A handshake must never be sealed.
+ *
+ * If sealing wrapped the handshake itself, key rotation would deadlock: the
+ * new key would be encrypted under the key it replaces, and the peer — who by
+ * definition cannot read that — is locked out permanently. The send path uses
+ * this to bypass encryption for handshakes specifically.
+ */
+export function isHandshake(text: string): boolean {
+    return text.startsWith(HANDSHAKE_PREFIX);
+}
 
 /** The message you send once to publish your public key into a conversation. */
 export function handshakeMessage(ourPublicB64: string): string {
