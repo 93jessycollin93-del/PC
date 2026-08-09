@@ -39,7 +39,7 @@
  */
 
 const DB_NAME = 'pc-telegram-vault';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = 'sealed';
 const RECORD_ID = 'telegram-session';
 
@@ -109,6 +109,7 @@ function openDB(): Promise<IDBDatabase> {
             if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
             if (!db.objectStoreNames.contains('identity')) db.createObjectStore('identity', { keyPath: 'id' });
             if (!db.objectStoreNames.contains('peers')) db.createObjectStore('peers', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('replay')) db.createObjectStore('replay', { keyPath: 'id' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error ?? new Error('vault: cannot open database'));

@@ -20,9 +20,10 @@
 import * as sealed from './sealed';
 
 const DB_NAME = 'pc-telegram-vault';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const IDENTITY_STORE = 'identity';
 const PEERS_STORE = 'peers';
+const REPLAY_STORE = 'replay';
 const SEALED_STORE = 'sealed';
 const IDENTITY_ID = 'self';
 
@@ -71,6 +72,7 @@ function openDB(): Promise<IDBDatabase> {
             if (!db.objectStoreNames.contains(SEALED_STORE)) db.createObjectStore(SEALED_STORE, { keyPath: 'id' });
             if (!db.objectStoreNames.contains(IDENTITY_STORE)) db.createObjectStore(IDENTITY_STORE, { keyPath: 'id' });
             if (!db.objectStoreNames.contains(PEERS_STORE)) db.createObjectStore(PEERS_STORE, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains(REPLAY_STORE)) db.createObjectStore(REPLAY_STORE, { keyPath: 'id' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error ?? new Error('sealed store: cannot open database'));
@@ -225,4 +227,54 @@ export async function forgetEverything(): Promise<void> {
     cached = null;
     await tx(IDENTITY_STORE, 'readwrite', s => s.clear());
     await tx(PEERS_STORE, 'readwrite', s => s.clear());
+    await tx(REPLAY_STORE, 'readwrite', s => s.clear());
+}
+
+/* ----------------------------------------------------------- replay guard */
+
+interface SeenRecord {
+    id: string;
+    timestamp: number;
+}
+
+/** Beyond this, the oldest half is dropped — a flood must not grow forever. */
+const REPLAY_CAP = 20_000;
+
+/**
+ * The persistent replay guard.
+ *
+ * `sealed.ts` ships an in-memory default and says plainly that it is not
+ * enough: an in-memory set forgets across a reload, and an attacker replaying
+ * a captured message only has to wait for one. This is the implementation that
+ * note promised, and `installReplayGuard()` is what makes it take effect —
+ * without that call the promise is just a comment.
+ *
+ * Ids live in the same database as the vault, so "forget everything" takes the
+ * replay history with it rather than leaving a record of what was received.
+ */
+export const persistentReplayGuard: sealed.ReplayGuard = {
+    async seen(id) {
+        const record = await tx<SeenRecord | undefined>(REPLAY_STORE, 'readonly', s => s.get(id));
+        return Boolean(record);
+    },
+
+    async remember(id, timestamp) {
+        await tx(REPLAY_STORE, 'readwrite', s => s.put({ id, timestamp }));
+
+        const count = await tx<number>(REPLAY_STORE, 'readonly', s => s.count());
+        if (count <= REPLAY_CAP) return;
+
+        // Drop the oldest half in one pass. Pruning to exactly the cap would
+        // re-prune on every subsequent message.
+        const all = (await tx<SeenRecord[]>(REPLAY_STORE, 'readonly', s => s.getAll())) ?? [];
+        const doomed = all.sort((a, b) => a.timestamp - b.timestamp).slice(0, Math.floor(count / 2));
+        for (const record of doomed) {
+            await tx(REPLAY_STORE, 'readwrite', s => s.delete(record.id));
+        }
+    },
+};
+
+/** Swap the in-memory default for the durable one. Call once, at startup. */
+export function installReplayGuard(): void {
+    sealed.setReplayGuard(persistentReplayGuard);
 }

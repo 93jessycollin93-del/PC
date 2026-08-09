@@ -83,6 +83,14 @@ export const TelegramApp: React.FC = () => {
 
     useEffect(() => tg.subscribe(setConn), []);
 
+    // Swap sealed.ts's in-memory replay guard for the durable one. Its own
+    // header says the in-memory default is not enough — a reload forgets every
+    // seen id, and an attacker replaying a captured message only has to wait
+    // for one. Installing it here is what makes that note true.
+    useEffect(() => {
+        sealedStore.installReplayGuard();
+    }, []);
+
     const refreshVault = useCallback(async () => {
         const status = await vault.getStatus();
         setVaultStatus(status);
@@ -165,6 +173,16 @@ export const TelegramApp: React.FC = () => {
                 setPending({ kind, hint, resolve, reject });
             }),
     };
+
+    /**
+     * Tell the vault the human is still here.
+     *
+     * Without this the 15-minute idle timer runs against wall-clock time
+     * regardless of use, so a long conversation locks itself out mid-sentence
+     * and demands the passphrase again. `touchActivity` existed for exactly
+     * this and nothing was calling it.
+     */
+    const touch = () => vault.touchActivity();
 
     const submitPrompt = () => {
         if (!pending || !promptValue.trim()) return;
@@ -537,7 +555,10 @@ export const TelegramApp: React.FC = () => {
                                     className={`group flex cursor-pointer items-center gap-2 border-b border-zinc-900 px-2.5 py-2 ${
                                         activeId === c.id ? 'bg-zinc-800/70' : 'hover:bg-zinc-900'
                                     }`}
-                                    onClick={() => setActiveId(c.id)}
+                                    onClick={() => {
+                                        touch();
+                                        setActiveId(c.id);
+                                    }}
                                 >
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-600 to-sky-900 text-[11px] font-semibold text-white">
                                         {c.monogram}
@@ -705,7 +726,10 @@ export const TelegramApp: React.FC = () => {
                                 <div className="flex items-center gap-2 border-t border-zinc-800 p-2">
                                     <input
                                         value={draft}
-                                        onChange={e => setDraft(e.target.value)}
+                                        onChange={e => {
+                                            touch();
+                                            setDraft(e.target.value);
+                                        }}
                                         onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), void send())}
                                         placeholder={providerId === 'telegram' && sealedOn ? "Write a sealed message…" : "Write a message…"}
                                         className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-600"
