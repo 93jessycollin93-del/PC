@@ -235,6 +235,59 @@ export async function signOut(): Promise<void> {
     }
 }
 
+/* ------------------------------------------------------------ authorisations */
+
+export interface DeviceSession {
+    hash: string;
+    /** True for the session this app is using; it cannot revoke itself here. */
+    current: boolean;
+    deviceModel: string;
+    platform: string;
+    appName: string;
+    country: string;
+    ip: string;
+    lastActive: number;
+    created: number;
+}
+
+/**
+ * Every login that currently holds your account.
+ *
+ * This is the single most useful security screen a messenger has, and it is
+ * the one that catches a stolen session — which is precisely the failure the
+ * local vault cannot prevent once a credential has already leaked.
+ */
+export async function listDevices(): Promise<DeviceSession[]> {
+    const c = getClient();
+    if (!c) throw new Error('Not connected to Telegram');
+    const res = (await c.invoke(new Api.account.GetAuthorizations())) as Api.account.Authorizations;
+    return res.authorizations.map(a => ({
+        hash: String(a.hash),
+        current: Boolean(a.current),
+        deviceModel: a.deviceModel || 'Unknown device',
+        platform: a.platform || '',
+        appName: a.appName || '',
+        country: a.country || '',
+        ip: a.ip || '',
+        lastActive: (a.dateActive ?? 0) * 1000,
+        created: (a.dateCreated ?? 0) * 1000,
+    }));
+}
+
+/** Kill one other login. Telegram refuses to revoke the current session. */
+export async function revokeDevice(hash: string): Promise<void> {
+    const c = getClient();
+    if (!c) throw new Error('Not connected to Telegram');
+    await c.invoke(new Api.account.ResetAuthorization({ hash: BigInt(hash) as unknown as bigInt.BigInteger }));
+}
+
+/** Kill every login except this one. The move after a device is lost. */
+export async function revokeAllOtherDevices(): Promise<void> {
+    const c = getClient();
+    if (!c) throw new Error('Not connected to Telegram');
+    await c.invoke(new Api.auth.ResetAuthorizations());
+}
+
 /* -------------------------------------------------------------- normalise */
 
 function monogramOf(title: string): string {

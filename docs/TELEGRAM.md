@@ -148,6 +148,18 @@ exchange. The safety number is what closes that.
   browser profile loses the ability to read past sealed messages. That is the
   cost of the key being unexfiltratable, and it is a deliberate trade.
 
+## Active logins
+
+**Devices** in the header lists every login currently holding the account —
+device, app, platform, country, IP and last-active time — and revokes any of
+them, or all but this one.
+
+This matters because it covers the failure the local vault cannot: once a
+credential has already leaked, encryption at rest is irrelevant and the only
+remedy is killing the session server-side. Telegram refuses to let a session
+revoke itself, so the current device is shown without a revoke control; use
+**Sign out** for that.
+
 ## The two providers
 
 `lib/telegram/provider.ts` exposes one `ChatProvider` interface with two

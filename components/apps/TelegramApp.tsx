@@ -11,7 +11,7 @@
  * visual language from the Bot API and can only see what a bot was added to.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, LogOut, Loader2, Plus, ShieldAlert, KeyRound, MessageSquare, Trash2, Lock, ShieldCheck, Fingerprint, Unlock, ShieldQuestion } from 'lucide-react';
+import { Send, LogOut, Loader2, Plus, ShieldAlert, KeyRound, MessageSquare, Trash2, Lock, ShieldCheck, Fingerprint, Unlock, ShieldQuestion, MonitorSmartphone } from 'lucide-react';
 import * as tg from '../../lib/telegram/client';
 import * as vault from '../../lib/telegram/vault';
 import { PROVIDERS, createLocalChat, deleteLocalChat, isSealedChat, setSealedChat } from '../../lib/telegram/provider';
@@ -62,6 +62,7 @@ export const TelegramApp: React.FC = () => {
     const [peer, setPeer] = useState<sealedStore.PeerRecord | null>(null);
     const [safety, setSafety] = useState<string | null>(null);
     const [showSafety, setShowSafety] = useState(false);
+    const [devices, setDevices] = useState<tg.DeviceSession[] | null>(null);
     const [conn, setConn] = useState<ConnectionState>(tg.getState());
     const [chats, setChats] = useState<ChatSummary[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -303,6 +304,15 @@ export const TelegramApp: React.FC = () => {
         setSealedOn(!sealedOn);
     };
 
+    const openDevices = async () => {
+        setNotice(null);
+        try {
+            setDevices(await tg.listDevices());
+        } catch (err) {
+            setNotice(err instanceof Error ? err.message : 'Could not list devices');
+        }
+    };
+
     const newLocalChat = () => {
         const title = window.prompt('Name this conversation');
         if (!title) return;
@@ -358,6 +368,15 @@ export const TelegramApp: React.FC = () => {
                             : 'Not signed in'
                         : 'On this device only — no account, no network'}
                 </div>
+                {providerId === 'telegram' && connected && (
+                    <button
+                        onClick={() => (devices ? setDevices(null) : void openDevices())}
+                        title="Every login that currently holds your account"
+                        className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-sky-400"
+                    >
+                        <MonitorSmartphone size={13} /> Devices
+                    </button>
+                )}
                 {providerId === 'telegram' && vaultStatus?.unlocked && (
                     <button
                         onClick={() => vault.lock('manual')}
@@ -385,6 +404,69 @@ export const TelegramApp: React.FC = () => {
                     <button onClick={() => setNotice(null)} className="text-amber-500 hover:text-amber-200">
                         ✕
                     </button>
+                </div>
+            )}
+
+            {devices && (
+                <div className="max-h-64 overflow-y-auto border-b border-zinc-800 bg-zinc-900/60">
+                    <div className="flex items-center justify-between px-3 py-2">
+                        <p className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+                            Active logins ({devices.length})
+                        </p>
+                        <button
+                            onClick={async () => {
+                                if (!window.confirm('Sign out every other device? They will each need to log in again.')) return;
+                                try {
+                                    await tg.revokeAllOtherDevices();
+                                    await openDevices();
+                                    setNotice('All other devices were signed out.');
+                                } catch (err) {
+                                    setNotice(err instanceof Error ? err.message : 'Could not revoke');
+                                }
+                            }}
+                            className="rounded bg-rose-900/70 px-2 py-1 text-[10px] font-medium text-rose-200 hover:bg-rose-800"
+                        >
+                            Revoke all others
+                        </button>
+                    </div>
+                    {devices.map(d => (
+                        <div
+                            key={d.hash}
+                            className="flex items-center gap-2 border-t border-zinc-800/70 px-3 py-2 text-[11px]"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-zinc-200">
+                                    {d.deviceModel}
+                                    {d.current && (
+                                        <span className="ml-1.5 rounded bg-emerald-900/70 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300">
+                                            This device
+                                        </span>
+                                    )}
+                                </p>
+                                <p className="truncate text-[10px] text-zinc-500">
+                                    {[d.appName, d.platform, d.country, d.ip].filter(Boolean).join(' · ')}
+                                </p>
+                                <p className="text-[10px] text-zinc-600">
+                                    Last active {d.lastActive ? new Date(d.lastActive).toLocaleString() : 'unknown'}
+                                </p>
+                            </div>
+                            {!d.current && (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await tg.revokeDevice(d.hash);
+                                            await openDevices();
+                                        } catch (err) {
+                                            setNotice(err instanceof Error ? err.message : 'Could not revoke');
+                                        }
+                                    }}
+                                    className="rounded px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800 hover:text-rose-400"
+                                >
+                                    Revoke
+                                </button>
+                            )}
+                        </div>
+                    ))}
                 </div>
             )}
 
