@@ -133,6 +133,7 @@ import type { ProvenanceRecord } from './src/provenance/provenance';
 import { GeneratedAppRunner } from './components/apps/GeneratedAppRunner';
 import { sealWholeDesktop, unsealWholeDesktop } from './src/whole-desktop/wholeDesktopCodec';
 import { getAppDefinition } from './lib/appRegistry';
+import { cascadePosition, getWorkArea } from './src/desktop/windowGeometry';
 import type { WholeDesktopSnapshot } from './src/whole-desktop/wholeDesktopSnapshot';
 import { PC_THEME_STORAGE_KEY } from './src/pc-themes/types';
 
@@ -674,14 +675,26 @@ export const App: React.FC = () => {
         if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
         if (item.appId === 'pc_themes') initialSize = { width: 780, height: 560 };
 
-        setOpenWindows(prev => [...prev, {
-            id: item.id,
-            item: item,
-            itemId: item.id,
-            zIndex: nextZIndex,
-            pos: { x: 100 + (prev.length * 30), y: 80 + (prev.length * 30) },
-            size: initialSize
-        }]);
+        setOpenWindows(prev => {
+            // Cascade inside the work area and start the diagonal over when it
+            // would run past the edge. The old rule was `100 + n*30` forever,
+            // so the eighth window opened 90px below a 900px screen with no
+            // way to see its bottom edge. DraggableWindow fits on mount too —
+            // this just means it rarely has to.
+            const placed = cascadePosition(
+                prev.length,
+                initialSize,
+                getWorkArea(window.innerWidth, window.innerHeight),
+            );
+            return [...prev, {
+                id: item.id,
+                item: item,
+                itemId: item.id,
+                zIndex: nextZIndex,
+                pos: { x: placed.x, y: placed.y },
+                size: { width: placed.width, height: placed.height },
+            }];
+        });
         setNextZIndex(prev => prev + 1);
         setFocusedId(item.id);
     };

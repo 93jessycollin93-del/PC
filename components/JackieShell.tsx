@@ -5,6 +5,7 @@ import {
   Palette,
 } from 'lucide-react';
 import { DesktopItem } from '../types';
+import { FloatingWidget } from './FloatingWidget';
 import { chat, AllProvidersFailedError } from '../lib/ai/gateway';
 
 /** The model the user picked, as `provider:model`. Null → automatic chain. */
@@ -433,8 +434,15 @@ export const JackieShell: React.FC<JackieShellProps> = ({
         )}
       </div>
 
-      {/* Minimalist launcher rail — always visible. The two mains (PC, Eru) + Settings. */}
-      <div className="absolute top-1/2 -translate-y-1/2 right-3 z-[3500] flex flex-col gap-2.5 pointer-events-auto">
+      {/* Minimalist launcher rail — always visible. The two mains (PC, Eru) + Settings.
+          Draggable like every other floating widget: pinned to the right edge it
+          sat on top of whatever a maximized window put there, and there was no
+          way to move it out of the way. */}
+      <FloatingWidget
+        id="jackie-rail"
+        title="Drag to move · reset in System Settings"
+        className="absolute top-1/2 -translate-y-1/2 right-3 z-[3500] flex flex-col gap-2.5 pointer-events-auto"
+      >
         <RailButton
           label={pcMode === 'closed' ? 'Open PC' : 'PC'}
           active={pcMode !== 'closed'}
@@ -464,19 +472,26 @@ export const JackieShell: React.FC<JackieShellProps> = ({
         >
           {locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
         </button>
-      </div>
+      </FloatingWidget>
 
       {/* When PC is full, a small chip to bring Jackie back.
           bottom-11 (44px) clears BottomBar's fixed h-8 (32px) strip with
           room to spare — bottom-3 used to sit underneath it, clipped by
-          BottomBar's higher z-index. */}
+          BottomBar's higher z-index. Draggable: centred at the bottom it
+          covers whatever a maximized app puts there. */}
       {pcMode === 'full' && (
-        <button
-          onClick={() => setPcMode('half')}
-          className="absolute bottom-11 left-1/2 -translate-x-1/2 z-[3500] flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-medium shadow-[0_0_20px_rgba(99,102,241,0.5)] hover:brightness-110 transition-all pointer-events-auto"
+        <FloatingWidget
+          id="jackie-return-chip"
+          title="Drag to move · reset in System Settings"
+          className="absolute bottom-11 left-1/2 -translate-x-1/2 z-[3500] pointer-events-auto"
         >
-          <Sparkles className="w-4 h-4" /> Bring Jackie back
-        </button>
+          <button
+            onClick={() => setPcMode('half')}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-medium shadow-[0_0_20px_rgba(99,102,241,0.5)] hover:brightness-110 transition-all"
+          >
+            <Sparkles className="w-4 h-4" /> Bring Jackie back
+          </button>
+        </FloatingWidget>
       )}
     </>
   );
