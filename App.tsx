@@ -227,6 +227,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     // --- Jessy's 33 Custom Applications ---
     { id: 'cyber_rulebook', name: 'Cyber Codex', type: 'app', icon: ShieldAlert, appId: 'cyber_rulebook', bgColor: 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-rose-950 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]' },
     { id: 'data_pods', name: 'Data Pods Vault', type: 'app', icon: Database, appId: 'data_pods', bgColor: 'bg-gradient-to-br from-cyan-600 via-blue-700 to-indigo-900 border border-cyan-400/20' },
+    { id: 'telegram', name: 'Telegram', type: 'app', icon: Send, appId: 'telegram', bgColor: 'bg-gradient-to-br from-sky-400 via-sky-600 to-blue-900 border border-sky-300/20' },
     { id: 'cybernetic67', name: 'Telegram Replica', type: 'app', icon: Send, appId: 'cybernetic67', bgColor: 'bg-gradient-to-br from-blue-500 via-sky-600 to-sky-900 border border-sky-400/20' },
     { id: 'build_vault', name: 'BuildVault', type: 'app', icon: HardDrive, appId: 'build_vault', bgColor: 'bg-gradient-to-br from-amber-500 via-amber-600 to-amber-900 border border-amber-400/20' },
     { id: 'prompt_to_json', name: 'Prompt to JSON', type: 'app', icon: Braces, appId: 'prompt-to-json', bgColor: 'bg-gradient-to-br from-purple-500 via-purple-650 to-indigo-900 border border-purple-400/20' },

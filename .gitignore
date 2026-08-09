@@ -38,3 +38,4 @@ dist-ssr
 /keys.png
 /vault.png
 /ten.png
+.telegram-session*

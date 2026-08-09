@@ -107,6 +107,11 @@ export const APP_REGISTRY: Partial<Record<AppId, AppDefinition>> = {
         Component: lazyApp(() => import('../components/apps/NotepadApp').then(m => ({ default: m.NotepadApp }))),
         props: (ctx) => ({ fileId: ctx.windowId, initialContent: ctx.item.notepadInitialContent }),
     },
+    telegram: {
+        defaultSize: { width: 900, height: 620 },
+        Component: lazyApp(() => import('../components/apps/TelegramApp').then(m => ({ default: m.TelegramApp }))),
+        props: () => ({}),
+    },
     cybernetic_export: {
         defaultSize: { width: 580, height: 620 },
         Component: lazyApp(() => import('../components/apps/CyberneticExportApp').then(m => ({ default: m.CyberneticExportApp }))),

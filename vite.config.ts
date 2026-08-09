@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -10,7 +11,12 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         allowedHosts: true,
       },
-      plugins: [react()],
+      plugins: [
+        react(),
+        // teleproto (MTProto) is written against Node builtins. In the browser
+        // it needs Buffer/crypto/stream shimmed or the client throws on import.
+        nodePolyfills({ include: ['buffer', 'crypto', 'stream', 'util', 'events', 'path', 'os', 'zlib'] }),
+      ],
       build: {
         chunkSizeWarningLimit: 1600,
         // Emit .vite/manifest.json so the service worker can precache the lazy
@@ -36,6 +42,8 @@ export default defineConfig(({ mode }) => {
               if (id.includes('node_modules/@google/genai')) return 'vendor-genai';
               if (id.includes('node_modules/chess.js') || id.includes('node_modules/react-chessboard')) return 'vendor-chess';
               if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
+              // MTProto is ~2 MB and only loads when Telegram is opened.
+              if (id.includes('node_modules/teleproto')) return 'vendor-telegram';
               // Everything else in node_modules goes to a shared vendor chunk
               // instead of being inlined into whichever app imported it first.
               return 'vendor';
