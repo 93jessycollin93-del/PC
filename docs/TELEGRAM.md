@@ -44,23 +44,61 @@ For development you may instead set `VITE_TELEGRAM_API_ID` /
 build-time values and end up in the bundle, so use the in-app fields for
 anything you ship.
 
-## The credential warning, stated plainly
+## How the session is protected
 
-`client.session.save()` returns a string that **is** the account. Anyone who
-holds it can read and send everything, and it does not expire on its own.
+`session.save()` returns a string that **is** the account: read everything,
+send as you, no expiry. Telegram Web keeps its equivalent in plaintext
+localStorage. That is not good enough here, because this origin also runs code
+The Forge generated.
 
-It is persisted through `safeStorage` (origin-scoped `localStorage`). That
-means any code on this origin can read it — including apps compiled by The
-Forge and run by `GeneratedAppRunner`.
+`lib/telegram/vault.ts` holds it instead:
 
-**Always sign out from inside the app** rather than clearing browser data.
-`signOut()` calls `auth.logOut` so the session is revoked at Telegram; wiping
-storage alone leaves a live session stranded on their servers forever.
+| | |
+|---|---|
+| At rest | AES-256-GCM ciphertext in a **separate IndexedDB database** from the rest of the desktop. A bug in app storage cannot reach it. |
+| Key | Never persisted. Derived per unlock, held as a **non-extractable** `CryptoKey` — usable while unlocked, impossible to copy out. |
+| Passkey tier | WebAuthn PRF → HKDF → AES key. The secret never leaves the authenticator, so there is nothing to phish and nothing to brute-force offline. |
+| Passphrase tier | PBKDF2-HMAC-SHA256, **600,000 iterations** (OWASP's current floor), 32-byte random salt. |
+| Binding | Origin + install id go into the AEAD's additional data, read from the **live environment**. A blob lifted to another origin fails authentication even with the correct passphrase. |
+| In memory | Plaintext exists only between unlock and lock. Auto-locks on idle (15 min default) and on tab hide. |
+| Failed attempts | Free for two, then exponential backoff from 5s to 5 min, persisted so a reload does not reset it. |
+| Errors | A wrong passphrase and a tampered vault return the *same* message — distinguishing them tells an attacker which one they achieved. |
 
-The upgrade path is `lib/secretsVault.ts` (AES-GCM under a master password).
-It is deliberately not wired in yet, because it would put a password prompt in
-front of first run — a product decision worth making deliberately rather than
-inheriting.
+Sealing happens **after** login, as a deliberate step. Between authorisation
+and sealing the session exists only in memory: close the tab and it is gone.
+That is the correct failure direction for a credential.
+
+### Honest limits
+
+Stated plainly because overselling security is worse than not having it:
+
+- **While unlocked**, hostile code in this realm can ask the live client to
+  act. Encryption at rest does not fix that — short auto-lock windows help,
+  and moving MTProto into a worker realm would fix it properly. Not done yet.
+- **An attacker holding the ciphertext can brute-force offline** at their own
+  pace. The only real defence is KDF cost, which is why the passkey tier is
+  offered first and recommended.
+- **Attempt throttling defends the live page, not offline cracking.** It is
+  not a substitute for a strong passphrase.
+- **Telegram cloud chats are not end-to-end encrypted** — that is a property
+  of the protocol, not of this client. Everything above protects the
+  credential on *your device*; it does not change what Telegram's servers can
+  see.
+
+### Migration
+
+A session written by the pre-vault build is plaintext in localStorage. On
+first run the app removes that key and requires you to seal what it recovered.
+The plaintext copy stops existing either way.
+
+### Verification
+
+`lib/telegram/vault.test.ts` asserts the properties above rather than assuming
+them — round-trip, wrong passphrase, tampered blob, cross-install binding,
+throttle escalation and reset, idle lock, activity deferral, and that the
+secret never appears in localStorage. The binding test earned its place: it
+caught a version where the AAD was read from the stored record, which meant a
+stolen blob carried its own binding and authenticated anywhere.
 
 ## The two providers
 

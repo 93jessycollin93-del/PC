@@ -15,30 +15,33 @@
  * static files behind an iframe, where there is no Express process to call.
  * A server-side client would work in one of those and silently not the other.
  *
- * CREDENTIAL WARNING — READ BEFORE EXTENDING
- * -----------------------------------------
- * `session.save()` returns a string that IS the account. Anyone holding it can
- * read and send everything, and it does not expire on its own. It is persisted
- * here through `safeStorage` (origin-scoped localStorage), which means:
- *   - any code running on this origin can read it, including apps compiled by
- *     The Forge / GeneratedAppRunner;
- *   - it survives until `signOut()` revokes it server-side.
- * `signOut()` calls auth.logOut so the session dies at Telegram too — clearing
- * storage alone would leave a live session stranded on their servers.
- * The upgrade path is `lib/secretsVault.ts` (AES-GCM under a master password);
- * it is deliberately not wired in yet because it would put a password prompt in
- * front of first run. See docs/TELEGRAM.md.
+ * CREDENTIAL HANDLING
+ * -------------------
+ * `session.save()` returns a string that IS the account: read everything, send
+ * as you, no expiry. It is never written to localStorage. It lives sealed in
+ * `vault.ts` — AES-256-GCM in a separate IndexedDB, key derived per unlock
+ * from a passkey or passphrase and held non-extractable, auto-locking on idle.
+ * Read that file's header for what this does and does not defend against.
+ *
+ * `signOut()` calls auth.logOut before wiping, so the session dies at Telegram
+ * too. Clearing browser data alone leaves a live session on their servers.
  */
 import { TelegramClient, Api } from 'teleproto';
 import { StringSession } from 'teleproto/sessions';
 import { PromisedWebSockets } from 'teleproto/extensions';
-import { safeGetJSON, safeSetJSON, safeRemove, isObject } from '../safeStorage';
+import { safeGetJSON, safeSetJSON, isObject } from '../safeStorage';
+import * as vault from './vault';
 import type { AuthChannel, ChatMessage, ChatSummary, ConnectionState, TelegramCredentials } from './types';
 
-const SESSION_KEY = 'pc.telegram.session';
 const CREDS_KEY = 'pc.telegram.credentials';
 
 let client: TelegramClient | null = null;
+/**
+ * A freshly authorised session string awaiting the user's choice of lock.
+ * Held in memory only, and cleared the moment it is sealed or abandoned — it
+ * is never written anywhere in this state.
+ */
+let pendingSeal: string | null = null;
 let listeners = new Set<(s: ConnectionState) => void>();
 let state: ConnectionState = { status: 'disconnected' };
 
@@ -85,8 +88,49 @@ export function saveCredentials(creds: TelegramCredentials): void {
     safeSetJSON(CREDS_KEY, creds);
 }
 
-export function hasSession(): boolean {
-    return Boolean(safeGetJSON<string>(SESSION_KEY, ''));
+/** A sealed session exists on this device (it may still be locked). */
+export async function hasSession(): Promise<boolean> {
+    return (await vault.getStatus()).exists;
+}
+
+/** Unlocked and ready to connect without another prompt. */
+export function isUnlocked(): boolean {
+    return vault.isUnlocked();
+}
+
+/** True when a login just completed and the session still needs sealing. */
+export function hasPendingSeal(): boolean {
+    return pendingSeal !== null;
+}
+
+/**
+ * Seal the session produced by the last successful login. Until this is
+ * called the account survives only in memory: closing the tab loses it, which
+ * is the correct failure direction for a credential.
+ */
+export async function sealPending(opts: {
+    method: vault.UnlockMethod;
+    passphrase?: string;
+}): Promise<void> {
+    if (!pendingSeal) throw new Error('Nothing to seal.');
+    await vault.seal(pendingSeal, opts);
+    pendingSeal = null;
+}
+
+export function discardPending(): void {
+    pendingSeal = null;
+}
+
+/**
+ * Move a session written by the pre-vault build out of localStorage. Returns
+ * true when one was found, in which case it is now pending and the caller must
+ * seal it. The plaintext copy is removed either way.
+ */
+export function adoptLegacySession(): boolean {
+    const legacy = vault.takeLegacyPlaintextSession();
+    if (!legacy) return false;
+    pendingSeal = legacy;
+    return true;
 }
 
 /* ----------------------------------------------------------------- connect */
@@ -107,8 +151,10 @@ export async function connect(channel: AuthChannel): Promise<TelegramClient> {
 
     setState({ status: 'connecting' });
 
-    const saved = safeGetJSON<string>(SESSION_KEY, '');
-    const session = new StringSession(saved || '');
+    // Only ever the in-memory plaintext; null while the vault is locked, which
+    // sends the caller back through unlock rather than starting a fresh login.
+    const saved = vault.getUnsealed() ?? '';
+    const session = new StringSession(saved);
 
     client = new TelegramClient(session, creds.apiId, creds.apiHash, {
         connectionRetries: 5,
@@ -141,8 +187,11 @@ export async function connect(channel: AuthChannel): Promise<TelegramClient> {
         });
 
         // Persist only after start() resolves — a half-finished login would
-        // otherwise leave an unusable string behind that blocks the next attempt.
-        safeSetJSON(SESSION_KEY, client.session.save() as unknown as string);
+        // otherwise leave an unusable string behind that blocks the next
+        // attempt. Sealing is the caller's move (it needs a passkey or
+        // passphrase), so hand the string back through `pendingSeal` rather
+        // than writing plaintext anywhere.
+        pendingSeal = client.session.save() as unknown as string;
         client.setParseMode('html');
 
         const me = (await client.getMe()) as Api.User;
@@ -181,7 +230,7 @@ export async function signOut(): Promise<void> {
             /* already gone */
         }
         client = null;
-        safeRemove(SESSION_KEY);
+        await vault.wipe();
         setState({ status: 'disconnected' });
     }
 }
