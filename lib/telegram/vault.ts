@@ -39,7 +39,7 @@
  */
 
 const DB_NAME = 'pc-telegram-vault';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'sealed';
 const RECORD_ID = 'telegram-session';
 
@@ -101,10 +101,14 @@ export function subscribeVault(cb: () => void): () => void {
 function openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
+        // Shares the database with sealedStore.ts, so BOTH must declare the
+        // same version and create the full schema. If one lags, whichever
+        // opens second fails with a VersionError and the app half-works.
         req.onupgradeneeded = () => {
-            if (!req.result.objectStoreNames.contains(STORE)) {
-                req.result.createObjectStore(STORE, { keyPath: 'id' });
-            }
+            const db = req.result;
+            if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('identity')) db.createObjectStore('identity', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('peers')) db.createObjectStore('peers', { keyPath: 'id' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error ?? new Error('vault: cannot open database'));

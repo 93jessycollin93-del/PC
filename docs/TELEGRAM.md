@@ -100,6 +100,54 @@ secret never appears in localStorage. The binding test earned its place: it
 caught a version where the AAD was read from the stored record, which meant a
 stolen blob carried its own binding and authenticated anywhere.
 
+## Sealed messages — end-to-end encryption over Telegram
+
+Telegram cloud chats are **not** end-to-end encrypted. They are encrypted in
+transit and at rest on Telegram's servers, which means Telegram can read them.
+End-to-end exists only in Secret Chats, which are single-device, mobile-only,
+and unavailable to every web client including this one.
+
+A **sealed message** is an ordinary Telegram message whose body is ciphertext.
+Telegram transports it, stores it, syncs it across your devices — and cannot
+read it. Anyone without this app sees a marker and base64.
+
+### Using it
+
+1. Open a conversation and press **Send my key**. That posts your public key
+   as an ordinary message.
+2. Have them do the same. Both clients adopt each other's key automatically,
+   including from history, so an existing conversation works without redoing it.
+3. Press **Not sealed** to flip the conversation to **End-to-end**.
+4. Press **Unverified** and compare the 60-digit safety number out of band —
+   on a call, or in person. Then mark it verified.
+
+Step 4 is not optional decoration. Encryption without verification protects
+you from Telegram but not from someone who substituted a key at the moment of
+exchange. The safety number is what closes that.
+
+### How it works
+
+| | |
+|---|---|
+| Identity | ECDH P-256, generated once. P-256 over X25519 because WebCrypto support for X25519 is still uneven, and a cipher nobody can run is not security. |
+| Storage | The private key is stored **as a `CryptoKey`**, not as bytes. Generated non-extractable, so WebCrypto refuses to serialise the material even to itself. Verified in Chromium: survives a full reload, still derives ECDH, and `exportKey` throws. |
+| Per message | A **fresh ephemeral keypair** every time, ECDH against their long-term key, discarded immediately. |
+| KDF | HKDF-SHA256, fresh 32-byte salt per message, `info` binding both fingerprints. |
+| AEAD | AES-256-GCM. Additional data commits to the wire version and both fingerprints, so a ciphertext replayed into another conversation fails to authenticate. |
+| Key change | A different key arriving for a known conversation is stored with `changedAt`, verification is revoked, and the UI says so. Silent acceptance is how key substitution succeeds. |
+| Refusal | Sending in a sealed conversation with no peer key **throws** rather than falling back to plaintext. A silent downgrade is the worst failure this feature could have. |
+
+### What this does not do
+
+- **Not a double ratchet.** Compromising the *recipient's* long-term key
+  decrypts past messages they received. Sender-side forward secrecy is real —
+  the ephemeral key is gone — receiver-side is not claimed.
+- **Metadata is still Telegram's.** Who, when, how often, how long. Content
+  only.
+- **No backup.** The non-extractable key cannot be exported, so losing the
+  browser profile loses the ability to read past sealed messages. That is the
+  cost of the key being unexfiltratable, and it is a deliberate trade.
+
 ## The two providers
 
 `lib/telegram/provider.ts` exposes one `ChatProvider` interface with two

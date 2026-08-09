@@ -11,10 +11,12 @@
  * visual language from the Bot API and can only see what a bot was added to.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, LogOut, Loader2, Plus, ShieldAlert, KeyRound, MessageSquare, Trash2, Lock, ShieldCheck, Fingerprint } from 'lucide-react';
+import { Send, LogOut, Loader2, Plus, ShieldAlert, KeyRound, MessageSquare, Trash2, Lock, ShieldCheck, Fingerprint, Unlock, ShieldQuestion } from 'lucide-react';
 import * as tg from '../../lib/telegram/client';
 import * as vault from '../../lib/telegram/vault';
-import { PROVIDERS, createLocalChat, deleteLocalChat } from '../../lib/telegram/provider';
+import { PROVIDERS, createLocalChat, deleteLocalChat, isSealedChat, setSealedChat } from '../../lib/telegram/provider';
+import * as sealed from '../../lib/telegram/sealed';
+import * as sealedStore from '../../lib/telegram/sealedStore';
 import type { AuthPrompt, ChatMessage, ChatSummary, ConnectionState, ProviderId } from '../../lib/telegram/types';
 
 /** A promise the sign-in flow parks on until the user submits the field. */
@@ -56,6 +58,10 @@ export const TelegramApp: React.FC = () => {
     const [sealConfirm, setSealConfirm] = useState('');
     const [pendingSeal, setPendingSeal] = useState(false);
     const [working, setWorking] = useState(false);
+    const [sealedOn, setSealedOn] = useState(false);
+    const [peer, setPeer] = useState<sealedStore.PeerRecord | null>(null);
+    const [safety, setSafety] = useState<string | null>(null);
+    const [showSafety, setShowSafety] = useState(false);
     const [conn, setConn] = useState<ConnectionState>(tg.getState());
     const [chats, setChats] = useState<ChatSummary[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -256,6 +262,47 @@ export const TelegramApp: React.FC = () => {
         }
     };
 
+    /* ------------------------------------------------------- sealed mode */
+
+    const refreshSealed = useCallback(async (chatId: string | null) => {
+        if (!chatId || providerId !== 'telegram') return setPeer(null);
+        setSealedOn(isSealedChat(chatId));
+        const p = await sealedStore.getPeer(chatId);
+        setPeer(p);
+        if (p) {
+            const me = await sealedStore.getIdentity();
+            setSafety(await sealed.safetyNumber(me.publicKeyB64, p.publicKey));
+        } else {
+            setSafety(null);
+        }
+    }, [providerId]);
+
+    useEffect(() => {
+        void refreshSealed(activeId);
+    }, [activeId, refreshSealed, messages]);
+
+    const sendMyKey = async () => {
+        if (!activeId) return;
+        try {
+            const me = await sealedStore.getIdentity();
+            await provider.sendMessage(activeId, sealed.handshakeMessage(me.publicKeyB64));
+            setNotice('Your key was sent. They need to send theirs back before you can seal messages.');
+            setMessages(await provider.getMessages(activeId));
+        } catch (err) {
+            setNotice(err instanceof Error ? err.message : 'Could not send key');
+        }
+    };
+
+    const toggleSealed = () => {
+        if (!activeId) return;
+        if (!peer && !sealedOn) {
+            setNotice('No key for this conversation yet. Send yours, and have them send theirs.');
+            return;
+        }
+        setSealedChat(activeId, !sealedOn);
+        setSealedOn(!sealedOn);
+    };
+
     const newLocalChat = () => {
         const title = window.prompt('Name this conversation');
         if (!title) return;
@@ -448,6 +495,87 @@ export const TelegramApp: React.FC = () => {
                             </div>
                         ) : (
                             <>
+                                {providerId === 'telegram' && (
+                                    <div className="border-b border-zinc-800 bg-zinc-900/40">
+                                        <div className="flex items-center gap-2 px-3 py-1.5">
+                                            <button
+                                                onClick={toggleSealed}
+                                                title={
+                                                    sealedOn
+                                                        ? 'Sealed: Telegram carries ciphertext it cannot read'
+                                                        : 'Not sealed: Telegram can read these messages'
+                                                }
+                                                className={`flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                                                    sealedOn
+                                                        ? 'bg-emerald-900/60 text-emerald-300'
+                                                        : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                                }`}
+                                            >
+                                                {sealedOn ? <Lock size={12} /> : <Unlock size={12} />}
+                                                {sealedOn ? 'End-to-end' : 'Not sealed'}
+                                            </button>
+
+                                            {!peer && (
+                                                <button
+                                                    onClick={() => void sendMyKey()}
+                                                    className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-sky-400 hover:bg-zinc-800"
+                                                >
+                                                    <KeyRound size={12} /> Send my key
+                                                </button>
+                                            )}
+
+                                            {peer && (
+                                                <button
+                                                    onClick={() => setShowSafety(v => !v)}
+                                                    className={`flex items-center gap-1.5 rounded px-2 py-1 text-[11px] ${
+                                                        peer.verified
+                                                            ? 'text-emerald-400 hover:bg-zinc-800'
+                                                            : 'text-amber-400 hover:bg-zinc-800'
+                                                    }`}
+                                                >
+                                                    {peer.verified ? <ShieldCheck size={12} /> : <ShieldQuestion size={12} />}
+                                                    {peer.verified ? 'Verified' : 'Unverified'}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {peer?.changedAt && (
+                                            <div className="border-t border-rose-900/60 bg-rose-950/50 px-3 py-2 text-[11px] text-rose-300">
+                                                <strong>This contact's key changed.</strong> That happens when they
+                                                reinstall — and it is also exactly what a man-in-the-middle looks like.
+                                                Compare the safety number before trusting it again.
+                                            </div>
+                                        )}
+
+                                        {showSafety && safety && (
+                                            <div className="border-t border-zinc-800 px-3 py-2.5">
+                                                <p className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-500">
+                                                    Safety number
+                                                </p>
+                                                <p className="select-all font-mono text-[11px] leading-relaxed tracking-wide text-zinc-300">
+                                                    {safety}
+                                                </p>
+                                                <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">
+                                                    Read this aloud together on a call, or compare it in person. If it
+                                                    matches on both screens, nobody is in the middle. If it does not,
+                                                    stop using this conversation.
+                                                </p>
+                                                {!peer?.verified && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!activeId) return;
+                                                            await sealedStore.markVerified(activeId);
+                                                            await refreshSealed(activeId);
+                                                        }}
+                                                        className="mt-2 rounded bg-emerald-700 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
+                                                    >
+                                                        It matches — mark verified
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div ref={transcriptRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
                                     {busy && (
                                         <div className="flex justify-center py-4 text-zinc-600">
@@ -470,6 +598,14 @@ export const TelegramApp: React.FC = () => {
                                                         {m.senderName}
                                                     </p>
                                                 )}
+                                                {m.sealedState === 'decrypted' && (
+                                                    <span
+                                                        title="End-to-end encrypted — Telegram carried this as ciphertext"
+                                                        className="mr-1 inline-flex align-[-1px] text-emerald-300"
+                                                    >
+                                                        <Lock size={9} />
+                                                    </span>
+                                                )}
                                                 <p className="whitespace-pre-wrap break-words">{m.text}</p>
                                                 <p className="mt-0.5 text-right text-[9px] opacity-60">
                                                     {m.error
@@ -489,7 +625,7 @@ export const TelegramApp: React.FC = () => {
                                         value={draft}
                                         onChange={e => setDraft(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), void send())}
-                                        placeholder="Write a message…"
+                                        placeholder={providerId === 'telegram' && sealedOn ? "Write a sealed message…" : "Write a message…"}
                                         className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-600"
                                     />
                                     <button

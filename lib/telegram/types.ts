@@ -34,6 +34,13 @@ export interface ChatMessage {
     senderName: string;
     /** Set when the message failed to send, so the UI can show a retry. */
     error?: string;
+    /**
+     * Present only for end-to-end sealed messages. 'decrypted' means the text
+     * above came out of a sealed payload; 'failed' means one arrived and could
+     * not be opened — shown as such rather than rendered blank, because a
+     * silently empty message hides the case most worth noticing.
+     */
+    sealedState?: 'decrypted' | 'failed';
 }
 
 /**
