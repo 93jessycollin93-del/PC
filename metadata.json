@@ -1,8 +1,0 @@
-{
-  "name": "Jackie's PC",
-  "description": "Jackie's PC — Jackie is the operator and guide for a full virtual desktop OS: pen-based ink gestures, email summarization, a 60+ model hybrid AI compute registry, ResearchRabbit paper visualizations, and an agentic app framework.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

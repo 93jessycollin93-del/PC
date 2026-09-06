@@ -137,11 +137,11 @@ async function startServer() {
     return true;
   }
 
-  const ai = new GoogleGenAI({ 
+  const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY,
     httpOptions: {
       headers: {
-        'User-Agent': 'aistudio-build',
+        'User-Agent': 'jackies-pc-fleet',
       }
     }
   });

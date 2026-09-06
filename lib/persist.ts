@@ -37,7 +37,9 @@ const DB_VERSION = 1;
 
 let useIDB = true;
 
-// Check if we are in an iframe (Vite dev environment in AI Studio)
+// IndexedDB can throw or hang inside a sandboxed cross-origin iframe (e.g. when
+// this app is embedded as Jackie's PC OS inside ocd-jacky-777's PCDesktop.tsx),
+// so fall back to in-memory state there rather than risk a stuck open() call.
 if (typeof window !== 'undefined') {
     try {
         const isIframe = window.self !== window.top;
