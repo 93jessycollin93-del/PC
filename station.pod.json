@@ -1,0 +1,69 @@
+{
+  "$schema": "https://raw.githubusercontent.com/93jessycollin93-del/jacky/main/superstation/spec/pod.manifest.schema.json",
+  "kernel": "1.0.0",
+  "pod": {
+    "id": "sas.pod.pc",
+    "name": "Jackie's PC",
+    "role": "surface",
+    "repo": "93jessycollin93-del/PC",
+    "summary": "The reference surface: ~90 windowed apps, App Commander launcher, fleet-ui theme and the jackyClient engine link."
+  },
+  "provides": [
+    {
+      "id": "sas.shell.desktop",
+      "version": "1.0.0",
+      "title": "Windowed desktop shell \u2014 DraggableWindow, FloatingNav, CommandPalette"
+    },
+    {
+      "id": "sas.shell.commander",
+      "version": "1.0.0",
+      "title": "App Commander launcher and engine console"
+    },
+    {
+      "id": "sas.ui.theme",
+      "version": "1.0.0",
+      "title": "eYe design tokens \u2014 src/fleet-ui/eye-theme.css + Tailwind preset"
+    },
+    {
+      "id": "sas.link.relay",
+      "version": "1.0.0",
+      "title": "Same-origin engine relay \u2014 /api/jacky in server.ts"
+    }
+  ],
+  "requires": [
+    {
+      "id": "sas.link.engine",
+      "range": "1.x"
+    },
+    {
+      "id": "sas.telemetry.system",
+      "range": "1.x"
+    },
+    {
+      "id": "sas.telemetry.assessment",
+      "range": "1.x",
+      "optional": true
+    },
+    {
+      "id": "sas.route.ask",
+      "range": "1.x"
+    },
+    {
+      "id": "sas.control.power",
+      "range": "1.x",
+      "optional": true
+    }
+  ],
+  "surfaces": [
+    {
+      "kind": "http",
+      "base": "/api",
+      "note": "Express server.ts"
+    },
+    {
+      "kind": "static",
+      "base": "/",
+      "note": "Vite/React 19 PWA"
+    }
+  ]
+}

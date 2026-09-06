@@ -1,0 +1,13 @@
+{
+  "_comment": "Written by superstation/tools/station_sync.py. Do not hand-edit. Run station_sync.py --check to verify this vendored copy still matches the kernel it was taken from.",
+  "kernel": "1.0.0",
+  "source": "93jessycollin93-del/jacky:superstation/kernel/ts",
+  "files": {
+    "bus.ts": "0241b0ceafef3a29243d43ec833b25acc3b91634e264614c3d48d22e95992cb4",
+    "contract.ts": "243a0726ed0021e4f2a66b92c9f24667920c8de0e98c9bb5427cbc8550619f60",
+    "envelope.ts": "4acb1e657c24afc6531c2ee232ddefb99a3810931ff0982352f3444efb3c2866",
+    "index.ts": "c225d9d76a4deeceaed1e935cf6ff4d5855a91cf6e235de7c96d2c92911caa47",
+    "registry.ts": "343a5d176336ed0dbcecbe5dd0c2b5ad79496b0cc172bb312f8de82631bc5a5f",
+    "station.ts": "2ceb342bac8fcd68e91d3a00cb828ab84f5b538b5d24b5bc9ac6ef2768600ed5"
+  }
+}
