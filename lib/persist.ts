@@ -1,6 +1,6 @@
 import LZString from 'lz-string';
 import { strToU8, compressSync, decompressSync, strFromU8 } from 'fflate';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Multi-dimensional unit handler (Replacer)
@@ -198,6 +198,17 @@ const startPeriodicSyncTimer = () => {
 // disconnected-retry throttle (used by forceCloudSync and the retry timer itself).
 const tryCloudWrite = async (force = false): Promise<boolean> => {
     if (!cloudSyncEnabled || !pendingStateB64) return false;
+    // Cloud sync writes to GlobalState/{uid} (see firestore.rules) — without a
+    // signed-in user there is no per-user key to write to, and no safe shared
+    // one either. This used to fall back to a single fixed document ID shared
+    // by every browser that ever enabled sync, world-writable in the rules —
+    // meaning any two users silently overwrote each other's entire app state,
+    // and anyone with the project ID could read or corrupt it with no auth at
+    // all. Treat "not signed in" as "cloud sync unavailable" instead.
+    if (!auth.currentUser) {
+        dispatchSyncStatus('offline');
+        return false;
+    }
     if (!cloudConnected) {
         const now = Date.now();
         if (!force && now - lastConnectAttemptAt < RETRY_INTERVAL_MS) {
@@ -210,7 +221,7 @@ const tryCloudWrite = async (force = false): Promise<boolean> => {
     }
     dispatchSyncStatus('syncing');
     try {
-        await setDoc(doc(db, 'GlobalState', 'master_pod_v3'), {
+        await setDoc(doc(db, 'GlobalState', auth.currentUser.uid), {
             data: pendingStateB64,
             updatedAt: new Date().toISOString()
         });
@@ -358,11 +369,13 @@ export const initializeGlobalState = async () => {
     try {
         let compressedU8: Uint8Array | null = null;
         
-        // 0. Try Cloud Sync first, but only when the user has turned it on.
+        // 0. Try Cloud Sync first, but only when the user has turned it on and
+        // is signed in — GlobalState is keyed and rule-gated by uid, so there is
+        // nothing safe to read without one.
         // (with a strict timeout of 1200ms to prevent network/iframe hang)
-        if (cloudSyncEnabled) {
+        if (cloudSyncEnabled && auth.currentUser) {
             try {
-                const cloudDocPromise = getDoc(doc(db, 'GlobalState', 'master_pod_v3'));
+                const cloudDocPromise = getDoc(doc(db, 'GlobalState', auth.currentUser.uid));
                 const cloudDoc = await Promise.race([
                     cloudDocPromise,
                     new Promise<null>((_, reject) => setTimeout(() => reject(new Error('Cloud sync timeout')), 1200))

@@ -5,8 +5,8 @@ import {
     ShieldCheck, HardDrive, BrainCircuit, Activity, Check, Radio, Play, Waves, Lock, History,
     Camera, MapPin, CreditCard, Car, Network, Satellite, GitBranch, ExternalLink, Smartphone
 } from 'lucide-react';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../../lib/firebase';
+import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { getAiClient, MODEL_NAME } from '../../lib/gemini';
 import { queueSyncAction, getSyncQueue, deleteFromStore } from '../../lib/idb';
 
@@ -115,6 +115,14 @@ export const FlipperZeroApp: React.FC = () => {
 
     // Cloud
     const syncToCloud = async () => {
+        // Cloud telemetry is stamped and rule-gated by created_by (see
+        // firestore.rules) — without a signed-in user there's no owner to
+        // stamp it with, and this collection used to have none at all, which
+        // meant every user's telemetry was world-readable and world-writable.
+        if (!auth.currentUser) {
+            addLog('Sign in required to sync telemetry to the cloud.');
+            return;
+        }
         if (!isOnline) {
             addLog('Offline: Queuing telemetry for cloud sync...');
             await queueSyncAction({
@@ -141,7 +149,8 @@ export const FlipperZeroApp: React.FC = () => {
                 if (item.type === 'CREATE') {
                     await addDoc(collection(db, 'flipper_telemetry'), {
                         ...item.payload,
-                        timestamp: new Date(item.payload.timestamp)
+                        timestamp: new Date(item.payload.timestamp),
+                        created_by: auth.currentUser.email
                     });
                     await deleteFromStore('SyncQueue', item.id);
                 }
@@ -149,12 +158,13 @@ export const FlipperZeroApp: React.FC = () => {
             if (flipperQueue.length > 0) {
                 addLog(`Flushed ${flipperQueue.length} queued telemetry records.`);
             }
-            
+
             await addDoc(collection(db, 'flipper_telemetry'), {
                 timestamp: serverTimestamp(),
                 btDevices: btDevices.map(d => ({ name: d.name || 'Unknown Device', id: d.id })),
                 networkInfo: networkInfo || { type: 'unknown' },
-                isOnline
+                isOnline,
+                created_by: auth.currentUser.email
             });
             addLog('Data exfiltration to cloud successful.');
             fetchCloudData();
@@ -166,9 +176,18 @@ export const FlipperZeroApp: React.FC = () => {
     };
 
     const fetchCloudData = async () => {
-        if (!isOnline) return;
+        if (!isOnline || !auth.currentUser) return;
         try {
-            const q = query(collection(db, 'flipper_telemetry'), orderBy('timestamp', 'desc'));
+            // The where() clause isn't just belt-and-suspenders: Firestore rejects
+            // a query it can't prove satisfies the security rule ahead of time, so
+            // once the rule requires created_by == the caller, an unfiltered query
+            // like this used to be would simply be denied rather than partially
+            // returned.
+            const q = query(
+                collection(db, 'flipper_telemetry'),
+                where('created_by', '==', auth.currentUser.email),
+                orderBy('timestamp', 'desc')
+            );
             const snapshot = await getDocs(q);
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCloudData(data);

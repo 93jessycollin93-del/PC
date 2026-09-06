@@ -10,7 +10,14 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
     match /flipper_telemetry/{docId} {
-      allow read, write: if true;
+      // Was `allow read, write: if true` — open to the entire internet, no auth
+      // at all, and FlipperZeroApp.tsx's fetchCloudData() read every user's
+      // telemetry with no per-user filter. Gated the same way OfflineBot/
+      // BotChat/BotMessage/MemoryPod already are in this file; the app now
+      // stamps `created_by` on write and filters by it on read to match.
+      allow read: if request.auth != null && request.auth.token.email == resource.data.created_by;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.created_by;
+      allow update, delete: if request.auth != null && request.auth.token.email == resource.data.created_by;
     }
     match /OfflineBot/{docId} {
       allow read: if request.auth != null && request.auth.token.email == resource.data.created_by;
@@ -32,8 +39,15 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.token.email == request.resource.data.created_by;
       allow update, delete: if request.auth != null && request.auth.token.email == resource.data.created_by;
     }
-    match /GlobalState/{docId} {
-      allow read, write: if true;
+    match /GlobalState/{uid} {
+      // Was `allow read, write: if true` on a document keyed by a single fixed
+      // ID ('master_pod_v3') shared across every browser that ever enabled
+      // cloud sync — every user silently overwrote everyone else's entire app
+      // state, and anyone on the internet with the project ID could read or
+      // corrupt it with no authentication at all. lib/persist.ts now keys this
+      // document by the signed-in user's uid; gate it to match, the same
+      // pattern as /users/{userId} above.
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }
 }
