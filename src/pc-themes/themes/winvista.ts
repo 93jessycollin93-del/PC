@@ -1,0 +1,86 @@
+import type { PCThemeDefinition } from '../types';
+import { AURORA_VISTA, HARMONY_7 } from './shared';
+
+/**
+ * Windows Vista — Aero Glass over the teal-green "Aurora" wallpaper:
+ *   • translucent blurred window frames with a smoky tint,
+ *   • the glossy BLACK taskbar Vista shipped with,
+ *   • the round Start orb (no text label — Vista dropped the word "Start"),
+ *   • Segoe UI, introduced with Vista.
+ */
+export const winvista: PCThemeDefinition = {
+  id: 'winvista',
+  label: 'Windows Vista',
+  era: '2007',
+  description: 'Aero Glass debut — smoky translucent frames and the Start orb.',
+  family: 'aero',
+  iconPack: 'aero',
+  preview: { a: '#062431', b: '#30a478', c: '#66b8e8' },
+  tokens: {
+    '--pc-font': `'Segoe UI', Tahoma, Arial, sans-serif`,
+    '--pc-titlebar-font': `'Segoe UI', Tahoma, Arial, sans-serif`,
+    '--pc-desktop-bg': '#062431',
+    '--pc-surface': 'rgba(30, 42, 54, 0.92)',
+    '--pc-surface-text': '#f0f4f8',
+    '--pc-window-bg': 'rgba(120, 146, 165, 0.55)',
+    '--pc-window-radius': '7px',
+    '--pc-window-border': 'rgba(255,255,255,0.35)',
+    '--pc-window-shadow': '0 8px 30px rgba(0,0,0,0.6)',
+    '--pc-content-bg': '#1e2a36',
+    '--pc-titlebar-bg':
+      'linear-gradient(180deg, rgba(180,205,225,0.62) 0%, rgba(105,135,160,0.55) 50%, rgba(70,100,125,0.6) 51%, rgba(120,155,180,0.55) 100%)',
+    '--pc-titlebar-bg-inactive':
+      'linear-gradient(180deg, rgba(160,170,180,0.5) 0%, rgba(110,120,130,0.45) 100%)',
+    '--pc-titlebar-text': '#ffffff',
+    '--pc-titlebar-text-inactive': 'rgba(255,255,255,0.65)',
+    '--pc-titlebar-height': '30px',
+    '--pc-bevel-light': 'rgba(255,255,255,0.5)',
+    '--pc-bevel-dark': 'rgba(0,0,0,0.35)',
+    '--pc-bevel-darker': 'rgba(0,0,0,0.55)',
+    '--pc-accent': '#4580c4',
+    '--pc-accent-text': '#ffffff',
+    '--pc-taskbar-bg':
+      'linear-gradient(180deg, rgba(60,68,74,0.92) 0%, rgba(10,12,14,0.94) 48%, rgba(0,0,0,0.96) 52%, rgba(28,32,36,0.94) 100%)',
+    '--pc-taskbar-text': '#ffffff',
+    '--pc-taskbar-height': '40px',
+    '--pc-taskbar-border': 'rgba(255,255,255,0.18)',
+    '--pc-taskbar-blur': '10px',
+    '--pc-start-bg': 'radial-gradient(circle at 35% 30%, #7fd3f7 0%, #2f7ab8 45%, #123c66 100%)',
+    '--pc-start-text': '#ffffff',
+    '--pc-menu-bg': 'rgba(28, 36, 44, 0.94)',
+    '--pc-menu-text': '#f0f4f8',
+    '--pc-menu-hover-bg': 'rgba(120, 180, 230, 0.28)',
+    '--pc-menu-hover-text': '#ffffff',
+    '--pc-menu-radius': '8px',
+    '--pc-menu-blur': '14px',
+    '--pc-icon-label': '#ffffff',
+    '--pc-icon-label-shadow': '0 1px 3px rgba(0,0,0,0.9)',
+    '--pc-icon-select-bg': 'rgba(120, 180, 230, 0.35)',
+    '--pc-btn-bg': 'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 100%)',
+    '--pc-btn-text': '#f0f4f8',
+    '--pc-field-bg': 'rgba(0,0,0,0.35)',
+    '--pc-field-text': '#f0f4f8',
+    '--pc-banner-from': '#123c66',
+    '--pc-banner-to': '#2f7ab8',
+  },
+  wallpapers: [
+    { id: 'aurora', label: 'Aurora (default)', css: AURORA_VISTA },
+    { id: 'harmony', label: 'Harmony', css: HARMONY_7 },
+    {
+      id: 'vista-green',
+      label: 'Verdant',
+      css: 'linear-gradient(160deg, #0b2e1c 0%, #1d6b40 55%, #0a2416 100%)',
+    },
+    { id: 'black', label: 'None (Black)', css: '#000000' },
+  ],
+  defaultWallpaperId: 'aurora',
+  window: { controls: 'aero', showTitleIcon: true },
+  taskbar: {
+    startLabel: '',
+    startLogo: 'orb',
+    centered: false,
+    showThemeTrayButton: true,
+    showClock: true,
+  },
+  startMenu: 'aero',
+};

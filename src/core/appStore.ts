@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
+import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 
 export type BackgroundTheme =
   | 'starfield' | 'aurora' | 'cyberpunk' | 'matrix' | 'ocean' | 'forest'
@@ -205,18 +205,24 @@ export const useAppStore = create<AppState>()(
       }),
       {
         name: 'pc-jackie-store',
-        // Map serialization for openApps
-        serialize: (state) => JSON.stringify({
-          ...state,
-          openApps: Array.from(state.openApps.entries()),
+        // zustand v5 dropped serialize/deserialize, so Maps (openApps) round-trip
+        // through a tagged replacer/reviver pair on the JSON storage instead.
+        storage: createJSONStorage(() => localStorage, {
+          replacer: (_key, value) =>
+            value instanceof Map
+              ? { __type: 'Map' as const, entries: Array.from(value.entries()) }
+              : value,
+          reviver: (_key, value) => {
+            if (
+              value !== null &&
+              typeof value === 'object' &&
+              (value as { __type?: string }).__type === 'Map'
+            ) {
+              return new Map((value as { entries: [unknown, unknown][] }).entries)
+            }
+            return value
+          },
         }),
-        deserialize: (str) => {
-          const data = JSON.parse(str)
-          return {
-            ...data,
-            openApps: new Map(data.openApps),
-          }
-        },
       }
     ),
     { name: 'PC Jackie Store' }

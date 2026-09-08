@@ -13,6 +13,7 @@ import {
   getActivePersonalityId, setActivePersonalityId,
   getBrain,
 } from '../src/jackie-core/jackie-brains';
+import { JACKIE_FOUNDATION } from '../src/jackie-core/jackie-foundation';
 import AnimatedCanvas from '../src/components/backgrounds/AnimatedCanvas';
 import type { BackgroundTheme } from '../src/components/backgrounds/AnimatedBackgrounds';
 import { BACKGROUND_THEMES } from '../src/components/backgrounds/AnimatedBackgrounds';
@@ -157,8 +158,9 @@ export const JackieShell: React.FC<JackieShellProps> = ({
       const locked = !codeChangesUnlocked();
       const ai = getAiClient();
       const sys =
-        `You are Jackie, the user's primary AI. ${personality?.systemModifier || ''} ` +
-        `You orchestrate an OS ("the PC") full of apps and a paired assistant (Eru). ` +
+        `${JACKIE_FOUNDATION}\n\n` +
+        `${personality?.systemModifier || ''} ` +
+        `You orchestrate Jackie's PC ("the PC") full of apps and a paired assistant (Eru). ` +
         `The underlying brain right now is "${brain?.label || 'free tier'}". ` +
         (locked
           ? `Code-change mode is LOCKED in Settings, so you may plan and explain code but must not claim to have modified the user's code. `

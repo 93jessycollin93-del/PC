@@ -169,6 +169,54 @@ export const ModelRouterApp: React.FC = () => {
     const [showAddProvider, setShowAddProvider] = useState(false);
     const [newProviderForm, setNewProviderForm] = useState<Partial<ModelProvider>>({ hideKey: true });
     const [activeTab, setActiveTab] = useState<'routing' | 'analytics' | 'comparison'>('routing');
+    const [checkingHealth, setCheckingHealth] = useState(false);
+    const [lastHealthCheck, setLastHealthCheck] = useState<number | null>(null);
+    const [healthError, setHealthError] = useState<string | null>(null);
+
+    // Reachability probes per provider. Local providers get a real API hit;
+    // cloud providers get an opaque (no-cors) ping that still fails on DNS/
+    // network errors, which is enough to flag a provider as unreachable.
+    const HEALTH_PROBES: Record<string, { url: string; mode: RequestMode }> = {
+        ollama_local: { url: 'http://localhost:11434/api/tags', mode: 'cors' },
+        groq_free: { url: 'https://api.groq.com/openai/v1/models', mode: 'no-cors' },
+        deepseek_free: { url: 'https://api.deepseek.com', mode: 'no-cors' },
+        google_free: { url: 'https://generativelanguage.googleapis.com', mode: 'no-cors' },
+        anthropic_free: { url: 'https://api.anthropic.com', mode: 'no-cors' },
+        openrouter_free: { url: 'https://openrouter.ai/api/v1/models', mode: 'no-cors' },
+        huggingface_models: { url: 'https://huggingface.co', mode: 'no-cors' },
+        together_free: { url: 'https://api.together.xyz', mode: 'no-cors' },
+        replicate_free: { url: 'https://api.replicate.com', mode: 'no-cors' },
+        perplexity_free: { url: 'https://api.perplexity.ai', mode: 'no-cors' },
+    };
+
+    const checkProviderHealth = async () => {
+        setCheckingHealth(true);
+        setHealthError(null);
+        try {
+            const results = await Promise.all(providers.map(async (p) => {
+                const probe = HEALTH_PROBES[p.id];
+                if (!probe) return { id: p.id, status: p.status };
+                try {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 4000);
+                    await fetch(probe.url, { method: 'GET', mode: probe.mode, signal: ctrl.signal });
+                    clearTimeout(timer);
+                    return { id: p.id, status: 'available' as ModelProvider['status'] };
+                } catch {
+                    return { id: p.id, status: 'unavailable' as ModelProvider['status'] };
+                }
+            }));
+            setProviders(prev => prev.map(p => {
+                const r = results.find(x => x.id === p.id);
+                return r ? { ...p, status: r.status } : p;
+            }));
+            setLastHealthCheck(Date.now());
+        } catch (e) {
+            setHealthError(e instanceof Error ? e.message : 'Health check failed');
+        } finally {
+            setCheckingHealth(false);
+        }
+    };
 
     // Load from localStorage
     useEffect(() => {

@@ -8,6 +8,11 @@ import { App } from './App';
 import { initializeGlobalState } from './lib/persist';
 import { AuthProvider } from './lib/authContext';
 import { ToastProvider } from './lib/toastContext';
+import { PCThemeProvider } from './src/pc-themes/PCThemeContext';
+// Points the shared jackyClient at this server's /api/jacky relay, so every
+// panel that asks for telemetry gets the real engine instead of placeholders.
+// Side-effect import: must run before any app queries jackyClient.
+import './lib/jackyBootstrap';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Failed to find the root element');
@@ -53,7 +58,11 @@ const RootApp = () => {
         <React.StrictMode>
             <AuthProvider>
                 <ToastProvider>
-                    <App />
+                    {/* PC-shell theme context — state only; visuals stay scoped
+                        to the PC desktop container inside App. */}
+                    <PCThemeProvider>
+                        <App />
+                    </PCThemeProvider>
                 </ToastProvider>
             </AuthProvider>
         </React.StrictMode>
@@ -62,9 +71,18 @@ const RootApp = () => {
 
 root.render(<RootApp />);
 
-if ('serviceWorker' in navigator) {
+// Register the service worker relative to the deployed base path so the app
+// keeps working when hosted under a sub-path (e.g. embedded at /pc-os/ inside
+// Jackie). Skip registration inside iframes: the embedding page owns the
+// origin-level service worker and a nested registration would fight it.
+const isEmbedded = (() => {
+  try { return window.self !== window.top; } catch { return true; }
+})();
+
+if ('serviceWorker' in navigator && !isEmbedded) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(registration => {
+    const swUrl = `${import.meta.env.BASE_URL}sw.js`;
+    navigator.serviceWorker.register(swUrl).then(registration => {
       console.log('SW registered: ', registration);
     }).catch(registrationError => {
       console.log('SW registration failed: ', registrationError);

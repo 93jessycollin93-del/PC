@@ -259,7 +259,7 @@ class SecretsVault {
     if (!this.masterKey) return;
 
     const storage = appStorage('secrets-vault');
-    const vaultData = storage.get<VaultStore>('vault');
+    const vaultData = storage.get<VaultStore | null>('vault', null);
     if (!vaultData) {
       throw new Error('No vault data found');
     }
@@ -291,7 +291,7 @@ class SecretsVault {
    */
   private loadVault(): void {
     const storage = appStorage('secrets-vault');
-    this.vaultData = storage.get<VaultStore>('vault');
+    this.vaultData = storage.get<VaultStore | null>('vault', null);
     if (this.vaultData) {
       // Vault exists but needs unlock password
       this.initialized = false;

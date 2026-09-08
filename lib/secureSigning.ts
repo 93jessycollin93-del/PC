@@ -137,7 +137,7 @@ class SecureSigner {
       const data: Record<string, any> = {};
 
       keys.forEach(key => {
-        data[key] = storage.get(key);
+        data[key] = storage.get(key, null);
       });
 
       return this.signExport({ namespace, data, timestamp: Date.now() });

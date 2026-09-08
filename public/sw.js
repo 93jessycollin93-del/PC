@@ -3,10 +3,12 @@ const CACHE_NAME = 'vc-offline-cache-v1';
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      // Relative to the SW scope so the app works when deployed under a
+      // sub-path (e.g. /pc-os/) as well as at the origin root.
       return cache.addAll([
-        '/',
-        '/index.html',
-        '/manifest.json'
+        './',
+        './index.html',
+        './manifest.json'
       ]);
     })
   );

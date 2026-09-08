@@ -19,7 +19,7 @@ interface ScopeSpend {
   currentMonthSpend: number;
   currentMonthStart: number;
   lastUpdated: number;
-  spendByProvider: Record<ModelProvider, number>;
+  spendByProvider: Partial<Record<ModelProvider, number>>;
 }
 
 class BudgetGuardian {

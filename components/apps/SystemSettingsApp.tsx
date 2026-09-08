@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Sliders, Save, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
+import { PCThemePicker } from '../../src/pc-themes/components/PCThemePicker';
 
 interface SystemSettings {
   defaultAiModel: 'claude' | 'gemini' | 'ollama' | 'codex' | 'grok';
@@ -30,7 +31,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
 export const SystemSettingsApp: React.FC = () => {
   const { user } = useAuth();
   const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
-  const [activeTab, setActiveTab] = useState<'ai' | 'system' | 'privacy' | 'info'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'appearance' | 'system' | 'privacy' | 'info'>('ai');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Load settings from localStorage
@@ -82,7 +83,7 @@ export const SystemSettingsApp: React.FC = () => {
 
       {/* Tabs */}
       <div className="h-12 border-b border-zinc-800 bg-zinc-900/50 px-4 flex items-center gap-1 shrink-0">
-        {(['ai', 'system', 'privacy', 'info'] as const).map(tab => (
+        {(['ai', 'appearance', 'system', 'privacy', 'info'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -142,6 +143,24 @@ export const SystemSettingsApp: React.FC = () => {
                   </label>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Appearance — PC shell themes (Win95 → Win11 + cosmic default).
+            Theme state lives in PCThemeProvider (its own localStorage key),
+            fully independent of these SystemSettings — the Save/Reset
+            buttons below don't touch it, and vice versa. */}
+        {activeTab === 'appearance' && (
+          <div className="space-y-4">
+            <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700 text-zinc-200">
+              <label className="block text-sm font-bold text-white mb-1">PC Look & Feel</label>
+              <p className="text-[10px] text-zinc-400 mb-4">
+                Skins the PC shell only — wallpaper, taskbar, window chrome, icons.
+                Apps, Eru's vault, and Jackie's cosmic chat are never affected.
+                Changes apply instantly and persist on this device.
+              </p>
+              <PCThemePicker />
             </div>
           </div>
         )}

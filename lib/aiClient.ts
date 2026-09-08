@@ -64,7 +64,8 @@ class AIClient {
     }
 
     // Route to best provider
-    const routing = modelRouter.route(['chat'], ['chat'], maxTokens, options.taskId);
+    const lastUserText = [...messages].reverse().find(m => m.role === 'user')?.content ?? '';
+    const routing = modelRouter.route(lastUserText, ['chat'], maxTokens, options.taskId);
 
     // Capability gate: block paid providers when spend is revoked for this scope.
     if (PAID_PROVIDERS.includes(routing.provider) && !permissions.require(scope, 'spend', routing.provider)) {
@@ -114,7 +115,7 @@ class AIClient {
       budgetGuardian.recordSpend(scope, routing.provider, response.cost);
 
       // Mark provider as healthy (recovery)
-      if (routing.provider !== 'ollama') {
+      if ((routing.provider as ModelProvider | 'ollama') !== 'ollama') {
         fallbackOrchestrator.markProviderUp(routing.provider as ModelProvider);
       }
 
@@ -124,12 +125,12 @@ class AIClient {
       console.error(`[AIClient] Error calling ${routing.provider}:`, errorMsg);
 
       // Mark provider as down for future requests
-      if (routing.provider !== 'ollama') {
+      if ((routing.provider as ModelProvider | 'ollama') !== 'ollama') {
         fallbackOrchestrator.markProviderDown(routing.provider as ModelProvider, errorMsg);
       }
 
       // Try to get a fallback provider and retry
-      if (routing.provider !== 'ollama') {
+      if ((routing.provider as ModelProvider | 'ollama') !== 'ollama') {
         const fallback = fallbackOrchestrator.getFallback(routing.provider as ModelProvider);
         if (fallback && fallback !== routing.provider) {
           console.log(`[AIClient] Attempting fallback to ${fallback}`);

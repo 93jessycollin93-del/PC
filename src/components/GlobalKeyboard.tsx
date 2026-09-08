@@ -128,7 +128,7 @@ export const GlobalKeyboard: React.FC = () => {
     }
   };
 
-  const getLayout = () => KEYBOARD_LAYOUTS[currentLayout];
+  const getLayout = () => KEYBOARD_LAYOUTS[keyboardLayout];
 
   return (
     <>

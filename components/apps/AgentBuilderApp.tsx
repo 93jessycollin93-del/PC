@@ -21,6 +21,16 @@ interface Agent {
     running?: boolean;
 }
 
+// Approximate blended USD cost per token for each model tier, used to
+// estimate a run's cost from usageMetadata.totalTokenCount.
+const COST_PER_TOKEN: Record<Agent['modelTier'], number> = {
+    free: 0,
+    low: 0.0000002,
+    medium: 0.000001,
+    high: 0.000005,
+    burst: 0.00001,
+};
+
 interface WorkflowTemplate {
     id: string;
     name: string;

@@ -90,7 +90,7 @@ import { AuthButton } from './components/AuthButton';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { SystemMonitor } from './components/SystemMonitor';
 import { AppConnectorApp, iconMap } from './components/apps/AppConnectorApp';
-import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Share2, Cloud, Github, Radio, Cpu, Network, Sparkles, BookOpen, Rabbit, Code2, Circle, Box, Binary, Flame, Compass, Layers, Globe, Send, HardDrive, Braces, Eye, Zap, Database, ChefHat, ClipboardList, DollarSign, Building, Music, Sliders, Video, Smartphone, Palette, Mic, MessageSquare, RefreshCw, PlayCircle, Search, FolderOpen, Users, Trophy, Volume2, Link2, Target, Disc, Bot, ShieldAlert, MoreVertical, Archive, Key, ShieldCheck, Shield, Gauge, Bell, Brain, Lock, Grid2X2, Activity, Clock, Copy, RotateCcw, AlertTriangle, Star, Package } from 'lucide-react';
 import { Cybernetic67App } from './components/apps/Cybernetic67App';
 import { PromptToJsonApp } from './components/apps/PromptToJsonApp';
 import { BuildVaultApp } from './components/apps/BuildVaultApp';
@@ -109,6 +109,8 @@ import { CrossAiLabApp } from './components/apps/CrossAiLabApp';
 import { Terminal as TerminalApp } from './src/components/apps/Terminal';
 import { UIStudio } from './src/components/apps/UIStudio';
 import { saveGlobalState, loadGlobalState } from './lib/persist';
+import { secretsVault } from './lib/secretsVault';
+import { migrateSecretsToVault } from './lib/secretsMigration';
 import { bus } from './lib/bus';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider } from './lib/toastContext';
@@ -122,7 +124,10 @@ import { AgentOrchestrationDashboard } from './components/apps/AgentOrchestratio
 import { CostAnalyticsApp } from './components/apps/CostAnalyticsApp';
 import { AnsibleAutomationApp } from './components/apps/AnsibleAutomationApp';
 import { JackieCouncilApp } from './components/apps/JackieCouncilApp';
-import { useAppStore } from './src/core/appStore';
+// PC theme system — scoped to the PC desktop surface only (see src/pc-themes/README.md).
+import { usePCTheme } from './src/pc-themes/PCThemeContext';
+import { PCShell } from './src/pc-themes/components/PCShell';
+import { PCThemeManagerApp } from './src/pc-themes/components/PCThemeManagerApp';
 
 const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'qpdb', name: 'qpdb Matrix', type: 'app', icon: Layers, appId: 'qpdb', bgColor: 'bg-gradient-to-br from-amber-600 via-rose-700 to-zinc-950 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]' },
@@ -148,6 +153,7 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'api_keys', name: 'API Keys', type: 'app', icon: Key, appId: 'api_keys', bgColor: 'bg-gradient-to-br from-yellow-600 via-amber-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
     { id: 'cost_analytics', name: 'Cost Analytics', type: 'app', icon: DollarSign, appId: 'cost_analytics', bgColor: 'bg-gradient-to-br from-yellow-500 via-orange-600 to-red-600 border border-yellow-400/30 shadow-[0_0_15px_rgba(234,179,8,0.3)]' },
     { id: 'system_settings', name: 'Settings', type: 'app', icon: Sliders, appId: 'system_settings', bgColor: 'bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 border border-purple-400/30 shadow-md' },
+    { id: 'pc_themes', name: 'Themes', type: 'app', icon: Palette, appId: 'pc_themes', bgColor: 'bg-gradient-to-br from-teal-600 via-cyan-700 to-blue-900 border border-teal-400/30 shadow-md' },
     { id: 'tool_registry', name: 'Tool Registry', type: 'app', icon: Star, appId: 'tool_registry', bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 border border-purple-400/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' },
     { id: 'agent_orchestration', name: 'Agent Orchestration', type: 'app', icon: Users, appId: 'agent_orchestration', bgColor: 'bg-gradient-to-br from-blue-500 via-purple-600 to-indigo-700 border border-blue-400/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]' },
     { id: 'ansible_automation', name: 'Ansible Automation', type: 'app', icon: Sliders, appId: 'ansible_automation', bgColor: 'bg-gradient-to-br from-red-600 via-orange-600 to-red-800 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
@@ -188,6 +194,20 @@ const INITIAL_DESKTOP_ITEMS: DesktopItem[] = [
     { id: 'cross_ai_lab', name: 'Cross-AI Lab', type: 'app', icon: Bot, appId: 'cross_ai_lab', bgColor: 'bg-gradient-to-br from-violet-600 via-purple-700 to-pink-700 border border-violet-400/40 shadow-[0_0_15px_rgba(139,92,246,0.3)]' },
     { id: 'terminal', name: 'Opus Terminal', type: 'app', icon: Terminal, appId: 'terminal', bgColor: 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-900 border border-slate-600/50 shadow-[0_0_20px_rgba(51,65,85,0.4)]' },
     { id: 'ui_studio', name: 'UI Studio', type: 'app', icon: Palette, appId: 'ui_studio', bgColor: 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.35)]' },
+
+    // --- Security Hardening Apps (Phase C & D) ---
+    { id: 'security_center', name: 'Security Center', type: 'app', icon: ShieldAlert, appId: 'security_center', bgColor: 'bg-gradient-to-br from-red-600 via-orange-700 to-zinc-950 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]' },
+    { id: 'self_audit_scanner', name: 'Self-Audit Scanner', type: 'app', icon: AlertTriangle, appId: 'self_audit_scanner', bgColor: 'bg-gradient-to-br from-yellow-600 via-orange-700 to-zinc-950 border border-yellow-500/30 shadow-md' },
+    { id: 'dependency_cve_checker', name: 'CVE Checker', type: 'app', icon: Package, appId: 'dependency_cve_checker', bgColor: 'bg-gradient-to-br from-blue-600 via-indigo-700 to-zinc-950 border border-blue-500/30 shadow-md' },
+    { id: 'secrets_hygiene', name: 'Secrets Hygiene', type: 'app', icon: Key, appId: 'secrets_hygiene', bgColor: 'bg-gradient-to-br from-cyan-600 via-teal-700 to-zinc-950 border border-cyan-500/30 shadow-md' },
+    { id: 'security_event_log', name: 'Security Log', type: 'app', icon: AlertTriangle, appId: 'security_event_log', bgColor: 'bg-gradient-to-br from-orange-600 via-red-700 to-zinc-950 border border-orange-500/30 shadow-md' },
+    { id: 'integrity_monitor', name: 'Integrity Monitor', type: 'app', icon: Shield, appId: 'integrity_monitor', bgColor: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-zinc-950 border border-emerald-500/30 shadow-md' },
+    { id: 'audit_trail', name: 'Audit Trail', type: 'app', icon: BookOpen, appId: 'audit_trail', bgColor: 'bg-gradient-to-br from-indigo-600 via-purple-700 to-zinc-950 border border-indigo-500/30 shadow-md' },
+    { id: 'anomaly_alert', name: 'Anomaly Detector', type: 'app', icon: AlertTriangle, appId: 'anomaly_alert', bgColor: 'bg-gradient-to-br from-red-600 via-pink-700 to-zinc-950 border border-red-500/30 shadow-md' },
+    { id: 'data_vault', name: 'Data Vault', type: 'app', icon: Database, appId: 'data_vault', bgColor: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-zinc-950 border border-purple-500/30 shadow-md' },
+    { id: 'data_redaction', name: 'Data Redaction', type: 'app', icon: Eye, appId: 'data_redaction', bgColor: 'bg-gradient-to-br from-slate-600 via-zinc-700 to-zinc-950 border border-slate-500/30 shadow-md' },
+    { id: 'session_recorder', name: 'Session Recorder', type: 'app', icon: Clock, appId: 'session_recorder', bgColor: 'bg-gradient-to-br from-amber-600 via-orange-700 to-zinc-950 border border-amber-500/30 shadow-md' },
+
     {
         id: 'how_to_use', 
         name: 'how_to_use.txt', 
@@ -392,7 +412,11 @@ export const App: React.FC = () => {
     const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(globalState?.wallpaperUrl || null);
     // Jackie front-page shell: 'closed' = Jackie full screen (front page),
     // 'half' = PC on top / Jackie below, 'full' = PC full screen.
-    const [pcMode, setPcMode] = useState<PcMode>('closed');
+    const [pcMode, setPcMode] = useState<PcMode>('full');
+    // PC theme context (provider lives in index.tsx). While the default
+    // cosmic-jackie theme is active this is a pure passthrough: the desktop
+    // renders exactly as before and no themed chrome mounts anywhere.
+    const { isDefault: pcThemeIsDefault, wallpaper: pcWallpaper, scopeProps: pcScopeProps } = usePCTheme();
     const [vaultUnlockModal, setVaultUnlockModal] = useState<{ visible: boolean; password: string; error?: string }>({ visible: false, password: '' });
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -438,10 +462,10 @@ export const App: React.FC = () => {
             populateMap(desktopItems);
 
             const restoredWindows = profile.windows
-                .map(sw => {
-                    let item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
+                .map((sw): OpenWindow | null => {
+                    const item: DesktopItem | undefined = allItemsMap.get(sw.itemId);
                     if (!item) return null;
-                    return { ...sw, id: sw.id, item };
+                    return { id: sw.id, item, zIndex: sw.zIndex, pos: sw.pos, size: sw.size };
                 })
                 .filter((w): w is OpenWindow => w !== null);
 
@@ -454,8 +478,7 @@ export const App: React.FC = () => {
             }
         };
 
-        bus.on('restore-workspace-profile', handleRestoreProfile);
-        return () => bus.off('restore-workspace-profile', handleRestoreProfile);
+        return bus.on('restore-workspace-profile', handleRestoreProfile);
     }, [desktopItems]);
 
     useEffect(() => {
@@ -516,6 +539,7 @@ export const App: React.FC = () => {
         if (item.appId === 'terminal') initialSize = { width: 700, height: 500 };
         if (item.appId === 'ui_studio') initialSize = { width: 960, height: 620 };
         if (item.appId === 'cross_ai_lab') initialSize = { width: 1000, height: 700 };
+        if (item.appId === 'pc_themes') initialSize = { width: 780, height: 560 };
 
         setOpenWindows(prev => [...prev, {
             id: item.id,
@@ -533,6 +557,37 @@ export const App: React.FC = () => {
         automationEngine.start();
         schedulerEngine.start();
         startNotificationCollector();
+    }, []);
+
+    // Deep-link support: ?pc=full|half|closed picks the shell mode and
+    // ?app=<desktop item id or appId> auto-launches an app on boot. This is
+    // what lets an embedding shell (e.g. Jackie's left menu) open the PC
+    // directly on a specific tool.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const pc = params.get('pc');
+        if (pc === 'full' || pc === 'half' || pc === 'closed') {
+            setPcMode(pc);
+        }
+        const app = params.get('app');
+        if (!app) return;
+        const findItem = (items: (DesktopItem | null)[]): DesktopItem | undefined => {
+            for (const item of items) {
+                if (!item) continue;
+                if (item.id === app || item.appId === app) return item;
+                if (item.type === 'folder' && item.contents) {
+                    const found = findItem(item.contents);
+                    if (found) return found;
+                }
+            }
+            return undefined;
+        };
+        const item = findItem(desktopItems);
+        if (item) {
+            if (pc === null) setPcMode('half');
+            handleLaunch(item);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Vault unlock gate: if a vault exists but isn't unlocked, prompt for password
@@ -1015,15 +1070,25 @@ Body: ${emailToSummarize.body}`,
                 }}
             />
 
-            {/* Desktop Area with Dynamic Background */}
-            <div 
-                className="h-full w-full relative overflow-hidden bg-zinc-900 transition-all duration-1000 ease-in-out"
-                style={{
-                    backgroundImage: wallpaperUrl 
-                       ? `url(${wallpaperUrl})` 
-                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.25) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.2) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.2) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 20%)',
+            {/* Desktop Area with Dynamic Background — this div is the PC THEME
+                SCOPE: the data-pc-* attributes activate the scoped stylesheet
+                and carry the theme's CSS variables. Cosmic default keeps the
+                original gradient / AI-generated wallpaper pipeline untouched;
+                a Windows theme paints its era wallpaper instead. */}
+            <div
+                data-pc-theme={pcScopeProps['data-pc-theme']}
+                data-pc-family={pcScopeProps['data-pc-family']}
+                className={`h-full w-full relative overflow-hidden transition-all duration-1000 ease-in-out ${pcThemeIsDefault ? 'bg-gradient-to-br from-zinc-900 via-zinc-950 to-black' : ''}`}
+                style={pcThemeIsDefault ? {
+                    backgroundImage: wallpaperUrl
+                       ? `url(${wallpaperUrl})`
+                       : 'radial-gradient(circle at 50% 120%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 10% 100%, rgba(56, 189, 248, 0.25) 0%, transparent 30%), radial-gradient(circle at 90% 100%, rgba(236, 72, 153, 0.25) 0%, transparent 30%), radial-gradient(circle at 30% 80%, rgba(16, 185, 129, 0.15) 0%, transparent 20%)',
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center'
+                    backgroundPosition: 'center',
+                    backgroundAttachment: 'fixed'
+                } : {
+                    ...pcScopeProps.style,
+                    background: pcWallpaper.css || 'var(--pc-desktop-bg, #008080)',
                 }}
             >
                 
@@ -1111,6 +1176,20 @@ Body: ${emailToSummarize.body}`,
                     else if (win.item.appId === 'cross_ai_lab') content = <CrossAiLabApp />;
                     else if (win.item.appId === 'terminal') content = <TerminalApp onClose={() => closeWindow(win.id)} />;
                     else if (win.item.appId === 'ui_studio') content = <UIStudio onClose={() => closeWindow(win.id)} />;
+                    // Security hardening apps
+                    else if (win.item.appId === 'security_center') content = <SecurityCenterApp />;
+                    else if (win.item.appId === 'self_audit_scanner') content = <SelfAuditScannerApp />;
+                    else if (win.item.appId === 'dependency_cve_checker') content = <DependencyCVECheckerApp />;
+                    else if (win.item.appId === 'secrets_hygiene') content = <SecretsHygieneApp />;
+                    else if (win.item.appId === 'security_event_log') content = <SecurityEventLogApp />;
+                    else if (win.item.appId === 'integrity_monitor') content = <IntegrityMonitorApp />;
+                    else if (win.item.appId === 'audit_trail') content = <AuditTrailApp />;
+                    else if (win.item.appId === 'anomaly_alert') content = <AnomalyAlertApp />;
+                    else if (win.item.appId === 'data_vault') content = <DataVaultApp />;
+                    else if (win.item.appId === 'data_redaction') content = <DataRedactionApp />;
+                    else if (win.item.appId === 'session_recorder') content = <SessionRecorderApp />;
+                    // PC shell: theme manager (Display Properties + Update Center)
+                    else if (win.item.appId === 'pc_themes') content = <PCThemeManagerApp />;
                     else if (win.item.appId) content = <UniversalAppSimulator appId={win.item.appId} appName={win.item.name} initialUrl={win.item.url} />;
                     else if (win.item.url) content = (
                         <iframe
@@ -1145,6 +1224,23 @@ Body: ${emailToSummarize.body}`,
                 })}
 
                 <InkLayer active={inkMode} strokes={strokes} setStrokes={setStrokes} isProcessing={isProcessing} />
+
+                {/* Era shell bars (taskbar / dock / menubar per theme) — only
+                    with a non-default theme active and the PC full-screen (in
+                    half mode Jackie owns the lower half). Lives inside the
+                    theme scope; launches/focuses via the exact same callbacks
+                    the desktop already uses. */}
+                {!pcThemeIsDefault && pcMode === 'full' && (
+                    <PCShell
+                        apps={desktopItems.filter(Boolean) as DesktopItem[]}
+                        openWindows={openWindows.map(w => ({ id: w.id, title: w.item.name, item: w.item }))}
+                        focusedId={focusedId}
+                        onFocusWindow={focusWindow}
+                        onLaunchApp={handleLaunch}
+                        onLaunchAppId={(appId) => bus.emit('launch-app', { appId })}
+                        onShutDown={() => setPcMode('closed')}
+                    />
+                )}
 
                 {toast && (
                     // Notification Card

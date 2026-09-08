@@ -39,7 +39,7 @@ export const MemoryFabricApp: React.FC = () => {
       .split(/[,\s]+/)
       .map(t => t.trim())
       .filter(t => t.length > 0);
-    memoryFabric.remember(title, content, selectedType || 'fact', tags);
+    memoryFabric.remember(title, content, (selectedType || 'fact') as Parameters<typeof memoryFabric.remember>[2], tags);
     setTitle('');
     setContent('');
     setTagsInput('');
