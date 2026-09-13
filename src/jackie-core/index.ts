@@ -21,6 +21,21 @@ export type {
 // Personality & Voice
 export { JACKIE_PERSONALITY, JACKIE_RESPONSE_TEMPLATES, generateExecutionPreamble, JACKIE_SIGN_OFF } from './jackie-personality';
 
+// Resonance Council — the core thinking loop (thought starts and ends in Jackie)
+export { ResonanceCouncil, resonanceCouncil, COUNCIL_SEATS, getSeat, JESSYS_LENS, MAX_LOOPS } from './resonance-council';
+export type {
+  Supporter,
+  SeatId,
+  SupporterPerspective,
+  SupporterThinkFn,
+  Claim,
+  ClaimKind,
+  Stance,
+  ResonanceCheck,
+  ThoughtEvent,
+  ThoughtTrace,
+} from './resonance-council';
+
 // Mini PC Integration
 export { MiniPCManager } from './mini-pc-integration';
 export type { MiniPCApp, AppAction, MiniPCState } from './mini-pc-integration';
