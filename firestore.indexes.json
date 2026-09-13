@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "flipper_telemetry",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "created_by", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
